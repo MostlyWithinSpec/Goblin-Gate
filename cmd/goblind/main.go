@@ -27,13 +27,16 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
+	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/suricata"
+	sysrender "github.com/networkgoblinlabs/goblin-gate/internal/render/system"
 	tsrender "github.com/networkgoblinlabs/goblin-gate/internal/render/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/unbound"
 	wgrender "github.com/networkgoblinlabs/goblin-gate/internal/render/wireguard"
@@ -193,7 +196,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}}
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
 	// Web filter (task 033): goblind answers the DNS of web-filtered
@@ -212,11 +215,24 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		wgKeyDir = filepath.Join(dir, "wireguard")
 	}
 	engine.BeforeApply = func(cfg *config.Config) error { return wireguard.EnsureKeys(wgKeyDir, cfg) }
+	// DHCP client names in DNS (task 055): kept in Unbound at runtime.
+	dhcpNames := &dhcpdns.Syncer{LeaseFile: kea.LeaseFile, Logger: logger, Settings: func() (dhcpdns.Settings, error) {
+		cfg, err := store.Running()
+		if err != nil {
+			return dhcpdns.Settings{}, err
+		}
+		return dhcpDNSSettings(cfg), nil
+	}}
+	if o.dev {
+		dhcpNames.Control = func(context.Context, ...string) error { return nil }
+	}
 	engine.AfterApply = func(live *config.Config) {
 		wf.Resync(live)
 		dnsSync.Resync(live)
 		feedSync.Resync(live)
+		dhcpNames.Resync(ctx) // a commit restarts Unbound, which drops runtime names
 	}
+	go dhcpNames.Run(ctx)
 
 	// Re-apply the running config so the live data plane matches what is on disk.
 	if applied, err := engine.ApplyRunning(ctx); err != nil {
@@ -227,6 +243,44 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 
 	apiServer := api.NewServer(store, engine)
 	apiServer.Logger = logger
+
+	// Notifications (task 053): alerts about commits, lockouts, feed errors,
+	// IPS blocks and WANs go to the channels the running config names; each
+	// delivery is recorded as a system event in the log store.
+	notifier := &notify.Dispatcher{
+		Logger: logger,
+		Config: func() (config.Notifications, error) {
+			cfg, err := store.Running()
+			if err != nil {
+				return config.Notifications{}, err
+			}
+			return cfg.Notifications, nil
+		},
+		Hostname: func() string {
+			if cfg, err := store.Running(); err == nil {
+				return cfg.System.Hostname
+			}
+			return ""
+		},
+		Delivered: func(ev notify.Event, channels []string) {
+			if logStore == nil {
+				return
+			}
+			e := &logs.Event{Time: ev.Time.Unix(), Kind: "system", Action: ev.Kind,
+				Message: ev.Title + " (sent to " + strings.Join(channels, ", ") + ")"}
+			if err := logStore.InsertBatch([]*logs.Event{e}); err != nil {
+				logger.Warn("notify: storing event failed", "error", err)
+			}
+		},
+	}
+	go notifier.Run(ctx)
+	apiServer.Notify = notifier
+	feedMgr.OnError = func(name string, err error) {
+		notifier.Publish(notify.Event{Kind: "feed_error", Key: name, Title: "Threat feed download failed",
+			Message: fmt.Sprintf("Feed %q: %v. Its last good copy stays in use.", name, err)})
+	}
+	ipsBatch := &notify.IPSBatcher{D: notifier}
+	go ipsBatch.Run(ctx)
 
 	// IPS: refresh ET Open daily and reload the Suricata instances.
 	if !o.dev {
@@ -256,7 +310,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if err != nil {
 		return err
 	}
-	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store)}
+	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), OnEvent: ipsBatch.Observe}
 	go ingester.Run(ctx, sources)
 	var counters interface {
 		stats.CounterSource
@@ -532,4 +586,22 @@ func startWebFilter(ctx context.Context, wf *webfilter.Filter, dev bool, dir str
 	}()
 	go func() { <-ctx.Done(); page.Close() }()
 	return nil
+}
+
+// dhcpDNSSettings is what the DHCP name syncer needs from the running config:
+// the local domain, whether it is on, and the names already defined there.
+func dhcpDNSSettings(cfg *config.Config) dhcpdns.Settings {
+	domain := strings.ToLower(cfg.EffectiveLocalDomain())
+	taken := map[string]bool{}
+	for name := range cfg.DNS.LocalRecords {
+		taken[strings.ToLower(strings.TrimSuffix(name, "."))] = true
+	}
+	for _, d := range cfg.DHCP {
+		for _, l := range d.StaticLeases {
+			if l.Hostname != "" {
+				taken[strings.ToLower(l.Hostname)+"."+domain] = true
+			}
+		}
+	}
+	return dhcpdns.Settings{Enabled: !cfg.DNS.NoDHCPNames, Domain: domain, Taken: taken}
 }

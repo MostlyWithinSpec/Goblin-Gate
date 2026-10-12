@@ -593,3 +593,31 @@ func TestApplyNewRPZZoneIsStagedForTheCheck(t *testing.T) {
 		t.Errorf("config written with the staged path: %q", got)
 	}
 }
+
+func TestApplySystemSettings(t *testing.T) {
+	h, r := newHost(t)
+	files := baseFiles()
+	files["/var/lib/goblingate/system/hostname"] = []byte("gate\n")
+	files["/var/lib/goblingate/system/timezone"] = []byte("UTC\n")
+	files["/etc/systemd/timesyncd.conf.d/goblin.conf"] = []byte("[Time]\nNTP=pool.ntp.org\n")
+	files["/etc/ssh/sshd_config.d/goblin.conf"] = []byte("PasswordAuthentication no\n")
+	files["/etc/ssh/goblin_authorized_keys/root"] = []byte("# none\n")
+	if err := h.Apply(context.Background(), files); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(r.lines(h.Root), "\n")
+	for _, want := range []string{"hostnamectl set-hostname gate", "timedatectl set-timezone UTC",
+		"systemctl try-restart systemd-timesyncd.service", "systemctl try-reload-or-restart ssh.service"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	// only the time zone changes: only timedatectl runs
+	files["/var/lib/goblingate/system/timezone"] = []byte("America/Chicago\n")
+	if err := h.Apply(context.Background(), files); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"timedatectl set-timezone America/Chicago"}, r.lines(h.Root)); diff != "" {
+		t.Errorf("time zone change (-want +got):\n%s", diff)
+	}
+}

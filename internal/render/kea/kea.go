@@ -150,9 +150,7 @@ func build(cfg *config.Config) ([]byte, error) {
 			{Name: "routers", Data: router.String()},
 			{Name: "domain-name-servers", Data: joinAddrs(dns)},
 		}
-		if cfg.System.Domain != "" {
-			opts = append(opts, optionData{Name: "domain-name", Data: cfg.System.Domain})
-		}
+		opts = append(opts, optionData{Name: "domain-name", Data: cfg.EffectiveLocalDomain()})
 		lease := d.LeaseSeconds
 		if lease <= 0 {
 			lease = DefaultLeaseSeconds

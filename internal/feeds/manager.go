@@ -77,6 +77,8 @@ type Manager struct {
 	// copy changes, and once per feed when it is first loaded from disk.
 	// It must not call back into the Manager.
 	OnUpdate func(name string, entries []string)
+	// OnError, if set, is called when a download fails (notifications).
+	OnError func(name string, err error)
 
 	mu      sync.Mutex
 	feeds   map[string]*feed
@@ -255,6 +257,9 @@ func (m *Manager) Refresh(ctx context.Context, name string) (Status, error) {
 
 	if saveErr := m.save(name, toSave, saveEntries, err == nil && changed); saveErr != nil {
 		m.logger().Warn("feeds: could not save", "feed", name, "error", saveErr)
+	}
+	if err != nil && m.OnError != nil {
+		m.OnError(name, err)
 	}
 	if err == nil && changed {
 		m.logger().Info("feeds: updated", "feed", name, "count", len(entries))

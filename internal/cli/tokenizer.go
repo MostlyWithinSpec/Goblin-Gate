@@ -201,6 +201,8 @@ func (p *Parser) Parse() ([]Operation, error) {
 	for p.pos < len(p.tokens) {
 		token := p.peek()
 		switch token.Type {
+		case TokenEOF:
+			return operations, nil
 		case TokenConfig:
 			ops, err := p.parseConfig()
 			if err != nil {
@@ -228,7 +230,8 @@ func (p *Parser) parseConfig() ([]Operation, error) {
 	sectionTokens := []Token{}
 	for p.pos < len(p.tokens) {
 		token := p.peek()
-		if token.Type == TokenEOF || token.Type == TokenConfig || token.Type == TokenShow {
+		if token.Type == TokenEOF || token.Type == TokenConfig || token.Type == TokenShow ||
+			token.Type == TokenEdit || token.Type == TokenDelete || token.Type == TokenEnd {
 			break
 		}
 		sectionTokens = append(sectionTokens, token)
@@ -459,16 +462,22 @@ func (p *Parser) parseDelete(configPath string) ([]Operation, error) {
 func (p *Parser) parseShow() ([]Operation, error) {
 	p.consume(TokenShow)
 
-	// Get optional section
-	var section string
-	if p.pos < len(p.tokens) {
+	// Get optional section path (may be multiple words like "system interface")
+	var sectionTokens []Token
+	for p.pos < len(p.tokens) {
 		token := p.peek()
-		if token.Type == TokenString {
-			section = p.consume(TokenString).Value
+		if token.Type != TokenString {
+			break
 		}
+		sectionTokens = append(sectionTokens, token)
+		p.consume(TokenString)
 	}
 
 	// Create operation
+	var section string
+	if len(sectionTokens) > 0 {
+		section = p.tokensToString(sectionTokens)
+	}
 	operation := Operation{
 		Type:    OpShow,
 		Section: section,

@@ -29,7 +29,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Docker engine is not running - start Dock
 $dockerfile = @'
 FROM debian:12
 RUN apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-      systemd systemd-sysv udev iproute2 nftables kea-dhcp4-server unbound wireguard-tools >/dev/null \
+      systemd systemd-sysv systemd-timesyncd openssh-server udev iproute2 nftables kea-dhcp4-server unbound wireguard-tools >/dev/null \
  && apt-get clean && systemctl enable systemd-networkd
 COPY wait-online.conf /etc/systemd/system/systemd-networkd-wait-online.service.d/goblin.conf
 STOPSIGNAL SIGRTMIN+3

@@ -35,6 +35,10 @@ type Ingester struct {
 	// an action (nft log lines do not carry one); nil leaves it empty.
 	PolicyAction func(policyID string) string
 
+	// OnEvent, if set, sees every parsed event before it is stored
+	// (notifications watch IPS drops). It must not block.
+	OnEvent func(*Event)
+
 	BatchSize  int           // default 500
 	FlushEvery time.Duration // default 1s
 	Poll       time.Duration // tailer poll, default 500ms
@@ -109,6 +113,9 @@ func (in *Ingester) Run(ctx context.Context, sources []Source) {
 			}
 			if e.Kind == "traffic" && e.Action == "" && e.PolicyID != "" && in.PolicyAction != nil {
 				e.Action = in.PolicyAction(e.PolicyID)
+			}
+			if in.OnEvent != nil {
+				in.OnEvent(e)
 			}
 			pending = append(pending, e)
 			if len(pending) >= batch {

@@ -66,6 +66,8 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkTailscale()
 	v.checkWireGuard()
 	v.checkAppCtrl()
+	v.checkNotifications()
+	v.checkDNS()
 	return v.errs
 }
 
@@ -83,6 +85,7 @@ func (v *validator) checkSystem() {
 	if c.System.AdminPort < 1 || c.System.AdminPort > 65535 {
 		v.add("system.admin_port", "admin_port %d out of range 1-65535", c.System.AdminPort)
 	}
+	v.checkSystemSettings()
 }
 
 // checkNames enforces valid, unique names within each object type, keeps

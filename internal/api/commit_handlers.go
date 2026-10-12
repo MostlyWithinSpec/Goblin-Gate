@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
+	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 )
 
 type commitRequest struct {
@@ -38,6 +39,12 @@ func (s *Server) commit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "commit", "", map[string]any{"revision": rev, "comment": req.Comment, "confirm_minutes": req.ConfirmMinutes})
+	msg := "Revision " + strconv.Itoa(rev) + " by " + s.user(r)
+	if req.Comment != "" {
+		msg += ": " + req.Comment
+	}
+	s.Notify.Publish(notify.Event{Kind: "commit", Title: "Configuration committed", Message: msg,
+		Fields: map[string]string{"revision": strconv.Itoa(rev), "user": s.user(r)}})
 	resp := map[string]any{"revision": rev}
 	if deadline, ok := s.Commit.PendingConfirm(); ok {
 		resp["confirm_deadline"] = deadline.UTC().Format(time.RFC3339)

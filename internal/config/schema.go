@@ -26,6 +26,7 @@ type Config struct {
 	Feeds         []Feed         `json:"feeds,omitempty"`
 	Admins        []Admin        `json:"admins"`
 	VPN           VPN            `json:"vpn,omitzero"`
+	Notifications Notifications  `json:"notifications,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not
@@ -41,6 +42,15 @@ type System struct {
 	AdminPort  int          `json:"admin_port"` // management plane port, default 443
 	NTPServers []string     `json:"ntp_servers,omitempty"`
 	DNSServers []netip.Addr `json:"dns_servers,omitempty"` // upstream DNS used by the box itself
+	// SSHKeys may log in as root over SSH (where allow_access has ssh);
+	// SSH password login is off.
+	SSHKeys []SSHKey `json:"ssh_keys,omitempty"`
+}
+
+// SSHKey is one OpenSSH public key, e.g. "ssh-ed25519 AAAA... me@laptop".
+type SSHKey struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
 }
 
 // Interface is a physical network interface. Address and Gateway are pointers

@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
+	sysrender "github.com/networkgoblinlabs/goblin-gate/internal/render/system"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/unbound"
 	wgrender "github.com/networkgoblinlabs/goblin-gate/internal/render/wireguard"
 	"github.com/networkgoblinlabs/goblin-gate/internal/wireguard"
@@ -53,7 +55,7 @@ func TestE2E(t *testing.T) {
 		files := map[string][]byte{}
 		for _, r := range []interface {
 			Render(*config.Config) (map[string][]byte, error)
-		}{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{}, wgrender.Renderer{}} {
+		}{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}} {
 			out, err := r.Render(cfg)
 			if err != nil {
 				t.Fatal(err)
@@ -208,6 +210,70 @@ func TestE2E(t *testing.T) {
 		}
 		if !waitFor(func() bool { return !linkExists("wg0") }) {
 			t.Error("wg0 not removed")
+		}
+	})
+
+	t.Run("system settings: hostname, time zone, NTP, ssh", func(t *testing.T) {
+		cfg := config.Default()
+		cfg.System.Hostname = "e2e-gate"
+		cfg.System.Timezone = "America/Chicago"
+		cfg.System.NTPServers = []string{"time.cloudflare.com"}
+		if err := apply(cfg); err != nil {
+			t.Fatal(err)
+		}
+		// Docker bind-mounts /etc/hostname, so hostnamectl gets EBUSY in the
+		// container (the applier logs it and goes on); on a real box it works.
+		if exec.Command("mountpoint", "-q", "/etc/hostname").Run() == nil {
+			t.Log("/etc/hostname is a bind mount (container): hostname not checked")
+		} else if got := strings.TrimSpace(sh(t, "cat /etc/hostname")); got != "e2e-gate" {
+			t.Errorf("/etc/hostname = %q", got)
+		}
+		if got := strings.TrimSpace(sh(t, "readlink /etc/localtime")); !strings.HasSuffix(got, "America/Chicago") {
+			t.Errorf("/etc/localtime -> %q", got)
+		}
+		if got := sh(t, "cat /etc/systemd/timesyncd.conf.d/goblin.conf"); !strings.Contains(got, "NTP=time.cloudflare.com") {
+			t.Errorf("timesyncd: %s", got)
+		}
+		// sshd accepts the drop-in and runs without password logins
+		sh(t, "sshd -t")
+		if got := sh(t, "sshd -T 2>/dev/null | grep -i -E '^(passwordauthentication|permitrootlogin)'"); !strings.Contains(got, "passwordauthentication no") || !strings.Contains(got, "permitrootlogin without-password") {
+			t.Errorf("sshd effective config: %s", got)
+		}
+	})
+
+	t.Run("dhcp client names in unbound at runtime", func(t *testing.T) {
+		if err := apply(config.Default()); err != nil {
+			t.Fatal(err)
+		}
+		sh(t, "systemctl is-active unbound")
+		leases := t.TempDir() + "/leases.csv"
+		exp := fmt.Sprint(time.Now().Unix() + 3600)
+		write := func(rows string) {
+			os.WriteFile(leases, []byte("address,hwaddr,client_id,valid_lifetime,expire,subnet_id,fqdn_fwd,fqdn_rev,hostname,state,user_context\n"+rows), 0o644)
+		}
+		write("192.168.1.150,aa:bb:cc:dd:ee:01,,3600," + exp + ",1,0,0,Kims-Laptop,0,\n")
+		s := &dhcpdns.Syncer{LeaseFile: leases, Settings: func() (dhcpdns.Settings, error) {
+			return dhcpdns.Settings{Enabled: true, Domain: "home.arpa"}, nil
+		}}
+		var err error
+		for i := 0; i < 20; i++ { // unbound may still be starting after the apply
+			if err = s.Sync(ctx); err == nil {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := sh(t, "unbound-control -c /etc/unbound/unbound.conf list_local_data"); !strings.Contains(got, "kims-laptop.home.arpa.") || !strings.Contains(got, "192.168.1.150") {
+			t.Fatalf("name not added: %s", got)
+		}
+		write("")
+		if err := s.Sync(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := sh(t, "unbound-control -c /etc/unbound/unbound.conf list_local_data"); strings.Contains(got, "kims-laptop") {
+			t.Fatalf("name not removed: %s", got)
 		}
 	})
 }

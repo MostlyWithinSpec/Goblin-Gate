@@ -21,6 +21,7 @@ type testAPI struct {
 	srv     *httptest.Server
 	store   *config.Store
 	applier *apply.Fake
+	server  *Server
 }
 
 func newTestAPI(t *testing.T) *testAPI {
@@ -45,7 +46,7 @@ func newTestAPIWith(t *testing.T, configure func(*Server)) *testAPI {
 	}
 	ts := httptest.NewServer(s.Routes())
 	t.Cleanup(ts.Close)
-	return &testAPI{t: t, srv: ts, store: store, applier: applier}
+	return &testAPI{t: t, srv: ts, store: store, applier: applier, server: s}
 }
 
 // do sends a request; body may be nil, a string (sent as is) or a value

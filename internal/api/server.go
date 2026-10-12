@@ -2,13 +2,9 @@
 package api
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -20,6 +16,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
+	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
@@ -54,6 +51,8 @@ type Server struct {
 
 	// Feeds serves the threat feed endpoints; nil answers 503.
 	Feeds *feeds.Manager
+	// Notify sends alerts (task 053); nil sends none.
+	Notify *notify.Dispatcher
 
 	// Logs, Policies and System serve the stats and log endpoints; nil
 	// answers 503.
@@ -110,6 +109,14 @@ func (s *Server) Routes() http.Handler {
 	handle("GET /api/v1/revisions", s.revisions)
 	handle("POST /api/v1/revisions/{rev}/rollback", s.rollback)
 	handle("GET /api/v1/system/status", s.status)
+	handle("GET /api/v1/system/info", s.systemInfo)
+	handle("GET /api/v1/system/backup", s.backup)
+	handle("POST /api/v1/system/restore", s.restore)
+	handle("GET /api/v1/admins", s.listAdmins)
+	handle("POST /api/v1/admins", s.createAdmin)
+	handle("PATCH /api/v1/admins/{name}", s.updateAdmin)
+	handle("DELETE /api/v1/admins/{name}", s.deleteAdmin)
+	handle("POST /api/v1/notifications/test", s.notifyTest)
 	handle("GET /api/v1/feeds", s.feedStatus)
 	handle("GET /api/v1/feeds/lookup", s.feedLookup)
 	handle("POST /api/v1/feeds/{name}/refresh", s.feedRefresh)
@@ -154,11 +161,17 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		// a backup upload is the one non-JSON body (a zip, raw or as a form)
+		upload := r.Method == http.MethodPost && r.URL.Path == "/api/v1/system/restore"
 		if r.Body != nil {
-			r.Body = http.MaxBytesReader(rec, r.Body, MaxBodyBytes)
+			limit := int64(MaxBodyBytes)
+			if upload {
+				limit = MaxBackupSize + 1<<20
+			}
+			r.Body = http.MaxBytesReader(rec, r.Body, limit)
 		}
 		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
-			if r.ContentLength != 0 && !isJSON(r.Header.Get("Content-Type")) {
+			if r.ContentLength != 0 && !isJSON(r.Header.Get("Content-Type")) && !(upload && isUpload(r.Header.Get("Content-Type"))) {
 				writeError(rec, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json", nil)
 				s.logRequest(r, rec.status, start)
 				return
@@ -176,6 +189,12 @@ func (s *Server) logRequest(r *http.Request, status int, start time.Time) {
 func isJSON(ct string) bool {
 	mt, _, err := mime.ParseMediaType(ct)
 	return err == nil && mt == "application/json"
+}
+
+// isUpload accepts the content types a backup upload may use.
+func isUpload(ct string) bool {
+	mt, _, err := mime.ParseMediaType(ct)
+	return err == nil && (mt == "multipart/form-data" || mt == "application/zip" || mt == "application/octet-stream")
 }
 
 type statusRecorder struct {
@@ -259,176 +278,4 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		resp["pending_confirm"] = nil
 	}
 	writeJSON(w, http.StatusOK, resp)
-}
-
-// backup generates a .ggbackup file containing the running config, history, and other relevant data
-func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
-	// Get the running config
-	running, err := s.Store.Running()
-	if err != nil {
-		s.internal(w, "read running config for backup", err)
-		return
-	}
-
-	// Get the history
-	revisions, err := s.Store.ListRevisions()
-	if err != nil {
-		s.internal(w, "read history for backup", err)
-		return
-	}
-
-	// Create zip file in memory
-	var buf bytes.Buffer
-	zipWriter := zip.NewWriter(&buf)
-
-	// Add running.json
-	runningJSON, err := json.MarshalIndent(running, "", "  ")
-	if err != nil {
-		zipWriter.Close()
-		s.internal(w, "marshal running config for backup", err)
-		return
-	}
-
-	// Create file directly with zip.Writer.Create (simpler approach)
-	writer, err := zipWriter.Create("running.json")
-	if err != nil {
-		zipWriter.Close()
-		s.internal(w, "create zip writer for running.json", err)
-		return
-	}
-	writer.Write(runningJSON)
-
-	// Add history index
-	if len(revisions) > 0 {
-		indexJSON, err := json.MarshalIndent(revisions, "", "  ")
-		if err != nil {
-			zipWriter.Close()
-			s.internal(w, "marshal history index for backup", err)
-			return
-		}
-
-		// Create file for history/index.json
-		writer, err = zipWriter.Create("history/index.json")
-		if err != nil {
-			zipWriter.Close()
-			s.internal(w, "create zip writer for history/index.json", err)
-			return
-		}
-		writer.Write(indexJSON)
-
-		// Add individual revision files
-		for _, rev := range revisions {
-			cfg, err := s.Store.Revision(rev.Revision)
-			if err != nil {
-				zipWriter.Close()
-				s.internal(w, fmt.Sprintf("read revision %d for backup", rev.Revision), err)
-				return
-			}
-
-			revJSON, err := json.MarshalIndent(cfg, "", "  ")
-			if err != nil {
-				zipWriter.Close()
-				s.internal(w, fmt.Sprintf("marshal revision %d for backup", rev.Revision), err)
-				return
-			}
-
-			filename := fmt.Sprintf("history/%06d.json", rev.Revision)
-			// Create file
-			writer, err = zipWriter.Create(filename)
-			if err != nil {
-				zipWriter.Close()
-				s.internal(w, fmt.Sprintf("create zip writer for %s", filename), err)
-				return
-			}
-			writer.Write(revJSON)
-		}
-	}
-
-	// Close zip writer
-	zipWriter.Close()
-
-	// Set response headers
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="goblin-backup.zip"`)
-
-	// Write the zip data to response
-	w.Write(buf.Bytes())
-}
-
-// restore validates and loads a .ggbackup file as a candidate config
-func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
-	// Read the uploaded file
-	file, _, err := r.FormFile("backup")
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_backup", "invalid backup file", err.Error())
-		return
-	}
-	defer file.Close()
-
-	// Parse the zip file
-	zipReader, err := zip.NewReader(file, r.ContentLength)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_backup", "invalid backup file format", err.Error())
-		return
-	}
-
-	// Find and read running.json
-	var runningData []byte
-
-	for _, f := range zipReader.File {
-		if f.Name == "running.json" {
-			rc, err := f.Open()
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid_backup", "failed to read running.json", err.Error())
-				return
-			}
-			runningData, err = io.ReadAll(rc)
-			rc.Close()
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid_backup", "failed to read running.json", err.Error())
-				return
-			}
-			break
-		}
-	}
-
-	// Validate running config
-	if runningData == nil {
-		writeError(w, http.StatusBadRequest, "invalid_backup", "backup missing running.json", nil)
-		return
-	}
-
-	running, err := config.Load(bytes.NewReader(runningData))
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_backup", "invalid running config in backup", err.Error())
-		return
-	}
-
-	// Validate that the restored config is valid
-	errs := config.Validate(running)
-	if len(errs) > 0 {
-		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "restored config has validation errors", errs)
-		return
-	}
-
-	// Set the candidate config
-	if err := s.Store.SetCandidate(running); err != nil {
-		s.internal(w, "set candidate config from restore", err)
-		return
-	}
-
-	// Report the differences
-	runningCfg, err := s.Store.Running()
-	if err != nil {
-		s.internal(w, "read running config for diff", err)
-		return
-	}
-
-	changes := config.Diff(runningCfg, running)
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"status":  "success",
-		"message": "Backup restored successfully",
-		"changes": changes,
-	})
 }

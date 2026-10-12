@@ -6,6 +6,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION=${VERSION:-$(git describe --tags --always 2>/dev/null | sed 's/^v//' || echo 0.0.0)}
 case "$VERSION" in [0-9]*.[0-9]*) ;; *) VERSION="0.0.0+g$VERSION" ;; esac
+# Debian ordering: a pre-release must sort before its release (0.1.0~alpha.1
+# < 0.1.0), and builds after a tag after it (git describe "-3-gabc" -> "+3.gabc").
+VERSION=$(echo "$VERSION" | sed -E 's/-([0-9]+)-g([0-9a-f]+)$/+\1.g\2/; s/-/~/')
 [ -f web/dist/index.html ] || { echo "web/dist missing: run npm run build in web/ first" >&2; exit 1; }
 
 ROOT=$(mktemp -d)

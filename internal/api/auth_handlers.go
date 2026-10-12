@@ -10,6 +10,7 @@ import (
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 )
 
 // Cookie and header names shared with the web client (web/src/api/client.ts).
@@ -219,6 +220,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 		locked := a.Limiter.Fail(addr, req.Username)
 		s.audit(r, "login_failed", req.Username, map[string]any{"locked": locked})
+		if locked {
+			s.Notify.Publish(notify.Event{Kind: "login_failed", Key: req.Username, Title: "Login locked out",
+				Message: "Too many wrong passwords for user \"" + req.Username + "\" from " + addr + "; logins are paused for a while.",
+				Fields:  map[string]string{"user": req.Username, "client": addr}})
+		}
 		writeError(w, http.StatusUnauthorized, "login_failed", "wrong user name or password", nil)
 		return
 	}

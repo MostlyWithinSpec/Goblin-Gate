@@ -161,6 +161,47 @@ var groups = []group{
 		prefix:   "/etc/goblingate/tailscale/",
 		activate: func([]string) [][]string { return [][]string{{"/usr/sbin/goblind", "tailscale-apply"}} },
 	},
+	{
+		// Hostname and time zone (task 047): state files, applied with
+		// hostnamectl/timedatectl when their content changes.
+		name:   "system",
+		prefix: "/var/lib/goblingate/system/",
+		prepare: func(file string, _, new []byte) []string {
+			v := strings.TrimSpace(string(new))
+			if new == nil || v == "" {
+				return nil
+			}
+			switch path.Base(file) {
+			case "hostname":
+				return []string{"hostnamectl", "set-hostname", v}
+			case "timezone":
+				return []string{"timedatectl", "set-timezone", v}
+			}
+			return nil
+		},
+	},
+	{
+		// NTP servers for systemd-timesyncd (task 047).
+		name:   "timesync",
+		prefix: "/etc/systemd/timesyncd.conf.d/",
+		activate: func(files []string) [][]string {
+			return [][]string{ifUnit("systemd-timesyncd.service", "try-restart")}
+		},
+	},
+	{
+		// SSH (task 047): key-only logins and root's keys. try-reload: a box
+		// without a running sshd is not an error.
+		name:     "ssh",
+		prefix:   "/etc/ssh/sshd_config.d/",
+		also:     []string{"/etc/ssh/goblin_authorized_keys/"},
+		activate: func([]string) [][]string { return [][]string{ifUnit("ssh.service", "try-reload-or-restart")} },
+	},
+}
+
+// ifUnit runs `systemctl <verb> <unit>` only when the unit is installed, so a
+// box without it (no sshd, a different time daemon) can still commit.
+func ifUnit(unit, verb string) []string {
+	return []string{"sh", "-c", "! systemctl cat " + unit + " >/dev/null 2>&1 || systemctl " + verb + " " + unit}
 }
 
 // keaFile is the part of a Kea DHCPv4 config that names interfaces.

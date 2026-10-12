@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/networkgoblinlabs/goblin-gate/internal/cli"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
 	"golang.org/x/term"
@@ -149,39 +148,24 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  -f FILE      run commands from file")
 	fmt.Fprintln(os.Stderr, "  --version       print version and exit")
 	fmt.Fprintln(os.Stderr, "  -h, --help      show this help")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "examples:")
+	fmt.Fprintln(os.Stderr, `  goblin -c "config interfaces edit lan set address 192.168.1.1/24 next end"`)
+	fmt.Fprintln(os.Stderr, `  goblin -c "commit"`)
+	fmt.Fprintln(os.Stderr, `  goblin -f changes.gob   # run a script of commands`)
 }
 
 func runCommand(server, token, command string) int {
-	// Parse the command using the CLI parser
-	parser := cli.NewParser(cli.NewTokenizer(command).Tokens())
-	operations, err := parser.Parse()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "goblin: parsing error: %v\n", err)
+	client := newGoblinClient(server, token)
+	shell := &interactiveShell{client: client}
+	if err := shell.executeLine(command); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
-
-	// Run operations directly against server
-	if len(operations) == 0 {
-		fmt.Fprintf(os.Stderr, "goblin: no operations to run\n")
-		return 1
-	}
-
-	// For now, just print the operations to stdout for debugging
-	fmt.Printf("Command: %s\n", command)
-	fmt.Printf("Operations: %+v\n", operations)
-
-	// Handle backup/restore commands
-	if strings.HasPrefix(command, "execute backup") {
-		return runBackup(server, token, command)
-	} else if strings.HasPrefix(command, "execute restore") {
-		return runRestore(server, token, command)
-	}
-
 	return 0
 }
 
 func runScript(server, token, scriptFile string) int {
-	// Read script file
 	file, err := os.Open(scriptFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "goblin: failed to open script file %s: %v\n", scriptFile, err)
@@ -189,40 +173,25 @@ func runScript(server, token, scriptFile string) int {
 	}
 	defer file.Close()
 
+	client := newGoblinClient(server, token)
+	shell := &interactiveShell{client: client}
 	scanner := bufio.NewScanner(file)
 	lineNum := 0
 	for scanner.Scan() {
 		lineNum++
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
-			continue // Skip empty lines and comments
+			continue
 		}
-
-		// Parse and run the command
-		parser := cli.NewParser(cli.NewTokenizer(line).Tokens())
-		operations, err := parser.Parse()
-		if err != nil {
+		if err := shell.executeLine(line); err != nil {
 			fmt.Fprintf(os.Stderr, "goblin: error at line %d in %s: %v\n", lineNum, scriptFile, err)
 			return 1
 		}
-
-		// For now, just print the operations to stdout for debugging
-		fmt.Printf("Line %d: %s\n", lineNum, line)
-		fmt.Printf("Operations: %+v\n", operations)
-
-		// Handle backup/restore commands in script
-		if strings.HasPrefix(line, "execute backup") {
-			return runBackup(server, token, line)
-		} else if strings.HasPrefix(line, "execute restore") {
-			return runRestore(server, token, line)
-		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "goblin: error reading script file %s: %v\n", scriptFile, err)
 		return 1
 	}
-
 	return 0
 }
 
@@ -402,36 +371,7 @@ func (s *interactiveShell) run() int {
 }
 
 func (s *interactiveShell) handleCommand(line string) error {
-	// Parse the command
-	parser := cli.NewParser(cli.NewTokenizer(line).Tokens())
-	operations, err := parser.Parse()
-	if err != nil {
-		return fmt.Errorf("parsing error: %v", err)
-	}
-
-	// For now, just print what we parsed
-	fmt.Printf("Parsed operations: %+v\n", operations)
-
-	// Handle specific commands
-	switch strings.ToLower(line) {
-	case "diff":
-		return s.handleDiff()
-	case "commit":
-		return s.handleCommit()
-	case "confirm":
-		return s.handleConfirm()
-	case "discard":
-		return s.handleDiscard()
-	case "history":
-		return s.handleHistory()
-	case "rollback":
-		return s.handleRollback()
-	case "get system status":
-		return s.handleSystemStatus()
-	default:
-		// For other commands, just show the parsed operations
-		return nil
-	}
+	return s.executeLine(line)
 }
 
 func (s *interactiveShell) handleDiff() error {
@@ -564,8 +504,26 @@ func (s *interactiveShell) handleHistory() error {
 	return nil
 }
 
-func (s *interactiveShell) handleRollback() error {
-	return fmt.Errorf("rollback command not yet implemented")
+func (s *interactiveShell) handleRollback(line string) error {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return fmt.Errorf("usage: rollback <revision>")
+	}
+	rev := fields[1]
+	resp, err := s.client.doRequest(http.MethodPost, "/api/v1/revisions/"+rev+"/rollback", nil)
+	if err != nil {
+		return fmt.Errorf("failed to rollback: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode/100 != 2 {
+		return apiError("rollback "+rev, resp, body)
+	}
+	fmt.Printf("Rolled back to revision %s\n", rev)
+	return nil
 }
 
 func (s *interactiveShell) handleSystemStatus() error {

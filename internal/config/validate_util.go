@@ -10,6 +10,9 @@ import (
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,63}$`)
 
+// ValidName reports whether s is a valid object or user name (nameRe).
+func ValidName(s string) bool { return nameRe.MatchString(s) }
+
 // validName reports whether s is a legal object name: 1-63 characters of
 // [A-Za-z0-9_.-] (see docs/dev/conventions.md).
 func validName(s string) bool { return nameRe.MatchString(s) }

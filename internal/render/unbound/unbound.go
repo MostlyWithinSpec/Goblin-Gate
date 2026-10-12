@@ -108,28 +108,44 @@ func (r Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 		}
 	}
 
-	// Local records and DHCP static lease hostnames.
+	// The local domain is answered here (names not in it get NXDOMAIN
+	// instead of leaking upstream); local records and static lease hostnames
+	// get A and PTR records. Dynamic DHCP names are added at runtime with
+	// unbound-control (internal/dhcpdns).
+	local := strings.ToLower(cfg.EffectiveLocalDomain())
+	fmt.Fprintf(&b, "  local-zone: \"%s.\" static\n", local)
 	var records []string
+	add := func(name, ip string) {
+		records = append(records, fmt.Sprintf("  local-data: \"%s A %s\"\n", name, ip),
+			fmt.Sprintf("  local-data-ptr: \"%s %s\"\n", ip, name))
+	}
 	for name, ip := range cfg.DNS.LocalRecords {
-		records = append(records, fmt.Sprintf("  local-data: \"%s A %s\"\n", name, ip))
+		add(name, ip)
 	}
 	for _, d := range cfg.DHCP {
 		for _, l := range d.StaticLeases {
-			if l.Hostname == "" {
-				continue
+			if l.Hostname != "" {
+				add(l.Hostname+"."+local, l.IP.String())
 			}
-			host := l.Hostname
-			if cfg.System.Domain != "" {
-				host += "." + cfg.System.Domain
-			}
-			records = append(records, fmt.Sprintf("  local-data: \"%s A %s\"\n", host, l.IP))
 		}
 	}
 	sort.Strings(records)
 	for _, r := range records {
 		b.WriteString(r)
 	}
+	// split DNS: private zones forwarded elsewhere cannot validate
+	if cfg.DNS.DNSSEC {
+		for _, f := range cfg.DNS.DomainForwards {
+			fmt.Fprintf(&b, "  domain-insecure: \"%s\"\n", strings.TrimSuffix(f.Domain, "."))
+		}
+	}
 
+	for _, f := range cfg.DNS.DomainForwards {
+		fmt.Fprintf(&b, "\nforward-zone:\n  name: \"%s.\"\n", strings.TrimSuffix(f.Domain, "."))
+		for _, s := range f.Servers {
+			fmt.Fprintf(&b, "  forward-addr: %s\n", s)
+		}
+	}
 	if len(cfg.DNS.Forwarders) > 0 {
 		b.WriteString("\nforward-zone:\n")
 		b.WriteString("  name: \".\"\n")

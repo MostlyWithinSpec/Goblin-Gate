@@ -25,4 +25,30 @@ type DNS struct {
 	Forwarders   []netip.Addr      `json:"forwarders,omitempty"`
 	DNSSEC       bool              `json:"dnssec,omitempty"`
 	LocalRecords map[string]string `json:"local_records,omitempty"` // name -> ip
+	// LocalDomain is the LAN's own domain (task 055): DHCP hands it out as
+	// the search domain, static leases and DHCP clients get names in it,
+	// and Unbound answers it itself. Default: system.domain, else home.arpa.
+	LocalDomain string `json:"local_domain,omitempty"`
+	// NoDHCPNames stops registering dynamic DHCP clients' hostnames.
+	NoDHCPNames bool `json:"no_dhcp_names,omitempty"`
+	// DomainForwards send chosen domains to chosen servers (split DNS).
+	DomainForwards []DomainForward `json:"domain_forwards,omitempty"`
+}
+
+// DomainForward sends queries for Domain (and its subdomains) to Servers.
+type DomainForward struct {
+	Domain  string       `json:"domain"`
+	Servers []netip.Addr `json:"servers"`
+}
+
+// EffectiveLocalDomain is dns.local_domain, else system.domain, else
+// home.arpa (RFC 8375).
+func (c *Config) EffectiveLocalDomain() string {
+	switch {
+	case c.DNS.LocalDomain != "":
+		return c.DNS.LocalDomain
+	case c.System.Domain != "":
+		return c.System.Domain
+	}
+	return "home.arpa"
 }
