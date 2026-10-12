@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Goblin Gate packages</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;background:#060c13;color:#e4f0f4">
+<h1>Goblin Gate packages</h1>
+<p>Signed APT repository for <a style="color:#3be8da" href="https://github.com/MostlyWithinSpec/Goblin-Gate">Goblin Gate</a>.
+Installed boxes use it automatically (System &rarr; Updates); you only need this page to add it by hand.</p>
+<p>Channels: <code>stable</code>, <code>beta</code> (pre-releases), <code>nightly</code>.</p>
+<pre style="background:#0e1c29;padding:1rem;border-radius:8px;overflow-x:auto">curl -fsSL https://mostlywithinspec.github.io/Goblin-Gate/apt/goblin-gate-archive.gpg \
+  | sudo tee /usr/share/keyrings/goblin-gate-archive.gpg >/dev/null
+printf 'Types: deb\nURIs: https://mostlywithinspec.github.io/Goblin-Gate/apt\nSuites: beta\nComponents: main\nSigned-By: /usr/share/keyrings/goblin-gate-archive.gpg\n' \
+  | sudo tee /etc/apt/sources.list.d/goblin-gate.sources</pre>
+<p>Signing key fingerprint: <code>7C33 FECF 9B5D A56D DE16 1614 DA44 0AC5 B453 ED7A</code></p>
+</body></html>

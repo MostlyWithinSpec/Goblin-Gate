@@ -1,0 +1,20 @@
+Architectures: amd64
+Codename: beta
+Components: main
+Date: Mon, 12 Oct 2026 22:10:11 +0000
+Description: Goblin Gate packages (beta channel)
+Label: Goblin Gate
+Origin: Goblin Gate
+Suite: beta
+MD5Sum:
+ 4da8470fa8a586631111fccb96054012             1127 main/binary-amd64/Packages
+ b4b2ca167651282c7d08e44d3cf48044              757 main/binary-amd64/Packages.gz
+SHA1:
+ 7c50e15e57946f0bdb035df8182f95695a530b0b             1127 main/binary-amd64/Packages
+ 0e890cac0cfe8cf53218195815c6e1bf697e6c28              757 main/binary-amd64/Packages.gz
+SHA256:
+ 4007668716de72eb117d6bb41b82e502371dc85ebb8c6aca01bedccd0cb89304             1127 main/binary-amd64/Packages
+ 18feeedb5b53f08de64e3175aa8a851a9180fb1b486741169e95399b458c424a              757 main/binary-amd64/Packages.gz
+SHA512:
+ 9c07eaf62cee563fa2218186ebc505feddf9afc7257b3a8a740a0a096f8d82dbdadc756478ee1c1ab2d5a5579c97580774e3adfdfb70b37ed5f32b5a48529395             1127 main/binary-amd64/Packages
+ 151e7f570a40ce0926ad4ec61f80ef5e8f4198867a3189cf2b36df1cacc19c1dbd7a490baed4bec79003a3d1e662c25cfc7da98f75d56478f8edb2e09a115236              757 main/binary-amd64/Packages.gz
