@@ -1,0 +1,83 @@
+{
+  "Dhcp4": {
+    "interfaces-config": {
+      "interfaces": [
+        "eth1",
+        "eth1.20"
+      ]
+    },
+    "control-socket": {
+      "socket-type": "unix",
+      "socket-name": "/run/kea/kea4-ctrl-socket"
+    },
+    "lease-database": {
+      "type": "memfile",
+      "persist": true,
+      "name": "/var/lib/kea/kea-leases4.csv"
+    },
+    "valid-lifetime": 3600,
+    "subnet4": [
+      {
+        "id": 1,
+        "subnet": "192.168.1.0/24",
+        "interface": "eth1",
+        "pools": [
+          {
+            "pool": "192.168.1.100 - 192.168.1.199"
+          }
+        ],
+        "option-data": [
+          {
+            "name": "routers",
+            "data": "192.168.1.1"
+          },
+          {
+            "name": "domain-name-servers",
+            "data": "192.168.1.1"
+          },
+          {
+            "name": "domain-name",
+            "data": "home.arpa"
+          }
+        ],
+        "valid-lifetime": 86400
+      },
+      {
+        "id": 2,
+        "subnet": "192.168.20.0/24",
+        "interface": "eth1.20",
+        "pools": [
+          {
+            "pool": "192.168.20.100 - 192.168.20.199"
+          }
+        ],
+        "option-data": [
+          {
+            "name": "routers",
+            "data": "192.168.20.254"
+          },
+          {
+            "name": "domain-name-servers",
+            "data": "1.1.1.1, 9.9.9.9"
+          },
+          {
+            "name": "domain-name",
+            "data": "home.arpa"
+          }
+        ],
+        "valid-lifetime": 600,
+        "reservations": [
+          {
+            "hw-address": "aa:bb:cc:dd:ee:01",
+            "ip-address": "192.168.20.10",
+            "hostname": "printer"
+          },
+          {
+            "hw-address": "aa:bb:cc:dd:ee:02",
+            "ip-address": "192.168.20.11"
+          }
+        ]
+      }
+    ]
+  }
+}

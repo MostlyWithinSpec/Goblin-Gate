@@ -1,0 +1,42 @@
+[
+  {
+    "name": "blocklist.de",
+    "description": "IP address blocklist for known malware and botnet activity",
+    "url": "https://lists.blocklist.de/domains.txt",
+    "type": "domain",
+    "format": "plain",
+    "license_note": "CC BY-SA 4.0",
+    "homepage": "https://lists.blocklist.de/",
+    "verify": true
+  },
+  {
+    "name": "Malware Domain Blocklist",
+    "description": "Blocklist of known malware domains",
+    "url": "https://mirror1.malwaredomains.com/files/justdomains",
+    "type": "domain",
+    "format": "plain",
+    "license_note": "Creative Commons Attribution-ShareAlike 4.0 International License",
+    "homepage": "https://malwaredomains.com/",
+    "verify": true
+  },
+  {
+    "name": "OpenPhish",
+    "description": "Real-time phishing URL blocklist",
+    "url": "https://www.openphish.com/feed.txt",
+    "type": "url",
+    "format": "plain",
+    "license_note": "Creative Commons Attribution 4.0 International License",
+    "homepage": "https://www.openphish.com/",
+    "verify": true
+  },
+  {
+    "name": "EmergingThreats",
+    "description": "Emerging Threats IP blocklist",
+    "url": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+    "type": "ip",
+    "format": "plain",
+    "license_note": "Creative Commons Attribution 4.0 International License",
+    "homepage": "https://www.emergingthreats.net/",
+    "verify": true
+  }
+]

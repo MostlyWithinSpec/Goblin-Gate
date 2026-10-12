@@ -1,0 +1,23 @@
+[Unit]
+Description=Goblin Gate IPS (Suricata) for profile %i
+Documentation=file:///usr/share/doc/goblin-gate/README.md
+After=network.target
+# Rendered by goblind into /etc/suricata/goblin/ (task 031); the applier
+# enables, restarts and stops instances as IPS profiles come and go.
+ConditionPathExists=/etc/suricata/goblin/%i.yaml
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/suricata/goblin/%i.env
+# Build this profile's rules from the ET Open download before every start.
+ExecStartPre=/usr/sbin/goblind ips-rules %i
+ExecStart=/usr/bin/suricata -c /etc/suricata/goblin/%i.yaml --pidfile /run/suricata-goblin-%i.pid $QUEUES
+# Reload rules without dropping the queue (goblind's daily update).
+ExecReload=/usr/sbin/goblind ips-rules %i
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

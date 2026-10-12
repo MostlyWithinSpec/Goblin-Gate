@@ -1,0 +1,18 @@
+{
+  "Dhcp4": {
+    "interfaces-config": {
+      "interfaces": []
+    },
+    "control-socket": {
+      "socket-type": "unix",
+      "socket-name": "/run/kea/kea4-ctrl-socket"
+    },
+    "lease-database": {
+      "type": "memfile",
+      "persist": true,
+      "name": "/var/lib/kea/kea-leases4.csv"
+    },
+    "valid-lifetime": 3600,
+    "subnet4": []
+  }
+}

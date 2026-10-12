@@ -1,0 +1,29 @@
+# on the CD for the boot loader install, not installed everywhere:
+# the installer picks the BIOS or the UEFI (Secure Boot signed) set
+shim-signed
+shim-helpers-amd64-signed
+grub-efi-amd64-signed
+grub-efi-amd64
+grub-efi-amd64-bin
+grub-pc
+grub-pc-bin
+grub2-common
+grub-common
+efibootmgr
+mokutil
+curl
+curl
+# packages the installer adds to the target itself
+zstd
+initramfs-tools
+busybox
+klibc-utils
+cpio
+kmod
+linux-image-amd64
+discover
+os-prober
+locales
+console-setup
+keyboard-configuration
+installation-report

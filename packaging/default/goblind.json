@@ -1,0 +1,6 @@
+{
+  "listen": ":8443",
+  "config_dir": "/etc/goblingate",
+  "log_level": "info",
+  "data_dir": "/var/lib/goblingate"
+}

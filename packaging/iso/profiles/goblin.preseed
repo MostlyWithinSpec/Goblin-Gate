@@ -1,0 +1,56 @@
+# Goblin Gate installer: only the disk (and its confirmation) is asked.
+d-i debian-installer/language string en
+d-i debian-installer/country string US
+d-i debian-installer/locale string en_US.UTF-8
+d-i localechooser/supported-locales multiselect en_US.UTF-8
+d-i keyboard-configuration/xkb-keymap select us
+d-i console-setup/ask_detect boolean false
+
+# The network is configured by Goblin Gate after the install.
+d-i netcfg/enable boolean false
+d-i netcfg/get_hostname string goblin-gate
+d-i netcfg/get_domain string home.arpa
+d-i netcfg/hostname string goblin-gate
+d-i hw-detect/load_firmware boolean true
+
+# Everything comes from the CD (no network during install).
+d-i apt-setup/use_mirror boolean false
+d-i apt-setup/no_mirror boolean true
+d-i apt-setup/services-select multiselect
+d-i apt-setup/cdrom/set-first boolean false
+d-i apt-setup/cdrom/set-next boolean false
+d-i apt-setup/cdrom/set-failed boolean false
+
+# Root gets a random password nobody knows (scripts/iso/build.sh puts a
+# fresh hash here); the console menu on tty1 is the way in (physical
+# access), the web UI and API have their own admin.
+d-i passwd/root-login boolean true
+d-i passwd/root-password-crypted password @ROOTHASH@
+d-i passwd/make-user boolean false
+
+d-i clock-setup/utc boolean true
+d-i time/zone string UTC
+d-i clock-setup/ntp boolean false
+
+# Partitioning: the whole chosen disk, one partition (+ EFI when booted UEFI).
+d-i partman-auto/method string regular
+d-i partman-auto/choose_recipe select atomic
+d-i partman-lvm/device_remove_lvm boolean true
+d-i partman-md/device_remove_md boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+d-i partman-efi/non_efi_system boolean true
+
+tasksel tasksel/first multiselect
+d-i pkgsel/upgrade select none
+d-i pkgsel/update-policy select none
+popularity-contest popularity-contest/participate boolean false
+
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/with_other_os boolean false
+d-i grub-installer/bootdev string default
+d-i finish-install/reboot_in_progress note
+libhyperscan5 libhyperscan5/cpu-ssse3 boolean true

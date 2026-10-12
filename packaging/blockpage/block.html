@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Goblin - Access Denied</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            margin-top: 40px;
+        }
+        .header {
+            background-color: #0055a4;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .content {
+            padding: 30px;
+        }
+        .category {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .action {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+            border-top: 1px solid #eee;
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0055a4;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+            border: none;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #003d7a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Network Goblin Firewall</h1>
+            <p>Access Denied</p>
+        </div>
+        
+        <div class="content">
+            <h2>Access to this content has been blocked</h2>
+            
+            <div class="category">
+                <h3>Category: <span id="category">[Category]</span></h3>
+                <p>The content you requested has been blocked based on the following category:</p>
+                <p><strong>Category:</strong> <span id="category-name">[Category Name]</span></p>
+            </div>
+            
+            <div class="action">
+                <h3>Action Taken</h3>
+                <p>The firewall has taken the following action:</p>
+                <p><strong>Action:</strong> <span id="action">[Action]</span></p>
+                <p><strong>Policy:</strong> <span id="policy">[Policy]</span></p>
+            </div>
+            
+            <p>If you believe this content should be accessible, you can request access by clicking the button below:</p>
+            
+            <a href="mailto:support@networkgoblin.local?subject=Access%20Request&body=I%20would%20like%20to%20request%20access%20to%20the%20following%20website:%0A%0A%5BURL%20or%20domain%5D%0A%0AI%20am%20requesting%20access%20because:%0A%0A%5BReason%5D" class="button">Request Access</button>
+            
+            <p>For more information about our filtering policies, please contact your network administrator.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Network Goblin Firewall v1.0</p>
+            <p>This access attempt has been logged.</p>
+        </div>
+    </div>
+</body>
+</html>

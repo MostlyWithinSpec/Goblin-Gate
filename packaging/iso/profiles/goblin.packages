@@ -1,0 +1,7 @@
+# installed on every Goblin Gate box (goblin-gate pulls in the rest)
+goblin-gate
+suricata
+suricata-update
+tailscale
+openssh-server
+open-vm-tools

@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a feature or an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: The problem or use case, not only the solution. "I run X and need Y because Z."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Goblin Gate do it?
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Could this be a plugin?
+      options: ["Not sure", "Yes, it fits a plugin", "No, it belongs in the core"]
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: How do pfSense, OPNsense or others handle it?

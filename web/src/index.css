@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Goblin Gate look, after the Network Goblin Labs site. Colors are Tailwind's
+   gray/blue/green scales remapped in tailwind.config.ts; fonts are bundled
+   (SIL Open Font License, see assets/fonts/*-OFL.txt). */
+
+@font-face {
+  font-family: 'Orbitron';
+  src: url('./assets/fonts/Orbitron-Variable.woff2') format('woff2');
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-SemiBold.woff2') format('woff2');
+  font-weight: 400 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-Bold.woff2') format('woff2');
+  font-weight: 700 900;
+  font-display: swap;
+}
+
+/* Rajdhani is narrow: one step larger than the browser default reads like the site */
+html {
+  font-size: 17px;
+}
+
+body {
+  margin: 0;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  font-weight: 600;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f3f8fa;
+  color: #0e1c29;
+}
+
+h1,
+h2 {
+  font-family: 'Orbitron', 'Rajdhani', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* the site's background: blue-black with a dot grid and two soft glows */
+.dark body {
+  color-scheme: dark;
+  background-color: #060c13;
+  background-image:
+    radial-gradient(1200px 600px at 85% -10%, rgba(59, 232, 218, 0.1), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(142, 227, 79, 0.07), transparent 60%),
+    radial-gradient(circle at 1px 1px, rgba(29, 52, 72, 0.9) 1px, transparent 1.6px);
+  background-size: auto, auto, 18px 18px;
+  background-attachment: fixed;
+  color: #e4f0f4;
+}
+
+/* dark mode: primary buttons are the site's glowing cyan with dark text */
+.dark .bg-blue-600 {
+  background-color: #3be8da;
+  color: #04171a;
+  box-shadow: 0 0 18px rgba(59, 232, 218, 0.3);
+}
+.dark .hover\:bg-blue-700:hover,
+.dark .hover\:bg-blue-600:hover {
+  background-color: #6ff0e5;
+  color: #04171a;
+}
+.dark .text-blue-600,
+.dark .text-blue-500 {
+  color: #3be8da;
+}
+.dark a.text-blue-600:hover,
+.dark .hover\:text-blue-700:hover {
+  color: #7ff3ea;
+}
+
+/* the goblin keeps the site's green glow */
+.goblin-glow {
+  filter: drop-shadow(0 0 6px rgba(142, 227, 79, 0.35));
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 500;
+}

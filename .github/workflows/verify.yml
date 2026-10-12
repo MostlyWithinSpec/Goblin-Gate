@@ -1,0 +1,28 @@
+# Runs scripts/verify.ps1 (gofmt, vet, builds, Go tests, web lint/build/styles/tests)
+# on every push and pull request: the same checks developers run locally.
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: verify
+        shell: pwsh
+        run: ./scripts/verify.ps1

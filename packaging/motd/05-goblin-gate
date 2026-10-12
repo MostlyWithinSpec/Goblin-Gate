@@ -1,0 +1,9 @@
+#!/bin/sh
+# Goblin Gate login banner (update-motd: shown on SSH logins).
+printf '\033[32m'
+cat /usr/share/goblin-gate/logo.txt
+printf '\033[0m\n'
+echo "  This box is managed by goblind: change the config in the web UI, not by editing"
+echo "  files here (they are rewritten on every commit). The console menu on the"
+echo "  screen shows the web UI address."
+echo

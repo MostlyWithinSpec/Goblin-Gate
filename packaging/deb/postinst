@@ -1,0 +1,47 @@
+#!/bin/sh
+# goblin-gate postinst: make the box a Goblin Gate (task 038).
+set -e
+[ "$1" = configure ] || exit 0
+
+mkdir -p /etc/goblingate /var/lib/goblingate /var/log/ulog /var/log/suricata /etc/nftables.d
+chmod 0750 /etc/goblingate /var/lib/goblingate
+
+# nftables.service loads goblind's last ruleset at boot, before goblind runs.
+if ! grep -q 'include "/etc/nftables.d/\*.nft"' /etc/nftables.conf 2>/dev/null; then
+	[ -f /etc/nftables.conf ] && cp /etc/nftables.conf /etc/nftables.conf.goblin-orig
+	printf '#!/usr/sbin/nft -f\nflush ruleset\ninclude "/etc/nftables.d/*.nft"\n' > /etc/nftables.conf
+fi
+
+# ulogd2 writes policy logs where goblind reads them.
+if ! cmp -s /usr/share/goblin-gate/ulogd.conf /etc/ulogd.conf; then
+	[ -f /etc/ulogd.conf ] && [ ! -f /etc/ulogd.conf.goblin-orig ] && cp /etc/ulogd.conf /etc/ulogd.conf.goblin-orig
+	cp /usr/share/goblin-gate/ulogd.conf /etc/ulogd.conf
+fi
+
+# systemd-networkd owns the interfaces; ifupdown must not fight it.
+if [ -f /etc/network/interfaces ] && grep -qvE '^\s*(#|$|auto lo|iface lo|source)' /etc/network/interfaces; then
+	mv /etc/network/interfaces /etc/network/interfaces.goblin-orig
+	printf 'auto lo\niface lo inet loopback\n' > /etc/network/interfaces
+fi
+
+# The box resolves through its own Unbound (a symlink, e.g. to
+# systemd-resolved, is replaced; a bind mount is written in place).
+if [ -L /etc/resolv.conf ]; then
+	rm -f /etc/resolv.conf
+fi
+printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf 2>/dev/null || true
+
+if [ -d /run/systemd/system ]; then
+	systemctl daemon-reload || true
+fi
+systemctl disable networking.service >/dev/null 2>&1 || true
+# goblind runs goblin-suricata@<profile> instead of the stock unit.
+systemctl mask suricata.service >/dev/null 2>&1 || true
+for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service; do
+	systemctl enable "$u" >/dev/null 2>&1 || true
+done
+if [ -d /run/systemd/system ]; then
+	systemctl restart ulogd2.service || true
+	systemctl restart goblind.service || true
+fi
+exit 0

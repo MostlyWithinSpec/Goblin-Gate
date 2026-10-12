@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: System → About in the web UI, or `goblind --version`
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where it runs
+      options: [Bare metal, VMware ESXi, Proxmox, VirtualBox, Hyper-V, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Installer / console, Web UI, Firewall / NAT, DHCP / DNS, VPN, Security profiles (IPS, filters, feeds), Logs / dashboards, API / CLI, Other]
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: "`journalctl -u goblind -n 200` from the console shell helps. Remove passwords and public IPs."
+      render: text

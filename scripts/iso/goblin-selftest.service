@@ -1,0 +1,12 @@
+[Unit]
+Description=Goblin Gate install self-test (test images only)
+After=goblind.service network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=300
+StandardOutput=journal+console
+ExecStart=/usr/local/sbin/goblin-selftest
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,302 @@
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
+	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+)
+
+// authAPI is a test server with authentication on and two users:
+// admin (admin) and viewer (readonly), password "correct horse battery".
+type authAPI struct {
+	*testAPI
+	authn *Authenticator
+	dir   string
+}
+
+const testPassword = "correct horse battery"
+
+func newAuthAPI(t *testing.T) *authAPI {
+	t.Helper()
+	dir := t.TempDir()
+	authn := NewAuthenticator(filepath.Join(dir, "tokens.json"), filepath.Join(dir, "audit.log"))
+	authn.InsecureCookies = true
+	a := newTestAPIWith(t, func(s *Server) {
+		s.Authn = authn
+		s.Static = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "<html>ui</html>") })
+	})
+	hash, err := auth.HashPassword(testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Admins = []config.Admin{{Username: "admin", PasswordHash: hash, Role: "admin"}, {Username: "viewer", PasswordHash: hash, Role: "readonly"}}
+	if _, err := a.store.SaveRevision(cfg, "test", "users"); err != nil {
+		t.Fatal(err)
+	}
+	return &authAPI{testAPI: a, authn: authn, dir: dir}
+}
+
+// browser is an HTTP client with a cookie jar that sends the CSRF header
+// like the web client does.
+type browser struct {
+	t      *testing.T
+	base   string
+	client *http.Client
+	csrf   string
+	header map[string]string
+}
+
+func (a *authAPI) browser() *browser {
+	jar, _ := cookiejar.New(nil)
+	return &browser{t: a.t, base: a.srv.URL, client: &http.Client{Jar: jar}, header: map[string]string{}}
+}
+
+func (b *browser) do(method, path string, body any) (int, map[string]any, *http.Response) {
+	b.t.Helper()
+	var rd io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		rd = bytes.NewReader(data)
+	}
+	req, _ := http.NewRequest(method, b.base+path, rd)
+	if rd != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if b.csrf != "" {
+		req.Header.Set(CSRFHeader, b.csrf)
+	}
+	for k, v := range b.header {
+		req.Header.Set(k, v)
+	}
+	resp, err := b.client.Do(req)
+	if err != nil {
+		b.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]any
+	raw, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(raw, &out)
+	return resp.StatusCode, out, resp
+}
+
+func (b *browser) expect(method, path string, body any, want int) map[string]any {
+	b.t.Helper()
+	got, out, _ := b.do(method, path, body)
+	if got != want {
+		b.t.Fatalf("%s %s: status %d, want %d: %v", method, path, got, want, out)
+	}
+	return out
+}
+
+func (b *browser) login(user string) {
+	b.t.Helper()
+	out := b.expect("POST", "/api/v1/auth/login", map[string]string{"username": user, "password": testPassword}, 200)
+	b.csrf, _ = out["csrf_token"].(string)
+}
+
+func TestLoginSessionAndCSRF(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	if out := b.expect("GET", "/api/v1/config/running", nil, 401); errCode(out) != "unauthorized" {
+		t.Fatalf("anonymous: %v", out)
+	}
+	// static UI and login are reachable without a session
+	if code, _, _ := b.do("GET", "/policy", nil); code != 200 {
+		t.Fatalf("static: %d", code)
+	}
+
+	_, _, resp := b.do("POST", "/api/v1/auth/login", map[string]string{"username": "admin", "password": testPassword})
+	var sess, csrf *http.Cookie
+	for _, c := range resp.Cookies() {
+		switch c.Name {
+		case SessionCookie:
+			sess = c
+		case CSRFCookie:
+			csrf = c
+		}
+	}
+	if sess == nil || !sess.HttpOnly || sess.SameSite != http.SameSiteStrictMode || csrf == nil || csrf.HttpOnly {
+		t.Fatalf("cookies: %+v %+v", sess, csrf)
+	}
+	b.csrf = csrf.Value
+
+	if me := b.expect("GET", "/api/v1/auth/me", nil, 200); me["user"] != "admin" || me["role"] != "admin" || me["method"] != "session" {
+		t.Fatalf("me: %v", me)
+	}
+	b.expect("PATCH", "/api/v1/config/candidate", map[string]any{"path": "system.hostname", "value": "gg"}, 200)
+
+	// a state-changing request without the CSRF header is refused
+	b.csrf = ""
+	if out := b.expect("PATCH", "/api/v1/config/candidate", map[string]any{"path": "system.hostname", "value": "x"}, 403); errCode(out) != "csrf_failed" {
+		t.Fatalf("no csrf: %v", out)
+	}
+	b.csrf = "wrong"
+	b.expect("POST", "/api/v1/commit/discard", nil, 403)
+	b.csrf = csrf.Value
+
+	// commits are audited with the user name
+	b.expect("POST", "/api/v1/commit", map[string]any{"comment": "via session"}, 200)
+	revs := b.expect("GET", "/api/v1/revisions", nil, 200)["revisions"].([]any)
+	if revs[0].(map[string]any)["user"] != "admin" {
+		t.Fatalf("revision user: %v", revs[0])
+	}
+	audit, _ := os.ReadFile(filepath.Join(a.dir, "audit.log"))
+	if !strings.Contains(string(audit), `"event":"login"`) || !strings.Contains(string(audit), `"event":"commit"`) {
+		t.Fatalf("audit log:\n%s", audit)
+	}
+
+	b.expect("POST", "/api/v1/auth/logout", nil, 200)
+	b.expect("GET", "/api/v1/config/running", nil, 401)
+}
+
+func TestLoginFailuresAndLockout(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	for _, creds := range []map[string]string{
+		{"username": "admin", "password": "wrong password!"},
+		{"username": "nobody", "password": testPassword},
+	} {
+		if out := b.expect("POST", "/api/v1/auth/login", creds, 401); errCode(out) != "login_failed" {
+			t.Fatalf("%v: %v", creds, out)
+		}
+	}
+	for i := 2; i < auth.MaxFailures; i++ {
+		b.expect("POST", "/api/v1/auth/login", map[string]string{"username": "admin", "password": "nope nope nope"}, 401)
+	}
+	// locked: even the right password is refused for a while
+	code, out, resp := b.do("POST", "/api/v1/auth/login", map[string]string{"username": "admin", "password": testPassword})
+	if code != 429 || resp.Header.Get("Retry-After") == "" {
+		t.Fatalf("lockout: %d %v", code, out)
+	}
+}
+
+func TestReadonlyUser(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	b.login("viewer")
+	b.expect("GET", "/api/v1/config/candidate", nil, 200)
+	if out := b.expect("PATCH", "/api/v1/config/candidate", map[string]any{"path": "system.hostname", "value": "x"}, 403); errCode(out) != "forbidden" {
+		t.Fatalf("readonly write: %v", out)
+	}
+	b.expect("POST", "/api/v1/commit", nil, 403)
+	b.expect("GET", "/api/v1/auth/tokens", nil, 403)
+	b.expect("POST", "/api/v1/auth/logout", nil, 200)
+}
+
+func TestAPITokens(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	b.login("admin")
+	out := b.expect("POST", "/api/v1/auth/tokens", map[string]any{"name": "backup"}, 201)
+	tok := out["token"].(string)
+	ro := b.expect("POST", "/api/v1/auth/tokens", map[string]any{"name": "grafana", "readonly": true}, 201)["token"].(string)
+	list := b.expect("GET", "/api/v1/auth/tokens", nil, 200)["tokens"].([]any)
+	if len(list) != 2 || strings.Contains(strings.ToLower(jsonString(list)), "hash") {
+		t.Fatalf("token list: %v", list)
+	}
+
+	// a token works without cookies or CSRF
+	script := a.browser()
+	script.header["Authorization"] = "Bearer " + tok
+	script.expect("PATCH", "/api/v1/config/candidate", map[string]any{"path": "system.hostname", "value": "scripted"}, 200)
+	if me := script.expect("GET", "/api/v1/auth/me", nil, 200); me["method"] != "token" || me["user"] != "admin" {
+		t.Fatalf("token me: %v", me)
+	}
+	roClient := a.browser()
+	roClient.header["Authorization"] = "Bearer " + ro
+	roClient.expect("GET", "/api/v1/config/running", nil, 200)
+	roClient.expect("POST", "/api/v1/commit", nil, 403)
+
+	bad := a.browser()
+	bad.header["Authorization"] = "Bearer gg_nope_nope"
+	bad.expect("GET", "/api/v1/config/running", nil, 401)
+
+	id := out["info"].(map[string]any)["id"].(string)
+	b.expect("DELETE", "/api/v1/auth/tokens/"+id, nil, 200)
+	script.expect("GET", "/api/v1/config/running", nil, 401)
+	b.expect("DELETE", "/api/v1/auth/tokens/"+id, nil, 404)
+}
+
+func TestUserRemovedEndsAccess(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	b.login("viewer")
+	cfg, _ := a.store.Running()
+	cfg.Admins = cfg.Admins[:1]
+	if _, err := a.store.SaveRevision(cfg, "test", "remove viewer"); err != nil {
+		t.Fatal(err)
+	}
+	b.expect("GET", "/api/v1/config/running", nil, 401)
+}
+
+func TestSocketIdentity(t *testing.T) {
+	a := newAuthAPI(t)
+	s := &Server{Store: a.store, Authn: a.authn, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	h := s.Routes()
+	req := httptest.NewRequest("GET", "/api/v1/auth/me", nil)
+	req = req.WithContext(WithSocketConn(context.Background(), (net.Conn)(nil)))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"method":"socket"`) {
+		t.Fatalf("socket: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func jsonString(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func TestChangePassword(t *testing.T) {
+	a := newAuthAPI(t)
+	b := a.browser()
+	b.login("viewer") // readonly users may change their own password
+	// a pending candidate edit by someone else must not undo the change
+	cand, _ := a.store.Candidate()
+	cand.System.Hostname = "pending-edit"
+	a.store.SetCandidate(cand)
+
+	b.expect("POST", "/api/v1/auth/password", map[string]any{"current_password": "nope nope nope", "new_password": "a brand new secret"}, 403)
+	b.expect("POST", "/api/v1/auth/password", map[string]any{"current_password": testPassword, "new_password": "short"}, 422)
+	b.expect("POST", "/api/v1/auth/password", map[string]any{"user": "admin", "current_password": testPassword, "new_password": "a brand new secret"}, 403)
+	b.expect("POST", "/api/v1/auth/password", map[string]any{"current_password": testPassword, "new_password": "a brand new secret"}, 200)
+
+	// sessions end; the new password works, the old one does not
+	b.expect("GET", "/api/v1/config/running", nil, 401)
+	b.expect("POST", "/api/v1/auth/login", map[string]string{"username": "viewer", "password": testPassword}, 401)
+	b.expect("POST", "/api/v1/auth/login", map[string]string{"username": "viewer", "password": "a brand new secret"}, 200)
+	cand, _ = a.store.Candidate()
+	run, _ := a.store.Running()
+	if cand.System.Hostname != "pending-edit" || cand.Admins[1].PasswordHash != run.Admins[1].PasswordHash {
+		t.Fatalf("candidate not kept in step: %q", cand.System.Hostname)
+	}
+}
+
+func TestSocketResetsPassword(t *testing.T) {
+	a := newAuthAPI(t)
+	s := &Server{Store: a.store, Authn: a.authn, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	body := strings.NewReader(`{"user":"admin","new_password":"recovered password"}`)
+	req := httptest.NewRequest("POST", "/api/v1/auth/password", body)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(WithSocketConn(context.Background(), (net.Conn)(nil)))
+	rec := httptest.NewRecorder()
+	s.Routes().ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("socket reset: %d %s", rec.Code, rec.Body)
+	}
+	a.browser().expect("POST", "/api/v1/auth/login", map[string]string{"username": "admin", "password": "recovered password"}, 200)
+}

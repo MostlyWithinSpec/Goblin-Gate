@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "system": {
+    "hostname": "goblin-gate",
+    "timezone": "UTC",
+    "admin_port": 443,
+    "ntp_servers": [
+      "pool.ntp.org"
+    ],
+    "dns_servers": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  },
+  "interfaces": [
+    {
+      "name": "wan1",
+      "device": "eth0",
+      "role": "wan",
+      "mode": "dhcp",
+      "enabled": true,
+      "description": "WAN uplink (DHCP client)"
+    },
+    {
+      "name": "lan",
+      "device": "eth1",
+      "role": "lan",
+      "mode": "static",
+      "address": "192.168.1.1/24",
+      "enabled": true,
+      "description": "LAN",
+      "allow_access": [
+        "https",
+        "ssh"
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "id": 1,
+      "name": "lan-to-internet",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "wan1"
+      ],
+      "src_addr": [
+        "all"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true
+    }
+  ],
+  "nat": {},
+  "dhcp": [
+    {
+      "interface": "lan",
+      "range_start": "192.168.1.100",
+      "range_end": "192.168.1.199",
+      "lease_seconds": 86400,
+      "dns": [
+        "192.168.1.1"
+      ],
+      "gateway": "192.168.1.1"
+    }
+  ],
+  "dns": {
+    "forwarders": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ],
+    "dnssec": true
+  },
+  "profiles": {},
+  "admins": [
+    {
+      "username": "admin",
+      "role": "admin"
+    }
+  ]
+}

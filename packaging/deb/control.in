@@ -1,0 +1,14 @@
+Package: goblin-gate
+Version: @VERSION@
+Architecture: amd64
+Maintainer: Network Goblin Labs <goblin@localhost>
+Section: net
+Priority: optional
+Depends: systemd, systemd-sysv, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates
+Recommends: suricata (>= 7), suricata-update, tailscale
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.

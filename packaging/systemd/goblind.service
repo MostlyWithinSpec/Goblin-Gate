@@ -1,0 +1,24 @@
+[Unit]
+Description=Goblin Gate Management Daemon
+After=dbus.service systemd-networkd.service network.target
+Wants=dbus.service
+
+[Service]
+# goblind does not send sd_notify READY=1 and has no reload; it re-applies the
+# running config itself on start.
+Type=exec
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
+LimitNOFILE=65536
+# /run/goblind/api.sock: the root-only local API socket for the goblin CLI.
+RuntimeDirectory=goblind
+RuntimeDirectoryMode=0750
+ExecStart=/usr/sbin/goblind --web-dir /usr/share/goblin-gate/web
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

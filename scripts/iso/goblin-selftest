@@ -1,0 +1,26 @@
+#!/bin/bash
+# Test images only: report the first boot to the serial port. The serial
+# getty hangs up ttyS0 when it starts, so every line reopens the port (an
+# fd held across the hangup gets EIO). Every step has a timeout so a hang
+# shows where it is.
+say() { for _ in 1 2 3; do echo "GG-SELFTEST $*" > /dev/ttyS0 2>/dev/null && return; sleep 1; done; }
+t() { timeout 20 "$@" 2>&1; }
+say begin
+for i in $(seq 1 24); do
+	[ -S /run/goblind/api.sock ] && break
+	[ $((i % 6)) = 0 ] && say "waiting for goblind ($((i * 5))s): $(systemctl is-active goblind)"
+	sleep 5
+done
+sleep 3
+say "version $(dpkg-query -W -f='${Version}' goblin-gate)"
+for u in goblind nftables unbound kea-dhcp4-server ulogd2 systemd-networkd tailscaled dbus; do say "unit $u $(systemctl is-active $u)"; done
+say "setup $(curl -sk -m 10 https://127.0.0.1/api/v1/setup/state)"
+say "nft-chains $(t nft list ruleset | grep -c 'chain ')"
+say "addr $(ip -br -4 addr | tr '\n' ';')"
+say "links $(ip -br link | awk '{print $1}' | tr '\n' ' ')"
+say "networkd $(ls /etc/systemd/network/ | tr '\n' ' ')"
+t journalctl -u goblind --no-pager -o cat | grep -E '"level":"(WARN|ERROR)"' | head -5 | cut -c1-400 | while read -r l; do say "goblind $l"; done
+if [ -d /sys/firmware/efi ]; then say "boot uefi $(t mokutil --sb-state | head -1)"; else say "boot bios"; fi
+say "suricata $(t suricata -V | head -1)"
+say end
+exit 0
