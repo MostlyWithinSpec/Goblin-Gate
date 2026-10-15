@@ -22,6 +22,28 @@ Description: Goblin Gate firewall
 
 Package: goblin-gate
 Architecture: amd64
+Version: 0.1.0~alpha.2+2.gc7db62b
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Installed-Size: 30396
+Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates
+Recommends: suricata (>= 7), suricata-update, tailscale
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Filename: pool/nightly/goblin-gate_0.1.0~alpha.2+2.gc7db62b_amd64.deb
+Size: 7712816
+MD5sum: d64a035cce38fa01ff26b3f737f2adfb
+SHA1: ec50cb2dde5e3898b92aa3eefd2a67c5de641f59
+SHA256: 624556ebaffea69a02ef68260c8cc1aed107a4561a85bd704ac4d8f0d75a61fe
+SHA512: 7ced445cc49a097e3c5fe04f3be713358dd9c766b59fbb640027d1c3e2e6419ad9f2829298d1cc8bbeecad55f332ea4dbb1ef33dc266f3fbd25835fde0487fc8
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.
+
+Package: goblin-gate
+Architecture: amd64
 Version: 0.1.0~alpha.2
 Priority: optional
 Section: net
