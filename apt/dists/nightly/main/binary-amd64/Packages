@@ -26,16 +26,16 @@ Version: 0.1.0~alpha.2
 Priority: optional
 Section: net
 Maintainer: Network Goblin Labs <goblin@localhost>
-Installed-Size: 30364
+Installed-Size: 30396
 Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates
 Recommends: suricata (>= 7), suricata-update, tailscale
 Conflicts: ifupdown2, network-manager, systemd-resolved
 Filename: pool/nightly/goblin-gate_0.1.0~alpha.2_amd64.deb
-Size: 7710696
-MD5sum: 25a267821fc475c7af2d1ecc167f0e7d
-SHA1: 9fba9610659c6dbd268af72b70e1d9a321fbe905
-SHA256: 88812c9bace2c7230a697b31f165ecc0c5051b063fb11c588a79ea3285b95003
-SHA512: 4a57f70d8b01d9e9b0e7d33cf52ccfdd3e699c0d26d649a13fa8c29f1d78ed79976df015e12d65f74bf54ee4cedf7be6caab2a63b9edea215292d6b970589f69
+Size: 7714720
+MD5sum: ac5b51206b8c979e599e13614ae1b1c6
+SHA1: 3ffcf7ececc140716becb39643ead32f27ebe765
+SHA256: 461d6eb6766f72389db8555f70a770e5b968a775a3d12cc6e3c3dea0399e484d
+SHA512: c1bbf9f1a42586b5ef4fbded70d17e730e572c06ae0a0ff7cf59bc7f7c022b0640e393d448609ad7f7f8c1ea71fadbe5980270caf764ad123602d6bc12504f8b
 Description: Goblin Gate firewall
  A home and small-office firewall and router: nftables policies, DHCP
  (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
