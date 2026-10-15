@@ -71,7 +71,19 @@ func TestValidateMoreRules(t *testing.T) {
 		}, []string{"service_groups[0].name", "also used by a service"}},
 		{"unknown action", func(c *Config) { c.Policies[0].Action = "allow" }, []string{"policies[0].action"}},
 		{"unknown log mode", func(c *Config) { c.Policies[0].Log = "verbose" }, []string{"policies[0].log"}},
-		{"schedule not supported", func(c *Config) { c.Policies[0].Schedule = "workhours" }, []string{"policies[0].schedule", "not supported"}},
+		{"unknown schedule", func(c *Config) { c.Policies[0].Schedule = "workhours" }, []string{"policies[0].schedule", "unknown schedule"}},
+		{"valid schedule", func(c *Config) {
+			c.Schedules = []Schedule{{Name: "school-nights", Ranges: []ScheduleRange{
+				{Days: []string{"sun", "mon", "tue", "wed", "thu"}, Start: "21:00", End: "06:30"},
+				{Days: []string{"sat"}, Start: "00:00", End: "24:00"}}}}
+			c.Policies[0].Schedule = "school-nights"
+		}, nil},
+		{"bad schedule ranges", func(c *Config) {
+			c.Schedules = []Schedule{{Name: "s", Ranges: []ScheduleRange{
+				{Days: []string{"mon", "funday", "mon"}, Start: "25:00", End: "7:00"},
+				{Days: nil, Start: "08:00", End: "08:00"}}}, {Name: "empty"}}
+		}, []string{"schedules[0].ranges[0].days[1]", "schedules[0].ranges[0].days[2]", "schedules[0].ranges[0].start",
+			"schedules[0].ranges[0].end", "schedules[0].ranges[1].days", "schedules[0].ranges[1].end", "schedules[1].ranges"}},
 		{"policy on VLAN is fine", func(c *Config) {
 			c.VLANs = append(c.VLANs, VLAN{Name: "guest", Parent: "lan", VLANID: 20, Mode: "static", Address: pfx("10.20.0.1/24")})
 			c.Policies[0].SrcIntf = []string{"guest"}

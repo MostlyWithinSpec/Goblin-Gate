@@ -41,9 +41,6 @@ func (v *validator) checkPolicies() {
 		if !oneOf(pol.Log, "", "off", "all", "deny") {
 			v.add(p+".log", "unknown log mode %q: want off, all or deny", pol.Log)
 		}
-		if pol.Schedule != "" {
-			v.add(p+".schedule", "schedules are not supported yet")
-		}
 		// Wildcards ("all"/"any") are accepted everywhere; Default() uses "all".
 		refs := func(field string, list []string, valid map[string]bool) {
 			for j, r := range list {

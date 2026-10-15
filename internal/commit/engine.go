@@ -186,9 +186,13 @@ func (e *Engine) Rollback(ctx context.Context, rev int, user string) (int, error
 }
 
 // ApplyRunning re-applies the current running config without changing it.
-// Used on daemon start to make sure the data plane matches what is on disk.
-// Returns true only if a running config existed and was applied.
+// Used on daemon start to make sure the data plane matches what is on disk,
+// and when time-dependent output changes (schedules across a daylight
+// saving switch). Returns true only if a running config existed and was
+// applied. It waits for a commit in progress.
 func (e *Engine) ApplyRunning(ctx context.Context) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	cfg, err := e.Store.Running()
 	if err != nil {
 		return false, nil
@@ -206,7 +210,7 @@ func (e *Engine) ApplyRunning(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("apply running: %w", err)
 	}
 	e.afterApply(cfg)
-	e.Logger.Info("applied running config on start", "files", len(files))
+	e.Logger.Info("applied running config", "files", len(files))
 	return true, nil
 }
 

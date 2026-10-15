@@ -245,6 +245,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	} else if applied {
 		logger.Info("running config applied on start")
 	}
+	if !o.dev {
+		go watchScheduleOffset(ctx, store, engine, logger)
+	}
 
 	apiServer := api.NewServer(store, engine)
 	apiServer.Logger = logger

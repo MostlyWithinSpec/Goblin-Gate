@@ -27,6 +27,7 @@ type Config struct {
 	Admins        []Admin        `json:"admins"`
 	VPN           VPN            `json:"vpn,omitzero"`
 	Notifications Notifications  `json:"notifications,omitzero"`
+	Schedules     []Schedule     `json:"schedules,omitempty"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

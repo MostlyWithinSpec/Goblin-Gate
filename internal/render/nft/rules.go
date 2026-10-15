@@ -179,8 +179,14 @@ func (r *ruleset) policies() error {
 }
 
 func (r *ruleset) policy(p config.Policy, counter string) ([]string, error) {
+	// A schedule limits every rule of the policy to its windows (task 057):
+	// outside them the policy does not match and traffic falls through.
+	times := []string{""}
 	if p.Schedule != "" {
-		return nil, fmt.Errorf("schedules are not supported yet")
+		var err error
+		if times, err = scheduleMatches(r.cfg, p.Schedule); err != nil {
+			return nil, err
+		}
 	}
 	var verdict string
 	switch p.Action {
@@ -256,17 +262,22 @@ func (r *ruleset) policy(p config.Policy, counter string) ([]string, error) {
 				}
 				drop := fmt.Sprintf("counter name %s drop comment %s", quote(r.feedHit[f]), quote(p.Name+": feed "+f))
 				for _, m := range l4 {
-					for _, dir := range []string{"saddr", "daddr"} {
-						feedDrops = append(feedDrops, joinNonEmpty(iif, oif, s, d, m, "ip "+dir+" @"+set, drop))
+					for _, t := range times {
+						for _, dir := range []string{"saddr", "daddr"} {
+							feedDrops = append(feedDrops, joinNonEmpty(iif, oif, s, d, m, t, "ip "+dir+" @"+set, drop))
+						}
 					}
 				}
 			}
 		}
 		// A service list mixing port-less protocols (icmp, tcp on all
-		// ports) with port pairs needs one rule per kind.
+		// ports) with port pairs needs one rule per kind, and a schedule one
+		// per time window.
 		for _, m := range l4 {
-			rules = append(rules, joinNonEmpty(iif, oif, s, d, m,
-				"counter name "+quote(counter), log, marks, verdict, "comment "+quote(p.Name)))
+			for _, t := range times {
+				rules = append(rules, joinNonEmpty(iif, oif, s, d, m, t,
+					"counter name "+quote(counter), log, marks, verdict, "comment "+quote(p.Name)))
+			}
 		}
 	}
 	return append(feedDrops, rules...), nil

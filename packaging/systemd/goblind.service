@@ -10,6 +10,10 @@ Type=exec
 Restart=on-failure
 RestartSec=5
 User=root
+# nft converts schedule hours (meta hour) from its local time zone; goblind
+# renders them in UTC already (internal/render/nft/schedule.go), so the nft
+# it runs must not convert again. Logs are UTC anyway.
+Environment=TZ=UTC
 Group=root
 LimitNOFILE=65536
 # /run/goblind/api.sock: the root-only local API socket for the goblin CLI.

@@ -203,7 +203,7 @@ func TestRenderErrors(t *testing.T) {
 		{"unknown service", func(c *config.Config) { c.Policies[0].Service = []string{"nope"} }, `unknown service "nope"`},
 		{"unknown feed", func(c *config.Config) { c.Policies[0].ThreatFeeds = []string{"nope"} }, `unknown threat feed "nope"`},
 		{"bad action", func(c *config.Config) { c.Policies[0].Action = "maybe" }, `unsupported action`},
-		{"schedule", func(c *config.Config) { c.Policies[0].Schedule = "workhours" }, `schedules are not supported`},
+		{"schedule", func(c *config.Config) { c.Policies[0].Schedule = "workhours" }, `unknown schedule "workhours"`},
 		{"duplicate id", func(c *config.Config) { c.Policies = append(c.Policies, c.Policies[0]) }, `duplicate id`},
 		{"mixed family range", func(c *config.Config) {
 			c.Addresses = []config.Address{{Name: "mix", Type: "range", Value: "10.0.0.1-2001:db8::1"}}

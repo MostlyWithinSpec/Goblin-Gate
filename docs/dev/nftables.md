@@ -34,7 +34,12 @@ One rule per enabled policy:
 - `log`: `all` logs every new connection the policy matches, `deny` logs only when the action is deny.
   Kernel log lines start with `GG:<id>:` (log ingest, task 023).
 - Disabled policies render as a comment, but their counter is still declared.
-- `schedule` is not supported yet. A policy with a schedule fails to render, so it never fails open.
+- `schedule` (task 057) limits every rule of the policy to the schedule's windows: `meta day ... meta hour
+  "HH:MM"-"HH:MM:SS"` (one rule per distinct hour window, days as a set). The kernel evaluates `meta day` in UTC
+  and nft converts `meta hour` from its local zone when loading, so the renderer converts the windows from
+  `system.timezone` to UTC itself (split at UTC midnight) and nft always runs with `TZ=UTC` (goblind.service,
+  nftables.service drop-in). goblind re-applies when the zone's UTC offset changes (DST). Outside its windows
+  the policy does not match and traffic falls through to later policies.
 
 ## Names
 

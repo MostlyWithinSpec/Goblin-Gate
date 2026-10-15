@@ -58,6 +58,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkGroups()
 	v.checkServices()
 	v.checkPolicies()
+	v.checkSchedules()
 	v.checkPortForwards()
 	v.checkDHCP()
 	v.checkFeedsAndAdmins()
@@ -111,6 +112,7 @@ func (v *validator) checkNames() {
 		{"service", "services", "name", svcs, true},
 		{"service group", "service_groups", "name", sgroups, true},
 		{"policy", "policies", "name", nameList(c.Policies, func(x Policy) string { return x.Name }), false},
+		{"schedule", "schedules", "name", nameList(c.Schedules, func(x Schedule) string { return x.Name }), false},
 		{"port forward", "nat.port_forwards", "name", nameList(c.NAT.PortForwards, func(x PortForward) string { return x.Name }), false},
 		{"feed", "feeds", "name", nameList(c.Feeds, func(x Feed) string { return x.Name }), false},
 		{"IPS profile", "profiles.ips", "name", nameList(c.Profiles.IPS, func(x IPSProfile) string { return x.Name }), false},
