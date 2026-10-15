@@ -70,6 +70,8 @@ jobs:
           FLAGS=""
           case "$TAG" in *-*) FLAGS="--prerelease" ;; esac
           if [ -f "$NOTES" ]; then FLAGS="$FLAGS --notes-file $NOTES"; else FLAGS="$FLAGS --generate-notes"; fi
+          # the build containers ran as root: take dist/ back before renaming
+          sudo chown -R "$(id -u):$(id -g)" dist
           cd dist
           # GitHub renames "~" in asset names to "."; checksum files use the published names
           for f in *.deb; do
