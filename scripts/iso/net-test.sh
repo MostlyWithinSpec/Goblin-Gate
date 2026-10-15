@@ -35,7 +35,7 @@ retry() { # retry <seconds> <command...>
 
 log "installing tools"
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps >/dev/null 2>&1
+apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps radvd kea-dhcp6-server iputils-ping >/dev/null 2>&1
 modprobe kvm_amd 2>/dev/null || modprobe kvm_intel 2>/dev/null || true
 [ -e /dev/kvm ] || mknod /dev/kvm c 10 232
 ACCEL=kvm; qemu-system-x86_64 -accel kvm -M none -display none -S -daemonize -pidfile /tmp/k.pid 2>/dev/null && kill "$(cat /tmp/k.pid)" || ACCEL=tcg
@@ -88,10 +88,42 @@ $IN dnsmasq --interface=inet0 --bind-interfaces --except-interface=lo \
 	--dhcp-leasefile=/tmp/inet.leases --pid-file=/tmp/dnsmasq.pid
 for a in 80 81 82; do $IN python3 /s/net-web.py 203.0.113.$a 80 internet-$a 2>>"$A/inet-web.log" & done
 
+# IPv6 (task 045): the "internet" is also 2001:db8:0:1::/64 - radvd announces
+# it (SLAAC + default route), Kea hands out /56 prefixes from
+# 2001:db8:100::/40 by DHCPv6 prefix delegation, web servers on ::80, ::81.
+for ns in "" inet; do ${ns:+ip netns exec $ns} sysctl -qw net.ipv6.conf.all.disable_ipv6=0 net.ipv6.conf.default.disable_ipv6=0; done
+$IN sysctl -qw net.ipv6.conf.inet0.disable_ipv6=0
+$IN sysctl -qw net.ipv6.conf.all.forwarding=1
+for a in 1 80 81; do $IN ip -6 addr add 2001:db8:0:1::$a/64 dev inet0 nodad; done
+cat > /tmp/radvd.conf <<'RADVD'
+interface inet0 {
+	AdvSendAdvert on;
+	MinRtrAdvInterval 3;
+	MaxRtrAdvInterval 10;
+	prefix 2001:db8:0:1::/64 { AdvOnLink on; AdvAutonomous on; };
+};
+RADVD
+$IN radvd -C /tmp/radvd.conf -p /tmp/radvd.pid -m logfile -l "$A/radvd.log"
+mkdir -p /run/kea /var/lib/kea
+cat > /tmp/kea6.json <<KEA6
+{"Dhcp6": {
+ "interfaces-config": {"interfaces": ["inet0"], "service-sockets-max-retries": 30, "service-sockets-retry-wait-time": 2000},
+ "lease-database": {"type": "memfile", "name": "/tmp/kea6.csv", "lfc-interval": 0},
+ "subnet6": [{"id": 1, "subnet": "2001:db8:0:1::/64", "interface": "inet0",
+   "pools": [{"pool": "2001:db8:0:1::1000-2001:db8:0:1::1fff"}],
+   "pd-pools": [{"prefix": "2001:db8:100::", "prefix-len": 40, "delegated-len": 56}]}],
+ "loggers": [{"name": "kea-dhcp6", "output_options": [{"output": "$A/kea6.log"}], "severity": "INFO"}]}}
+KEA6
+# Kea binds the link-local address: wait until it has left DAD (tentative)
+retry 30 sh -c "$IN ip -6 addr show dev inet0 scope link | grep fe80 | grep -qv tentative"
+$IN kea-dhcp6 -c /tmp/kea6.json >"$A/kea6.out" 2>&1 &
+for a in 80 81; do $IN python3 /s/net-web.py 2001:db8:0:1::$a 80 internet6-$a 2>>"$A/inet-web.log" & done
+
 ip netns add client
 mkdir -p /etc/netns/client; : > /etc/netns/client/resolv.conf
 ip link add client-br type veth peer name lan0; ip link set lan0 netns client; ip link set client-br master br-lan up
 CL="ip netns exec client"
+$CL sysctl -qw net.ipv6.conf.all.disable_ipv6=0 net.ipv6.conf.default.disable_ipv6=0 net.ipv6.conf.default.accept_ra=1 net.ipv6.conf.lan0.disable_ipv6=0 net.ipv6.conf.lan0.accept_ra=1 net.ipv6.conf.lan0.autoconf=1
 $CL ip link set lo up; $CL ip link set lan0 up
 
 # --- boot the firewall: eth0 = WAN (br-wan), eth1 = LAN (br-lan)
@@ -107,6 +139,8 @@ cleanup() {
 	kill "$(cat /tmp/dnsmasq.pid 2>/dev/null)" 2>/dev/null
 	pkill -f net-web.py 2>/dev/null
 	pkill dhclient 2>/dev/null
+	kill "$(cat /tmp/radvd.pid 2>/dev/null)" 2>/dev/null
+	pkill kea-dhcp6 2>/dev/null
 }
 trap cleanup EXIT
 
@@ -134,20 +168,24 @@ log "client address: ${CLIENT_IP:-none}"
 check dhcp-lease sh -c "echo '$CLIENT_IP' | grep -Eq '^192\.168\.1\.(1[0-9][0-9])$'"
 $CL python3 /s/net-web.py 0.0.0.0 80 lan-client 2>>"$A/client-web.log" &
 
-FW_WAN=$(sed -n 's/.*DHCPACK(inet0) \([0-9.]*\) 52:54:00:00:01:01.*/\1/p' "$A/dnsmasq.log" | tail -1)
+fwwan() { sed -n 's/.*DHCPACK(inet0) \([0-9.]*\) 52:54:00:00:01:01.*/\1/p' "$A/dnsmasq.log" | tail -1; }
+retry 60 bash -c "$(declare -f fwwan); A='$A'; fwwan | grep -q ."
+FW_WAN=$(fwwan)
 log "firewall WAN address: ${FW_WAN:-none}"
 
 # --- one commit with everything under test
 log "configuring and committing"
 patch() { api PATCH /api/v1/config/candidate "{\"path\":\"$1\",\"value\":$2}" | jq -c '.validation_errors' ; }
 patch dns '{"forwarders":["203.0.113.1"],"dnssec":false}'
-patch addresses '[{"name":"blocked-host","type":"host","value":"203.0.113.81"}]'
+patch addresses '[{"name":"blocked-host","type":"host","value":"203.0.113.81"},{"name":"blocked6","type":"host","value":"2001:db8:0:1::81"}]'
+patch 'interfaces[name=wan1].ipv6' '{"mode":"dhcp6"}'
+patch 'interfaces[name=lan].ipv6' '{"mode":"delegated"}'
 patch feeds '[{"name":"testfeed","type":"ip","url":"http://203.0.113.80/feed.txt","refresh_minutes":15,"enabled":true}]'
 patch profiles.dnsfilter '[{"name":"test","block_domains":["bad.test.example"]}]'
 patch profiles.ips '[{"name":"test","mode":"detect"}]'
 patch nat.port_forwards "[{\"name\":\"web\",\"in_intf\":\"wan1\",\"ext_port\":\"8080\",\"protocol\":\"tcp\",\"to_addr\":\"$CLIENT_IP\",\"to_port\":\"80\"}]"
 patch policies '[
- {"id":2,"name":"deny-blocked","enabled":true,"src_intf":["lan"],"dst_intf":["wan1"],"src_addr":["all"],"dst_addr":["blocked-host"],"service":["all"],"action":"deny","log":"all"},
+ {"id":2,"name":"deny-blocked","enabled":true,"src_intf":["lan"],"dst_intf":["wan1"],"src_addr":["all"],"dst_addr":["blocked-host","blocked6"],"service":["all"],"action":"deny","log":"all"},
  {"id":1,"name":"lan-to-internet","enabled":true,"src_intf":["lan"],"dst_intf":["wan1"],"src_addr":["all"],"dst_addr":["all"],"service":["all"],"action":"accept","nat":true,"log":"all","dnsfilter_profile":"test","ips_profile":"test","threat_feeds":["testfeed"]}]' | tail -1
 api POST /api/v1/commit '{"comment":"net-test"}' | tee "$A/commit.json"; echo
 
@@ -161,6 +199,32 @@ check deny-logged retry 90 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $
 check dnsfilter-block retry 60 sh -c "$D bad.test.example | grep -q 'status: NXDOMAIN'"
 check feed-loaded retry 180 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/feeds | jq -e '.feeds[] | select(.name == \"testfeed\") | .count >= 1'"
 check feed-block sh -c "sleep 5; ! $CL curl -s -m 5 http://203.0.113.82/"
+
+# --- IPv6 (task 045): the WAN gets a /56 by prefix delegation, the LAN its
+# first /64 (box = ::1), the client an address by SLAAC; traffic leaves
+# without NAT, the deny policy holds for IPv6, nothing comes in unasked.
+pd() { awk -F, '$7 == 2 {print $1 "/" $9}' /tmp/kea6.csv 2>/dev/null | tail -1; }
+check v6-prefix-delegated retry 120 bash -c "$(declare -f pd); test -n \"\$(pd)\""
+PD=$(pd); log "delegated prefix: ${PD:-none}"
+if [ -n "$PD" ]; then
+	# route the delegated prefix to the box's WAN link-local address
+	$IN ping -6 -c 2 -W 1 -I inet0 ff02::1 >/dev/null 2>&1
+	FW_LL=$($IN ip -6 neigh show dev inet0 | awk '/52:54:00:00:01:01/ && $1 ~ /^fe80/ {print $1; exit}')
+	log "firewall WAN link-local: ${FW_LL:-none}"
+	$IN ip -6 route replace "$PD" via "${FW_LL:-fe80::5054:ff:fe00:101}" dev inet0
+	BOX6=$(python3 -c "import ipaddress,sys; print(ipaddress.ip_network(sys.argv[1])[1])" "$PD")
+fi
+c6() { $CL ip -6 -o addr show dev lan0 scope global | awk '{print $4}' | cut -d/ -f1 | grep -v '^fd' | head -1; }
+check v6-client-slaac retry 90 bash -c "$(declare -f c6); CL='$CL'; c6 | grep -q ."
+CLIENT6=$(c6); log "client IPv6 address: ${CLIENT6:-none}"
+$CL python3 /s/net-web.py :: 8081 lan-client6 2>>"$A/client-web.log" &
+check v6-out retry 60 sh -c "$CL curl -6 -s -m 5 'http://[2001:db8:0:1::80]/whoami' | grep -q 'sees ${CLIENT6:-x}\$'"
+check v6-deny-policy sh -c "! $CL curl -6 -s -m 5 'http://[2001:db8:0:1::81]/'"
+# the box is ::1 in the LAN /64; the LAN allows https (not ping) after setup
+check v6-box-https retry 30 sh -c "$CL curl -6 -sk -m 5 -o /dev/null -w %{http_code} https://[${BOX6:-::1}]/api/v1/setup/state | grep -q 200"
+# the LAN has a DNS filter: DNS over IPv6 is refused, clients use IPv4
+check v6-dns-refused-on-filtered-lan sh -c "! $CL dig +time=2 +tries=1 @${BOX6:-::1} +short www.test.example | grep -q 203.0.113.80"
+check v6-no-inbound sh -c "! $IN curl -6 -s -m 5 'http://[${CLIENT6:-::1}]:8081/'"
 # IPS: suricata-update downloads ET Open through the WAN, then Suricata starts;
 # keep fetching the test page until an alert is logged.
 check ips-alert retry 900 sh -c "$CL curl -s -m 5 -o /dev/null http://203.0.113.80/id.txt; $CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=ips' | jq -e '[.events[] | select(.signature // \"\" | test(\"id check returned root\"))] | length > 0'"

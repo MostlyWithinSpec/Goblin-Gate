@@ -87,6 +87,11 @@ func run(args []string, stdout, stderr io.Writer, ready chan<- string) int {
 		}
 		return 0
 	}
+	// goblind update-run --to <version> [--os]: install an update with
+	// health check and rollback (started in a transient unit, task 051).
+	if len(args) > 0 && args[0] == "update-run" {
+		return runUpdate(args[1:], stdout, stderr)
+	}
 	opts, err := parseFlags(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -281,6 +286,29 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	ipsBatch := &notify.IPSBatcher{D: notifier}
 	go ipsBatch.Run(ctx)
+
+	// Updates (task 051): check the channel every 6 hours and say so once
+	// per new version; installing goes through POST /api/v1/system/updates/apply.
+	if !o.dev {
+		upd := updateManager(logger)
+		apiServer.Updates = upd
+		go func() {
+			told := ""
+			for {
+				if st := upd.Check(ctx, 0); st.Available != "" && st.Available != told {
+					told = st.Available
+					notifier.Publish(notify.Event{Kind: "update_available", Key: st.Available,
+						Title:   "Update available: " + st.Available,
+						Message: "Goblin Gate " + st.Available + " is available (installed: " + st.Installed + "). Install it on the System page. " + st.ReleaseURL})
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(6 * time.Hour):
+				}
+			}
+		}()
+	}
 
 	// IPS: refresh ET Open daily and reload the Suricata instances.
 	if !o.dev {

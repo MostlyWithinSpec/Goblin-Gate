@@ -17,7 +17,7 @@ apt-get install -y -qq simple-cdd xorriso curl gnupg ca-certificates openssl >/d
 
 LOCAL=/build/local
 mkdir -p "$LOCAL" /build/dl
-cp /src/dist/goblin-gate_*.deb "$LOCAL/"
+cp "${DEB_DIR:-/src/dist}"/goblin-gate_*.deb "$LOCAL/" # DEB_DIR, OUT_DIR: scripts/vm-update-test.ps1
 
 # Suricata 7 and suricata-update come from bookworm-backports: ship the
 # backports packages on the CD (their other dependencies are in main).
@@ -78,11 +78,11 @@ if [ "$UNATTENDED" = 1 ]; then
 	ISO=/build/unattended.iso
 	SUFFIX=-unattended
 fi
-OUT=/src/dist/goblin-gate-${VERSION}-amd64${SUFFIX:-}.iso
+OUT=${OUT_DIR:-/src/dist}/goblin-gate-${VERSION}-amd64${SUFFIX:-}.iso
 # Copy under a temporary name and rename when complete, so a half-written
 # ISO never carries the final name (booting one panics the installer).
 rm -f "$OUT" "$OUT.sha256"
 cp "$ISO" "$OUT.part"
-(cd /src/dist && sha256sum "$(basename "$OUT").part" | sed 's/\.part$//' > "$(basename "$OUT").sha256")
+(cd "$(dirname "$OUT")" && sha256sum "$(basename "$OUT").part" | sed 's/\.part$//' > "$(basename "$OUT").sha256")
 mv "$OUT.part" "$OUT"
 echo "built $OUT ($(du -h "$OUT" | cut -f1))"

@@ -39,6 +39,14 @@ for i in $(seq 1 120); do grep -q "GG-SELFTEST end" boot.log 2>/dev/null && brea
 kill "$(cat qemu.pid)" 2>/dev/null
 if grep -q "GG-SELFTEST end" boot.log; then
 	grep "GG-SELFTEST" boot.log | tr -d '\r'
+	# the packages the installer adds besides goblin-gate must be there
+	# (a broken install step once left them all out silently)
+	missing=""
+	grep -q "GG-SELFTEST suricata This is Suricata" boot.log || missing="$missing suricata"
+	for p in tailscale suricata-update openssh-server; do
+		grep -q "GG-SELFTEST pkg $p ii" boot.log || missing="$missing $p"
+	done
+	if [ -n "$missing" ]; then echo "[$MODE] FAIL: not installed:$missing"; exit 1; fi
 	echo "[$MODE] PASS"
 else
 	echo "[$MODE] no self-test report; last boot lines:"; tail -30 boot.log | tr -d '\r'

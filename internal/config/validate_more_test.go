@@ -52,15 +52,9 @@ func TestValidateMoreRules(t *testing.T) {
 		{"bad VLAN mode", func(c *Config) {
 			c.VLANs = append(c.VLANs, VLAN{Name: "v5", Parent: "lan", VLANID: 5, Mode: "bogus"})
 		}, []string{"vlans[0].mode"}},
-		{"ipv6 host object", func(c *Config) {
-			c.Addresses = append(c.Addresses, Address{Name: "v6", Type: "host", Value: "2001:db8::1"})
-		}, []string{"addresses[0].value", "IPv6"}},
-		{"ipv6 subnet object", func(c *Config) {
-			c.Addresses = append(c.Addresses, Address{Name: "v6", Type: "subnet", Value: "2001:db8::/32"})
-		}, []string{"addresses[0].value", "IPv6"}},
-		{"ipv6 range object", func(c *Config) {
-			c.Addresses = append(c.Addresses, Address{Name: "v6", Type: "range", Value: "2001:db8::1-2001:db8::9"})
-		}, []string{"addresses[0].value", "IPv6"}},
+		{"mixed family range object", func(c *Config) {
+			c.Addresses = append(c.Addresses, Address{Name: "mix", Type: "range", Value: "10.0.0.1-2001:db8::9"})
+		}, []string{"addresses[0].value", "mixes IPv4 and IPv6"}},
 		{"object named all", func(c *Config) {
 			c.Addresses = append(c.Addresses, Address{Name: "all", Type: "host", Value: "10.0.0.1"})
 		}, []string{"addresses[0].name", "reserved"}},

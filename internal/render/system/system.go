@@ -20,7 +20,39 @@ const (
 	SSHDPath         = "/etc/ssh/sshd_config.d/goblin.conf"
 	AuthorizedKeyDir = "/etc/ssh/goblin_authorized_keys/"
 	RootKeysPath     = AuthorizedKeyDir + "root"
+	// APT sources (task 051): Debian with security updates and backports
+	// (the offline installer configures none), Tailscale, and Goblin Gate's
+	// own signed repository on the chosen channel.
+	DebianSourcesPath = "/etc/apt/sources.list.d/goblin-debian.sources"
+	GoblinSourcesPath = "/etc/apt/sources.list.d/goblin-gate.sources"
+	// RepoURL is Goblin Gate's APT repository (GitHub Pages of the public repo).
+	RepoURL = "https://mostlywithinspec.github.io/Goblin-Gate/apt"
+	// GoblinKeyring and TailscaleKeyring ship in the goblin-gate package.
+	GoblinKeyring    = "/usr/share/keyrings/goblin-gate-archive.gpg"
+	TailscaleKeyring = "/usr/share/keyrings/tailscale-archive-keyring.gpg"
 )
+
+// DefaultChannel is the update channel when system.update_channel is "".
+const DefaultChannel = "beta"
+
+const debianSources = header + `Types: deb
+URIs: http://deb.debian.org/debian
+Suites: bookworm bookworm-updates bookworm-backports
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://security.debian.org/debian-security
+Suites: bookworm-security
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: https://pkgs.tailscale.com/stable/debian
+Suites: bookworm
+Components: main
+Signed-By: ` + TailscaleKeyring + `
+`
 
 const header = "# Managed by Goblin Gate (goblind): changes here are overwritten on the next commit.\n"
 
@@ -62,5 +94,20 @@ func (Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 		fmt.Fprintf(&keys, "# %s\n%s\n", k.Name, strings.TrimSpace(k.Key))
 	}
 	out[RootKeysPath] = []byte(keys.String())
+	channel := s.UpdateChannel
+	if channel == "" {
+		channel = DefaultChannel
+	}
+	out[DebianSourcesPath] = []byte(debianSources)
+	repo := RepoURL
+	if s.UpdateURL != "" {
+		repo = strings.TrimSuffix(s.UpdateURL, "/")
+	}
+	out[GoblinSourcesPath] = []byte(header + `Types: deb
+URIs: ` + repo + `
+Suites: ` + channel + `
+Components: main
+Signed-By: ` + GoblinKeyring + `
+`)
 	return out, nil
 }

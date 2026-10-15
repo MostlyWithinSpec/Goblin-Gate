@@ -167,15 +167,15 @@ func TestIngester(t *testing.T) {
 	var evs []StoredEvent
 	for time.Now().Before(deadline) {
 		evs, _, _ = store.ListEvents(ctx, EventFilter{})
-		if len(evs) >= 8 {
+		if len(evs) >= 9 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	cancel()
 	<-done
-	if len(evs) != 8 {
-		t.Fatalf("stored %d events, want 3 nft + 5 eve", len(evs))
+	if len(evs) != 9 {
+		t.Fatalf("stored %d events, want 4 nft + 5 eve", len(evs))
 	}
 	actions := map[string]string{}
 	for _, e := range evs {

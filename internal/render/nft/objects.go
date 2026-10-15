@@ -11,17 +11,39 @@ import (
 // setDecl is one named set in table inet goblin.
 type setDecl struct {
 	name     string
-	typ      string // "ipv4_addr" or "inet_proto . inet_service"
+	typ      string // "ipv4_addr", "ipv6_addr" or "inet_proto . inet_service"
 	elements []string
 	autoMrg  bool
 	comment  string
 }
 
-// addrObj is a resolved address object or group.
+// addrObj is a resolved address object or group. IPv4 and IPv6 members go
+// to separate sets (task 045): set (addr_<name>) and set6 (addr6_<name>).
 type addrObj struct {
-	set   string // nft set name
-	spans []span
-	fqdns []string // fqdn members; resolved at runtime by a later task
+	set    string // IPv4 set; "" when the object has only IPv6 members
+	set6   string // IPv6 set; "" when the object has no IPv6 (or fqdn) members
+	spans  []span
+	spans6 []span6
+	fqdns  []string // fqdn members; resolved at runtime by a later task
+}
+
+// has4 and has6 report whether the object can match that family; fqdn
+// members may resolve to either.
+func (o *addrObj) has4() bool { return len(o.spans) > 0 || len(o.fqdns) > 0 }
+func (o *addrObj) has6() bool { return len(o.spans6) > 0 || len(o.fqdns) > 0 }
+
+// declare names and declares the object's sets: the IPv4 set unless the
+// object is IPv6-only (an empty object keeps an empty IPv4 set, as before
+// IPv6), the IPv6 set when it has IPv6 or fqdn members.
+func (o *objects) declare(obj *addrObj, prefix, name, comment string) {
+	if obj.has4() || len(obj.spans6) == 0 {
+		obj.set = o.names.get(prefix, name)
+		o.sets = append(o.sets, addrSetDecl(obj.set, obj.spans, comment))
+	}
+	if obj.has6() {
+		obj.set6 = o.names.get(strings.Replace(prefix, "addr", "addr6", 1), name)
+		o.sets = append(o.sets, addrSetDecl6(obj.set6, obj.spans6, comment))
+	}
 }
 
 // svcObj is a resolved service object or group.
@@ -90,20 +112,20 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 	addrs := append([]config.Address(nil), cfg.Addresses...)
 	sort.Slice(addrs, func(i, j int) bool { return addrs[i].Name < addrs[j].Name })
 	for _, a := range addrs {
-		obj := &addrObj{set: o.names.get("addr_", a.Name)}
+		obj := &addrObj{}
 		comment := a.Type + " " + a.Value
 		if a.Type == "fqdn" {
 			obj.fqdns = []string{a.Value}
 			comment = "fqdn " + a.Value + " (resolved at runtime)"
 		} else {
-			s, err := addrValueSpan(a.Type, a.Value)
+			v4, v6, err := addrValue(a.Type, a.Value)
 			if err != nil {
 				return fmt.Errorf("address %q: %w", a.Name, err)
 			}
-			obj.spans = []span{s}
+			obj.spans, obj.spans6 = v4, v6
 		}
 		o.addrs[a.Name] = obj
-		o.sets = append(o.sets, addrSetDecl(obj.set, obj.spans, comment))
+		o.declare(obj, "addr_", a.Name, comment)
 	}
 
 	groups := map[string]config.AddressGroup{}
@@ -137,9 +159,11 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 				return nil, fmt.Errorf("address group %q: %w", name, err)
 			}
 			obj.spans = append(obj.spans, mo.spans...)
+			obj.spans6 = append(obj.spans6, mo.spans6...)
 			obj.fqdns = append(obj.fqdns, mo.fqdns...)
 		}
 		obj.spans = mergeSpans(obj.spans)
+		obj.spans6 = mergeSpans6(obj.spans6)
 		o.addrs[name] = obj
 		return obj, nil
 	}
@@ -148,12 +172,11 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 		if err != nil {
 			return err
 		}
-		obj.set = o.names.get("addrgrp_", name)
 		comment := "group"
 		if len(obj.fqdns) > 0 {
 			comment += "; fqdn members resolved at runtime: " + strings.Join(obj.fqdns, " ")
 		}
-		o.sets = append(o.sets, addrSetDecl(obj.set, obj.spans, comment))
+		o.declare(obj, "addrgrp_", name, comment)
 	}
 	return nil
 }
@@ -273,6 +296,14 @@ func addrSetDecl(name string, spans []span, comment string) setDecl {
 	d := setDecl{name: name, typ: "ipv4_addr", comment: comment}
 	for _, s := range mergeSpans(spans) {
 		d.elements = append(d.elements, formatAddrSpan(s))
+	}
+	return d
+}
+
+func addrSetDecl6(name string, spans []span6, comment string) setDecl {
+	d := setDecl{name: name, typ: "ipv6_addr", comment: comment}
+	for _, s := range mergeSpans6(spans) {
+		d.elements = append(d.elements, formatAddrSpan6(s))
 	}
 	return d
 }

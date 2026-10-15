@@ -19,6 +19,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
+	"github.com/networkgoblinlabs/goblin-gate/internal/updates"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
 	"github.com/networkgoblinlabs/goblin-gate/internal/webfilter"
 	"github.com/networkgoblinlabs/goblin-gate/internal/wireguard"
@@ -53,6 +54,8 @@ type Server struct {
 	Feeds *feeds.Manager
 	// Notify sends alerts (task 053); nil sends none.
 	Notify *notify.Dispatcher
+	// Updates installs package updates (task 051); nil answers 503 (dev mode).
+	Updates *updates.Manager
 
 	// Logs, Policies and System serve the stats and log endpoints; nil
 	// answers 503.
@@ -117,6 +120,8 @@ func (s *Server) Routes() http.Handler {
 	handle("PATCH /api/v1/admins/{name}", s.updateAdmin)
 	handle("DELETE /api/v1/admins/{name}", s.deleteAdmin)
 	handle("POST /api/v1/notifications/test", s.notifyTest)
+	handle("GET /api/v1/system/updates", s.updateStatus)
+	handle("POST /api/v1/system/updates/apply", s.applyUpdate)
 	handle("GET /api/v1/feeds", s.feedStatus)
 	handle("GET /api/v1/feeds/lookup", s.feedLookup)
 	handle("POST /api/v1/feeds/{name}/refresh", s.feedRefresh)

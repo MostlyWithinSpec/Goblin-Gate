@@ -1,0 +1,100 @@
+# Releases (task 051). A tag vX.Y.Z or vX.Y.Z-alpha.N builds the .deb and the
+# installer ISO, publishes a GitHub Release and adds the .deb to the APT
+# repository on GitHub Pages (pre-releases -> beta; releases -> stable and beta).
+# A push to main builds a .deb for the nightly channel.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apt-repo # one writer of the gh-pages branch at a time
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # git describe needs the tags
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: version and channel
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then
+            V="${GITHUB_REF_NAME#v}"
+            case "$V" in *-*) CH=beta ;; *) CH=stable ;; esac
+          else
+            V="$(git describe --tags --always | sed 's/^v//')"
+            CH=nightly
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "channel=$CH" >> "$GITHUB_OUTPUT"
+          echo "Building $V for the $CH channel"
+
+      - name: web UI
+        run: cd web && npm ci --no-audit --no-fund && npm run build
+
+      - name: deb
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -e VERSION="${{ steps.v.outputs.version }}" \
+            -e GOFLAGS=-buildvcs=false golang:1.26-bookworm bash scripts/build-deb.sh
+          ls -l dist
+
+      - name: installer ISO
+        if: github.ref_type == 'tag'
+        run: |
+          docker run --rm --privileged -v "$PWD:/src" -e VERSION="${{ steps.v.outputs.version }}" \
+            -e UNATTENDED=0 debian:12 bash /src/scripts/iso/build.sh
+          ls -l dist
+
+      - name: GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          NOTES="docs/releases/${TAG}.md"
+          FLAGS=""
+          case "$TAG" in *-*) FLAGS="--prerelease" ;; esac
+          if [ -f "$NOTES" ]; then FLAGS="$FLAGS --notes-file $NOTES"; else FLAGS="$FLAGS --generate-notes"; fi
+          cd dist
+          # GitHub renames "~" in asset names to "."; checksum files use the published names
+          for f in *.deb; do
+            n="${f//\~/.}"
+            [ "$f" = "$n" ] || mv "$f" "$n"
+            sha256sum "$n" > "$n.sha256"
+          done
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Goblin Gate ${TAG#v}" $FLAGS
+          gh release upload "$TAG" --clobber *.iso *.iso.sha256 *.deb *.deb.sha256
+
+      - name: APT repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          CHANNEL: ${{ steps.v.outputs.channel }}
+        run: |
+          git fetch origin gh-pages:gh-pages
+          git worktree add pages gh-pages
+          DEBS=$(ls dist/*.deb)
+          run() { docker run --rm -v "$PWD:/w" -w /w -e APT_SIGNING_KEY debian:12 bash -c \
+            "apt-get update -qq >/dev/null && apt-get install -y -qq apt-utils gnupg >/dev/null 2>&1 && bash scripts/apt-repo.sh pages/apt $1 $DEBS"; }
+          run "$CHANNEL"
+          [ "$CHANNEL" = stable ] && run beta # beta always carries the newest release too
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "apt: ${{ steps.v.outputs.version }} -> $CHANNEL"
+          git push origin gh-pages

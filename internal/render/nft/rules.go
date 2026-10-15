@@ -27,18 +27,32 @@ func (r *ruleset) inputRules() {
 		wan        bool
 		enabled    bool
 		access     []string
+		v6         string // ipv6 mode, "" = none
+	}
+	v6mode := func(x *config.IPv6) string {
+		if x == nil || x.Mode == "none" {
+			return ""
+		}
+		return x.Mode
 	}
 	var all []ifc
 	wan := map[string]bool{}
 	for _, i := range r.cfg.Interfaces {
 		wan[i.Name] = i.Role == "wan"
-		all = append(all, ifc{i.Name, i.Mode, i.Role == "wan", i.Enabled, i.AllowAccess})
+		all = append(all, ifc{i.Name, i.Mode, i.Role == "wan", i.Enabled, i.AllowAccess, v6mode(i.IPv6)})
 	}
 	// VLANs have no role of their own; a VLAN on a wan parent is wan.
 	for _, v := range r.cfg.VLANs {
-		all = append(all, ifc{v.Name, v.Mode, wan[v.Parent], v.Enabled, v.AllowAccess})
+		all = append(all, ifc{v.Name, v.Mode, wan[v.Parent], v.Enabled, v.AllowAccess, v6mode(v.IPv6)})
 	}
 	sortBy(all, func(i ifc) string { return i.name })
+
+	// IPv6 (task 045): neighbor discovery, router advertisements and path
+	// MTU discovery must work on every IPv6 link; ICMPv6 errors for tracked
+	// connections are already accepted as related.
+	if r.cfg.IPv6Enabled() {
+		r.input = append(r.input, "icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert, packet-too-big, destination-unreachable, time-exceeded, parameter-problem } accept comment "+quote("ipv6: neighbor discovery and errors"))
+	}
 
 	for _, i := range all {
 		dev, ok := r.devs[i.name]
@@ -50,6 +64,9 @@ func (r *ruleset) inputRules() {
 			switch a {
 			case "ping":
 				r.input = append(r.input, fmt.Sprintf("%s icmp type echo-request accept comment %s", in, quote(i.name+": ping")))
+				if i.v6 != "" {
+					r.input = append(r.input, fmt.Sprintf("%s icmpv6 type echo-request accept comment %s", in, quote(i.name+": ping6")))
+				}
 			case "https":
 				r.input = append(r.input, fmt.Sprintf("%s tcp dport %d accept comment %s", in, adminPort, quote(i.name+": https admin")))
 			case "ssh":
@@ -58,6 +75,9 @@ func (r *ruleset) inputRules() {
 		}
 		if i.mode == "dhcp" {
 			r.input = append(r.input, fmt.Sprintf("%s udp sport 67 udp dport 68 accept comment %s", in, quote(i.name+": dhcp client")))
+		}
+		if i.v6 == "dhcp6" {
+			r.input = append(r.input, fmt.Sprintf("%s ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept comment %s", in, quote(i.name+": dhcpv6 client")))
 		}
 		if dhcpSrv[i.name] {
 			r.input = append(r.input, fmt.Sprintf("%s udp dport 67 accept comment %s", in, quote(i.name+": dhcp server")))
@@ -179,40 +199,21 @@ func (r *ruleset) policy(p config.Policy, counter string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dst_intf: %w", err)
 	}
-	src, err := r.addrMatch("ip saddr", p.SrcAddr, fmt.Sprintf("policy_%d_src", p.ID))
+	src, err := r.addrMatch("saddr", p.SrcAddr, fmt.Sprintf("policy_%d_src", p.ID))
 	if err != nil {
 		return nil, fmt.Errorf("src_addr: %w", err)
 	}
-	dst, err := r.addrMatch("ip daddr", p.DstAddr, fmt.Sprintf("policy_%d_dst", p.ID))
+	dst, err := r.addrMatch("daddr", p.DstAddr, fmt.Sprintf("policy_%d_dst", p.ID))
 	if err != nil {
 		return nil, fmt.Errorf("dst_addr: %w", err)
 	}
-	l4, err := r.svcMatch(p.Service, fmt.Sprintf("policy_%d_svc", p.ID))
+	svc, err := r.svcMatch(p.Service, fmt.Sprintf("policy_%d_svc", p.ID))
 	if err != nil {
 		return nil, fmt.Errorf("service: %w", err)
 	}
 	for _, f := range p.ThreatFeeds {
 		if !r.feedExists(f) {
 			return nil, fmt.Errorf("unknown threat feed %q", f)
-		}
-	}
-	// Threat feeds: traffic this policy would accept is dropped first when
-	// its source or destination is in one of the policy's IP feeds. Domain
-	// and url feeds are handled by the DNS and web filters; disabled feeds
-	// have no set and are skipped.
-	var feedDrops []string
-	if p.Action == "accept" {
-		for _, f := range p.ThreatFeeds {
-			set, ok := r.feedSet[f]
-			if !ok {
-				continue
-			}
-			drop := fmt.Sprintf("counter name %s drop comment %s", quote(r.feedHit[f]), quote(p.Name+": feed "+f))
-			for _, m := range l4 {
-				for _, dir := range []string{"saddr", "daddr"} {
-					feedDrops = append(feedDrops, joinNonEmpty(iif, oif, src, dst, m, "ip "+dir+" @"+set, drop))
-				}
-			}
 		}
 	}
 
@@ -233,67 +234,183 @@ func (r *ruleset) policy(p config.Policy, counter string) ([]string, error) {
 		}
 	}
 
-	// A service list mixing port-less protocols (icmp, tcp on all ports) with
-	// port pairs needs one rule per kind; both share the policy counter.
-	rules := feedDrops
-	for _, m := range l4 {
-		rules = append(rules, joinNonEmpty(iif, oif, src, dst, m,
-			"counter name "+quote(counter), log, marks, verdict, "comment "+quote(p.Name)))
+	// One set of rules per address family the policy can match (task 045):
+	// without address objects one family-less set; otherwise IPv4 and/or
+	// IPv6, each with its own sets. All share the policy counter.
+	fams := addrFamilies(src, dst)
+	if len(fams) == 0 {
+		return []string{fmt.Sprintf("# policy %d %s: its source and destination addresses share no address family", p.ID, quote(p.Name))}, nil
 	}
-	return rules, nil
+	var feedDrops, rules []string
+	for _, fam := range fams {
+		s, d, l4 := src.match(fam), dst.match(fam), svc.matches(fam)
+		// Threat feeds: traffic this policy would accept is dropped first
+		// when its source or destination is in one of the policy's IP feeds
+		// (IPv4 sets). Domain and url feeds are handled by the DNS and web
+		// filters; disabled feeds have no set and are skipped.
+		if p.Action == "accept" && fam != "6" {
+			for _, f := range p.ThreatFeeds {
+				set, ok := r.feedSet[f]
+				if !ok {
+					continue
+				}
+				drop := fmt.Sprintf("counter name %s drop comment %s", quote(r.feedHit[f]), quote(p.Name+": feed "+f))
+				for _, m := range l4 {
+					for _, dir := range []string{"saddr", "daddr"} {
+						feedDrops = append(feedDrops, joinNonEmpty(iif, oif, s, d, m, "ip "+dir+" @"+set, drop))
+					}
+				}
+			}
+		}
+		// A service list mixing port-less protocols (icmp, tcp on all
+		// ports) with port pairs needs one rule per kind.
+		for _, m := range l4 {
+			rules = append(rules, joinNonEmpty(iif, oif, s, d, m,
+				"counter name "+quote(counter), log, marks, verdict, "comment "+quote(p.Name)))
+		}
+	}
+	return append(feedDrops, rules...), nil
 }
 
-// addrMatch renders an address match. One object uses its own set; several
-// get a per-policy set holding their union.
-func (r *ruleset) addrMatch(key string, refs []string, polSet string) (string, error) {
+// addrRef is a policy's source or destination address match per family.
+type addrRef struct {
+	all    bool   // no address match
+	m4, m6 string // "ip saddr @set" / "ip6 saddr @set6"; "" = cannot match that family
+}
+
+func (a addrRef) match(fam string) string {
+	switch fam {
+	case "4":
+		return a.m4
+	case "6":
+		return a.m6
+	}
+	return ""
+}
+
+// addrFamilies lists the families to render a policy for: "" (any) when
+// neither side names addresses, else "4" and/or "6" where both sides can match.
+func addrFamilies(src, dst addrRef) []string {
+	if src.all && dst.all {
+		return []string{""}
+	}
+	var out []string
+	if (src.all || src.m4 != "") && (dst.all || dst.m4 != "") {
+		out = append(out, "4")
+	}
+	if (src.all || src.m6 != "") && (dst.all || dst.m6 != "") {
+		out = append(out, "6")
+	}
+	return out
+}
+
+// addrMatch renders an address match. One object uses its own sets;
+// several get per-policy sets holding their union (polSet, polSet+"6").
+func (r *ruleset) addrMatch(dir string, refs []string, polSet string) (addrRef, error) {
 	var objs []*addrObj
 	for _, ref := range refs {
 		if isAll(ref) {
-			return "", nil
+			return addrRef{all: true}, nil
 		}
 		o, ok := r.objs.addrs[ref]
 		if !ok {
-			return "", fmt.Errorf("unknown address %q", ref)
-		}
-		objs = append(objs, o)
-	}
-	switch len(objs) {
-	case 0:
-		return "", nil
-	case 1:
-		return key + " @" + objs[0].set, nil
-	}
-	var spans []span
-	for _, o := range objs {
-		spans = append(spans, o.spans...)
-	}
-	name := r.names.get("", polSet)
-	r.sets = append(r.sets, addrSetDecl(name, spans, "union of "+strings.Join(refs, " ")))
-	return key + " @" + name, nil
-}
-
-// svcMatch returns the layer-4 match(es) for a service list: [""] for any,
-// otherwise one match for port pairs and/or one for port-less protocols.
-func (r *ruleset) svcMatch(refs []string, polSet string) ([]string, error) {
-	var objs []*svcObj
-	for _, ref := range refs {
-		if isAll(ref) {
-			return []string{""}, nil
-		}
-		o, ok := r.objs.svcs[ref]
-		if !ok {
-			return nil, fmt.Errorf("unknown service %q", ref)
+			return addrRef{}, fmt.Errorf("unknown address %q", ref)
 		}
 		objs = append(objs, o)
 	}
 	if len(objs) == 0 {
-		return []string{""}, nil
+		return addrRef{all: true}, nil
+	}
+	set, set6 := objs[0].set, objs[0].set6
+	if len(objs) > 1 {
+		u := &addrObj{}
+		for _, o := range objs {
+			u.spans = append(u.spans, o.spans...)
+			u.spans6 = append(u.spans6, o.spans6...)
+			u.fqdns = append(u.fqdns, o.fqdns...)
+		}
+		comment := "union of " + strings.Join(refs, " ")
+		set, set6 = "", ""
+		if u.has4() || len(u.spans6) == 0 {
+			set = r.names.get("", polSet)
+			r.sets = append(r.sets, addrSetDecl(set, u.spans, comment))
+		}
+		if u.has6() {
+			set6 = r.names.get("", polSet+"6")
+			r.sets = append(r.sets, addrSetDecl6(set6, u.spans6, comment))
+		}
+	}
+	var a addrRef
+	if set != "" {
+		a.m4 = "ip " + dir + " @" + set
+	}
+	if set6 != "" {
+		a.m6 = "ip6 " + dir + " @" + set6
+	}
+	return a, nil
+}
+
+// svcRef is a policy's resolved service list.
+type svcRef struct {
+	any    bool
+	pairs  string   // "meta l4proto . th dport @set", "" = no port pairs
+	protos []string // protocols matched on all ports
+}
+
+// matches returns the layer-4 match(es) for one address family: [""] for
+// any, otherwise one match for port pairs and/or one for port-less
+// protocols. "icmp" means ICMPv4 and/or ICMPv6 by family.
+func (s svcRef) matches(fam string) []string {
+	if s.any {
+		return []string{""}
+	}
+	var out []string
+	if s.pairs != "" {
+		out = append(out, s.pairs)
+	}
+	var protos []string
+	for _, p := range s.protos {
+		if p == "icmp" {
+			if fam != "6" {
+				protos = append(protos, "icmp")
+			}
+			if fam != "4" {
+				protos = append(protos, "ipv6-icmp")
+			}
+			continue
+		}
+		protos = append(protos, p)
+	}
+	if len(protos) == 1 {
+		out = append(out, "meta l4proto "+protos[0])
+	} else if len(protos) > 1 {
+		out = append(out, "meta l4proto { "+strings.Join(protos, ", ")+" }")
+	}
+	return out
+}
+
+// svcMatch resolves a service list, declaring a per-policy set when several
+// services carry port pairs.
+func (r *ruleset) svcMatch(refs []string, polSet string) (svcRef, error) {
+	var objs []*svcObj
+	for _, ref := range refs {
+		if isAll(ref) {
+			return svcRef{any: true}, nil
+		}
+		o, ok := r.objs.svcs[ref]
+		if !ok {
+			return svcRef{}, fmt.Errorf("unknown service %q", ref)
+		}
+		objs = append(objs, o)
+	}
+	if len(objs) == 0 {
+		return svcRef{any: true}, nil
 	}
 	u := unionSvcs(objs)
 	if u.any {
-		return []string{""}, nil
+		return svcRef{any: true}, nil
 	}
-	var out []string
+	var out svcRef
 	if len(u.pairs) > 0 {
 		set := ""
 		if len(objs) == 1 {
@@ -303,13 +420,9 @@ func (r *ruleset) svcMatch(refs []string, polSet string) ([]string, error) {
 			set = r.names.get("", polSet)
 			r.sets = append(r.sets, svcSetDecl(set, u.pairs, "union of "+strings.Join(refs, " ")))
 		}
-		out = append(out, "meta l4proto . th dport @"+set)
+		out.pairs = "meta l4proto . th dport @" + set
 	}
-	if protos := sortedKeys(u.protoOnly); len(protos) == 1 {
-		out = append(out, "meta l4proto "+protos[0])
-	} else if len(protos) > 1 {
-		out = append(out, "meta l4proto { "+strings.Join(protos, ", ")+" }")
-	}
+	out.protos = sortedKeys(u.protoOnly)
 	return out, nil
 }
 
@@ -374,6 +487,13 @@ func (r *ruleset) dnsFilter() {
 		}
 		r.dnsRedir = append(r.dnsRedir, fmt.Sprintf("%s meta l4proto { tcp, udp } th dport 53 redirect to %s comment %s",
 			in, target, quote(label+": "+f.iface)))
+		if r.cfg.IPv6Enabled() {
+			// The filter knows its clients by IPv4 subnet: DNS over IPv6
+			// (to the box or past it) is refused, clients fall back to IPv4.
+			v6dns := fmt.Sprintf("%s meta nfproto ipv6 meta l4proto { tcp, udp } th dport 53 reject comment %s", in, quote(label+": dns over ipv4 only"))
+			r.input = append(r.input, v6dns)
+			r.dnsFwd = append(r.dnsFwd, v6dns)
+		}
 		r.dnsFwd = append(r.dnsFwd, fmt.Sprintf("%s tcp dport 853 reject with tcp reset comment %s",
 			in, quote(label+": no DNS-over-TLS")))
 	}

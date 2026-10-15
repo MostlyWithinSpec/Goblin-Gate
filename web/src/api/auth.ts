@@ -28,7 +28,7 @@ export async function login(username: string, password: string): Promise<LoginRe
   return { ok: false, message: body?.error?.message ?? `Login failed (${res.status})` }
 }
 
-function csrfToken(): string {
+export function csrfToken(): string {
   const m = /(?:^|;\s*)gg_csrf=([^;]*)/.exec(document.cookie)
   return m ? decodeURIComponent(m[1]) : ''
 }

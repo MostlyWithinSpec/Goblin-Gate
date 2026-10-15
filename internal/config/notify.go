@@ -44,13 +44,14 @@ type NotifyRule struct {
 
 // NotifyEvents are the events a rule can name.
 var NotifyEvents = []string{
-	"commit",       // a config commit was applied (who, revision)
-	"login_failed", // a user was locked out after repeated wrong passwords
-	"ips_block",    // IPS dropped traffic (batched per minute)
-	"feed_error",   // a threat feed download failed
-	"wan_down",     // a WAN gateway stopped answering (multi-WAN, task 049)
-	"wan_up",       // a WAN gateway is back
-	"test",         // sent by POST /api/v1/notifications/test
+	"commit",           // a config commit was applied (who, revision)
+	"login_failed",     // a user was locked out after repeated wrong passwords
+	"ips_block",        // IPS dropped traffic (batched per minute)
+	"feed_error",       // a threat feed download failed
+	"wan_down",         // a WAN gateway stopped answering (multi-WAN, task 049)
+	"wan_up",           // a WAN gateway is back
+	"update_available", // a newer Goblin Gate is in the update channel
+	"test",             // sent by POST /api/v1/notifications/test
 }
 
 func (v *validator) checkNotifications() {

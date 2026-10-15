@@ -195,3 +195,47 @@ func TestListen(t *testing.T) {
 		}
 	}
 }
+
+// TestListenIPv6 (task 045): with IPv6, Unbound listens on every address
+// and allows link-local, static LAN prefixes and (with a delegation) all
+// global and unique-local space; WAN static prefixes stay refused.
+func TestListenIPv6(t *testing.T) {
+	cfg := config.Default()
+	wan6 := netip.MustParsePrefix("2001:db8::2/64")
+	lan6 := netip.MustParsePrefix("fd00:1::1/64")
+	cfg.Interfaces[0].IPv6 = &config.IPv6{Mode: "static", Address: &wan6}
+	cfg.Interfaces[1].IPv6 = &config.IPv6{Mode: "static", Address: &lan6}
+	s := renderConf(t, cfg)
+	for _, want := range []string{"interface: ::0\n", "interface-automatic: yes\n", "do-ip6: yes\n",
+		"access-control: fe80::/10 allow\n", "access-control: fd00:1::/64 allow\n", "access-control: ::/0 refuse\n",
+		"access-control: 192.168.1.0/24 allow\n"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	for _, bad := range []string{"2001:db8::", "2000::/3", "ip-freebind"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("must not contain %q", bad)
+		}
+	}
+	cfg.Interfaces[0].IPv6 = &config.IPv6{Mode: "dhcp6"}
+	cfg.Interfaces[1].IPv6 = &config.IPv6{Mode: "delegated"}
+	if s := renderConf(t, cfg); !strings.Contains(s, "access-control: 2000::/3 allow\n") {
+		t.Error("a delegated LAN must allow global unicast")
+	}
+	if s := renderConf(t, config.Default()); strings.Contains(s, "::0") || !strings.Contains(s, "do-ip6: no\n") {
+		t.Error("IPv4-only configs must keep listening on their addresses only")
+	}
+}
+
+func renderConf(t *testing.T, cfg *config.Config) string {
+	t.Helper()
+	if errs := config.Validate(cfg); len(errs) > 0 {
+		t.Fatalf("fixture invalid: %v", errs)
+	}
+	files, err := Renderer{}.Render(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(files[Path])
+}

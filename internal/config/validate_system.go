@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata" // time zone names are checked the same way on every OS
+	"unicode"
 )
 
 // sshKeyTypes are the OpenSSH public key types sshd accepts for root login.
@@ -32,6 +33,12 @@ func (v *validator) checkSystemSettings() {
 		if _, err := netip.ParseAddr(n); err != nil && !validHostname(n) {
 			v.add(fmt.Sprintf("system.ntp_servers[%d]", i), "invalid NTP server %q: want a hostname or IP address", n)
 		}
+	}
+	if s.UpdateChannel != "" && !oneOf(s.UpdateChannel, "stable", "beta", "nightly") {
+		v.add("system.update_channel", "unknown update channel %q: want stable, beta or nightly", s.UpdateChannel)
+	}
+	if u := s.UpdateURL; u != "" && ((!strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://")) || strings.IndexFunc(u, unicode.IsSpace) >= 0) {
+		v.add("system.update_url", "want an http:// or https:// URL")
 	}
 	seen := map[string]bool{}
 	for i, k := range s.SSHKeys {

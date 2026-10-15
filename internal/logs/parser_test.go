@@ -48,6 +48,11 @@ func TestParseNftables(t *testing.T) {
 	if err != nil || real.Time != 1791737574 || real.PolicyID != "5" || real.OutIntf != "lo" || real.DstPort != 9 || real.Proto != "tcp" {
 		t.Fatalf("real ulogd line: %v %+v", err, real)
 	}
+	// IPv6, captured from ulogd2 2.0.8 (task 045): no ip.totlen, bytes from raw.pktlen
+	v6, err := ParseNftables(lines[4])
+	if err != nil || v6.SrcIP != "::1" || v6.Proto != "tcp" || v6.DstPort != 9 || v6.Bytes != 80 {
+		t.Fatalf("ipv6 ulogd line: %v %+v", err, v6)
+	}
 	if _, err := ParseNftables("GG:1: not json"); err == nil || errors.Is(err, ErrSkip) {
 		t.Fatalf("garbage: %v", err)
 	}

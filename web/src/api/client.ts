@@ -1,5 +1,21 @@
 import { APIError } from './types'
 
+// APIRequestError is thrown for every non-2xx answer: message is the
+// server's message, code its error code, details e.g. the validation errors
+// of a failed commit ([{path, message}]).
+export class APIRequestError extends Error {
+  status: number
+  code: string
+  details: unknown
+  constructor(message: string, status: number, code: string, details: unknown) {
+    super(message)
+    this.name = 'APIRequestError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+}
+
 // Fetch wrapper with CSRF token handling and error handling
 export const apiClient = async <T>(
   url: string,
@@ -51,17 +67,20 @@ export const apiClient = async <T>(
   // underlying reason (e.g. which field was wrong), shown after the message.
   if (!response.ok) {
     let message = response.statusText || `HTTP ${response.status}`
+    let code = ''
+    let details: unknown
     try {
       const body = (await response.json()) as APIError
       if (body?.error?.message) {
         message = body.error.message
-        const d = body.error.details
-        if (typeof d === 'string' && d) message += `: ${d}`
+        code = body.error.code
+        details = body.error.details
+        if (typeof details === 'string' && details) message += `: ${details}`
       }
     } catch {
       // not JSON: keep the status text
     }
-    throw new Error(message)
+    throw new APIRequestError(message, response.status, code, details)
   }
 
   // Return parsed JSON data

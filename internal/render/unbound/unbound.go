@@ -49,6 +49,45 @@ func listenPrefixes(cfg *config.Config) []netip.Prefix {
 	return out
 }
 
+// ipv6Access returns the IPv6 networks that may query Unbound, or nil when
+// no interface uses IPv6: loopback, link-local (router advertisements
+// announce the box's link-local address), each LAN-side static IPv6
+// prefix, and all global and unique-local space when a LAN-side interface
+// takes its prefix from a delegation (unknown until the ISP hands it out;
+// the firewall only opens port 53 on LAN-side interfaces).
+func ipv6Access(cfg *config.Config) []netip.Prefix {
+	if !cfg.IPv6Enabled() {
+		return nil
+	}
+	out := []netip.Prefix{netip.MustParsePrefix("::1/128"), netip.MustParsePrefix("fe80::/10")}
+	wan := map[string]bool{}
+	delegated := false
+	add := func(enabled, isWAN bool, x *config.IPv6) {
+		if !enabled || isWAN || x == nil {
+			return
+		}
+		switch x.Mode {
+		case "static":
+			if x.Address != nil {
+				out = append(out, x.Address.Masked())
+			}
+		case "delegated":
+			delegated = true
+		}
+	}
+	for _, i := range cfg.Interfaces {
+		wan[i.Name] = i.Role == "wan"
+		add(i.Enabled, i.Role == "wan", i.IPv6)
+	}
+	for _, v := range cfg.VLANs {
+		add(v.Enabled, wan[v.Parent], v.IPv6)
+	}
+	if delegated {
+		out = append(out, netip.MustParsePrefix("2000::/3"), netip.MustParsePrefix("fc00::/7"))
+	}
+	return out
+}
+
 // Render returns the Unbound configuration file keyed by Path.
 // It never touches the OS.
 //
@@ -64,19 +103,39 @@ func (r Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 	b.WriteString("server:\n")
 
 	listen := listenPrefixes(cfg)
-	b.WriteString("  interface: 127.0.0.1\n")
-	for _, p := range listen {
-		fmt.Fprintf(&b, "  interface: %s\n", p.Addr())
+	v6 := ipv6Access(cfg)
+	if v6 == nil {
+		b.WriteString("  interface: 127.0.0.1\n")
+		for _, p := range listen {
+			fmt.Fprintf(&b, "  interface: %s\n", p.Addr())
+		}
+		// Interfaces may come up after unbound (or be renumbered by a commit).
+		b.WriteString("  ip-freebind: yes\n")
+		b.WriteString("  do-ip6: no\n")
+	} else {
+		// IPv6 (task 045): delegated addresses appear and change at run
+		// time, so Unbound listens on every address and answers from the
+		// one asked (interface-automatic). Who may ask is decided by the
+		// access-control lines below and by the firewall (port 53 is open
+		// on LAN-side interfaces only).
+		b.WriteString("  interface: 0.0.0.0\n")
+		b.WriteString("  interface: ::0\n")
+		b.WriteString("  interface-automatic: yes\n")
+		b.WriteString("  do-ip6: yes\n")
+		b.WriteString("  prefer-ip4: yes\n")
 	}
-	// Interfaces may come up after unbound (or be renumbered by a commit).
-	b.WriteString("  ip-freebind: yes\n")
-	b.WriteString("  do-ip6: no\n")
 
 	b.WriteString("  access-control: 127.0.0.0/8 allow\n")
 	for _, p := range listen {
 		fmt.Fprintf(&b, "  access-control: %s allow\n", p.Masked())
 	}
 	b.WriteString("  access-control: 0.0.0.0/0 refuse\n")
+	for _, p := range v6 {
+		fmt.Fprintf(&b, "  access-control: %s allow\n", p)
+	}
+	if v6 != nil {
+		b.WriteString("  access-control: ::/0 refuse\n")
+	}
 
 	b.WriteString("  hide-identity: yes\n")
 	b.WriteString("  hide-version: yes\n")

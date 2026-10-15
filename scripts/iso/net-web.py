@@ -8,6 +8,7 @@ Usage: net-web.py <bind address> <port> <name>
   anything else -> "hello from <name>"
 """
 import http.server
+import socket
 import sys
 
 BIND, PORT, NAME = sys.argv[1], int(sys.argv[2]), sys.argv[3]
@@ -34,4 +35,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sys.stderr.write(f"{NAME}: {self.client_address[0]} {fmt % args}\n")
 
 
-http.server.ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
+class Server(http.server.ThreadingHTTPServer):
+    # IPv6 bind addresses need an AF_INET6 socket (task 045)
+    address_family = socket.AF_INET6 if ":" in BIND else socket.AF_INET
+
+
+Server((BIND, PORT), Handler).serve_forever()

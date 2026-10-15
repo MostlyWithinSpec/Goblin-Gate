@@ -39,6 +39,12 @@ table inet goblin {
 		comment "fqdn updates.example.com (resolved at runtime)"
 	}
 
+	set addr6_updates {
+		type ipv6_addr
+		flags interval
+		comment "fqdn updates.example.com (resolved at runtime)"
+	}
+
 	set addr_web_server {
 		type ipv4_addr
 		flags interval
@@ -51,6 +57,12 @@ table inet goblin {
 		flags interval
 		comment "group; fqdn members resolved at runtime: updates.example.com"
 		elements = { 10.10.0.10/31, 192.168.1.0/24 }
+	}
+
+	set addr6grp_everything {
+		type ipv6_addr
+		flags interval
+		comment "group; fqdn members resolved at runtime: updates.example.com"
 	}
 
 	set addrgrp_servers {
@@ -225,6 +237,7 @@ table inet goblin {
 		iifname "eth1.20" meta l4proto . th dport @policy_12_svc counter name "policy_12" log group 1 prefix "GG:12:" drop comment "block-guest-dns"
 		# policy 13 "old-rule" is disabled
 		iifname "eth1.20" oifname "eth0" ip saddr @addrgrp_everything counter name "policy_14" meta mark set meta mark or 0x00000001 accept comment "guest-out"
+		iifname "eth1.20" oifname "eth0" ip6 saddr @addr6grp_everything counter name "policy_14" meta mark set meta mark or 0x00000001 accept comment "guest-out"
 	}
 
 	chain output {

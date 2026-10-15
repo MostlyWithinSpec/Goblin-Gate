@@ -15,12 +15,12 @@ func (v *validator) checkAddressing(p, kind, mode string, addr *netip.Prefix, gw
 		v.add(p+".address", "static %s has no address", kind)
 	}
 	if addr != nil && !addr.Addr().Unmap().Is4() {
-		v.add(p+".address", "IPv6 address %s is not supported yet", addr)
+		v.add(p+".address", "%s is IPv6: set it under ipv6 (mode static)", addr)
 	}
 	if gw != nil {
 		switch {
 		case !gw.Unmap().Is4():
-			v.add(p+".gateway", "IPv6 gateway %s is not supported yet", gw)
+			v.add(p+".gateway", "%s is IPv6: set it under ipv6.gateway", gw)
 		case addr != nil && !addr.Contains(*gw):
 			v.add(p+".gateway", "gateway %s is outside the %s subnet %s", gw, kind, addr)
 		}

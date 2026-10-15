@@ -14,15 +14,12 @@ func (v *validator) checkAddresses() {
 			pf, err := netip.ParsePrefix(a.Value)
 			if err != nil {
 				v.add(p+".value", "invalid subnet %q: %v", a.Value, err)
-			} else if !pf.Addr().Unmap().Is4() {
-				v.add(p+".value", "IPv6 subnet %q is not supported yet", a.Value)
+			} else if pf.Addr().Is4In6() {
+				v.add(p+".value", "write IPv4-mapped subnet %q as plain IPv4", a.Value)
 			}
 		case "host":
-			ip, err := netip.ParseAddr(a.Value)
-			if err != nil {
+			if _, err := netip.ParseAddr(a.Value); err != nil {
 				v.add(p+".value", "invalid host address %q: %v", a.Value, err)
-			} else if !ip.Unmap().Is4() {
-				v.add(p+".value", "IPv6 address %q is not supported yet", a.Value)
 			}
 		case "range":
 			v.checkRange(p+".value", a.Value)
@@ -52,11 +49,12 @@ func (v *validator) checkRange(p, value string) {
 		v.add(p, "invalid range %q: cannot parse end address: %v", value, errH)
 		return
 	}
-	if !lo.Unmap().Is4() || !hi.Unmap().Is4() {
-		v.add(p, "IPv6 range %q is not supported yet", value)
+	c, ok := addrCmp(lo, hi)
+	if !ok {
+		v.add(p, "range %q mixes IPv4 and IPv6", value)
 		return
 	}
-	if c, _ := addrCmp(lo, hi); c > 0 {
+	if c > 0 {
 		v.add(p, "range %q: start address is greater than end address", value)
 	}
 }

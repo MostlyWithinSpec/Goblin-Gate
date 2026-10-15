@@ -43,6 +43,32 @@ func disabled() *config.Config {
 	return cfg
 }
 
+// dualStack: IPv4 DHCP + DHCPv6 with a /60 on WAN, delegated /64s on LAN
+// (prefix 0) and two VLANs (1, 2); the guest VLAN has a DNS filter, so its
+// router advertisements do not offer DNS.
+func dualStack() *config.Config {
+	cfg := twoVLANs()
+	cfg.Interfaces[0].IPv6 = &config.IPv6{Mode: "dhcp6", PDSize: 60}
+	cfg.Interfaces[1].IPv6 = &config.IPv6{Mode: "delegated"}
+	cfg.VLANs[0].IPv6 = &config.IPv6{Mode: "delegated", PrefixID: 1}
+	cfg.VLANs[1].IPv6 = &config.IPv6{Mode: "delegated", PrefixID: 2, RA: &config.RA{Enabled: true, DNS: true, Other: true}}
+	cfg.Profiles.DNSFilter = []config.DNSFilterProfile{{Name: "kids", BlockDomains: []string{"example.com"}}}
+	cfg.Policies = append([]config.Policy{{ID: 7, Name: "guest-out", Enabled: true, SrcIntf: []string{"guest"}, DstIntf: []string{"wan1"},
+		SrcAddr: []string{"all"}, DstAddr: []string{"all"}, Service: []string{"all"}, Action: "accept", NAT: true, DNSFilterProfile: "kids"}}, cfg.Policies...)
+	return cfg
+}
+
+// staticV6: static IPv6 on WAN (link-local gateway) and LAN (announced /64),
+// a v6-only VLAN without router advertisements.
+func staticV6() *config.Config {
+	cfg := staticWAN()
+	cfg.Interfaces[0].IPv6 = &config.IPv6{Mode: "static", Address: pfx("2001:db8::2/64"), Gateway: ip("fe80::1")}
+	cfg.Interfaces[1].IPv6 = &config.IPv6{Mode: "static", Address: pfx("2001:db8:1::1/64")}
+	cfg.VLANs = []config.VLAN{{Name: "lab", Parent: "lan", VLANID: 40, Mode: "none", Enabled: true,
+		IPv6: &config.IPv6{Mode: "static", Address: pfx("fd00:40::1/64"), RA: &config.RA{}}}}
+	return cfg
+}
+
 // TestGolden compares every rendered file with testdata/<case>/<base name>.
 // Regenerate with: go test ./internal/render/netif -update
 func TestGolden(t *testing.T) {
@@ -51,6 +77,8 @@ func TestGolden(t *testing.T) {
 		"static-wan": staticWAN(),
 		"vlans":      twoVLANs(),
 		"disabled":   disabled(),
+		"dual-stack": dualStack(),
+		"static-v6":  staticV6(),
 	}
 	for name, cfg := range cases {
 		t.Run(name, func(t *testing.T) {

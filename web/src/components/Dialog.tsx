@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 interface DialogProps {
   open: boolean
@@ -42,8 +43,10 @@ export const Dialog: React.FC<DialogProps> = ({
     large: 'max-w-4xl'
   }
   
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  // Rendered into <body>: a parent with a backdrop filter or transform (the
+  // header) would otherwise make "fixed" relative to itself, not the screen.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div 
         className="fixed inset-0 bg-black bg-opacity-50"
         onClick={onClose}
@@ -60,6 +63,7 @@ export const Dialog: React.FC<DialogProps> = ({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

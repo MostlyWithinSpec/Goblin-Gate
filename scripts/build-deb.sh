@@ -24,6 +24,11 @@ install -d "$ROOT/usr/share/goblin-gate/web"
 cp -r web/dist/. "$ROOT/usr/share/goblin-gate/web/"
 install -m644 packaging/ulogd/ulogd.conf "$ROOT/usr/share/goblin-gate/ulogd.conf"
 install -m644 cmd/goblin-console/logo.txt "$ROOT/usr/share/goblin-gate/logo.txt"
+# APT keyrings for the sources goblind renders (task 051): ours, and Tailscale's
+install -d "$ROOT/usr/share/keyrings"
+# ARCHIVE_KEYRING: a test key (scripts/vm-update-test.ps1); releases ship ours
+install -m644 "${ARCHIVE_KEYRING:-packaging/keys/goblin-gate-archive.gpg}" "$ROOT/usr/share/keyrings/goblin-gate-archive.gpg"
+curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg -o "$ROOT/usr/share/keyrings/tailscale-archive-keyring.gpg"
 install -d "$ROOT/etc/update-motd.d"
 install -m755 packaging/motd/05-goblin-gate "$ROOT/etc/update-motd.d/05-goblin-gate"
 if [ -f packaging/blockpage/index.html ]; then
@@ -44,6 +49,7 @@ echo "Installed-Size: $(du -sk "$ROOT" | cut -f1)" >> "$ROOT/DEBIAN/control"
 install -m755 packaging/deb/postinst packaging/deb/prerm packaging/deb/postrm "$ROOT/DEBIAN/"
 install -m644 packaging/deb/conffiles "$ROOT/DEBIAN/conffiles"
 
-mkdir -p dist
-dpkg-deb --root-owner-group -Zxz --build "$ROOT" "dist/goblin-gate_${VERSION}_amd64.deb"
-echo "built dist/goblin-gate_${VERSION}_amd64.deb"
+OUT_DIR=${OUT_DIR:-dist}
+mkdir -p "$OUT_DIR"
+dpkg-deb --root-owner-group -Zxz --build "$ROOT" "$OUT_DIR/goblin-gate_${VERSION}_amd64.deb"
+echo "built $OUT_DIR/goblin-gate_${VERSION}_amd64.deb"

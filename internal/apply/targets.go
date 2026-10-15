@@ -189,6 +189,17 @@ var groups = []group{
 		},
 	},
 	{
+		// APT sources (task 051): read by apt on the next update. The
+		// installer's "deb cdrom:" line in sources.list is commented out here
+		// (on a running box, never by the package: during installation the
+		// remaining packages still come from the CD).
+		name:   "apt",
+		prefix: "/etc/apt/sources.list.d/",
+		activate: func([]string) [][]string {
+			return [][]string{{"sh", "-c", `[ ! -f /etc/apt/sources.list ] || sed -i 's|^deb cdrom:|# deb cdrom:|' /etc/apt/sources.list`}}
+		},
+	},
+	{
 		// SSH (task 047): key-only logins and root's keys. try-reload: a box
 		// without a running sshd is not an error.
 		name:     "ssh",

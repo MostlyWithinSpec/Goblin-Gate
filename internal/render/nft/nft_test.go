@@ -126,6 +126,7 @@ func TestGolden(t *testing.T) {
 	}{
 		{"default", config.Default()},
 		{"full", fullConfig()},
+		{"dual-stack", dualStackConfig()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -164,6 +165,9 @@ func TestFullConfigIsValid(t *testing.T) {
 	if errs := config.Validate(fullConfig()); len(errs) != 0 {
 		t.Fatalf("fullConfig() is not valid: %v", errs)
 	}
+	if errs := config.Validate(dualStackConfig()); len(errs) != 0 {
+		t.Fatalf("dualStackConfig() is not valid: %v", errs)
+	}
 }
 
 func TestRenderDeterministic(t *testing.T) {
@@ -201,9 +205,9 @@ func TestRenderErrors(t *testing.T) {
 		{"bad action", func(c *config.Config) { c.Policies[0].Action = "maybe" }, `unsupported action`},
 		{"schedule", func(c *config.Config) { c.Policies[0].Schedule = "workhours" }, `schedules are not supported`},
 		{"duplicate id", func(c *config.Config) { c.Policies = append(c.Policies, c.Policies[0]) }, `duplicate id`},
-		{"ipv6 address", func(c *config.Config) {
-			c.Addresses = []config.Address{{Name: "v6", Type: "host", Value: "2001:db8::1"}}
-		}, `IPv6 is not supported`},
+		{"mixed family range", func(c *config.Config) {
+			c.Addresses = []config.Address{{Name: "mix", Type: "range", Value: "10.0.0.1-2001:db8::1"}}
+		}, `mixes IPv4 and IPv6`},
 		{"bad ports", func(c *config.Config) {
 			c.Services = []config.Service{{Name: "s", Protocol: "tcp", Ports: "70000"}}
 		}, `invalid port`},
@@ -259,3 +263,39 @@ func TestQuote(t *testing.T) {
 		t.Errorf("quote did not truncate: len %d", len(got))
 	}
 }
+
+// dualStackConfig (task 045): DHCPv6 WAN, delegated LAN and guest VLAN (DNS
+// filtered), IPv6 and mixed address objects, and policies that match one or
+// both families.
+func dualStackConfig() *config.Config {
+	cfg := config.Default()
+	cfg.Interfaces[0].IPv6 = &config.IPv6{Mode: "dhcp6"}
+	cfg.Interfaces[1].IPv6 = &config.IPv6{Mode: "delegated"}
+	cfg.Interfaces[1].AllowAccess = []string{"ping", "https"}
+	cfg.VLANs = []config.VLAN{{Name: "guest", Parent: "lan", VLANID: 20, Mode: "static", Address: pfx("192.168.20.1/24"), Enabled: true,
+		IPv6: &config.IPv6{Mode: "delegated", PrefixID: 1}}}
+	cfg.Addresses = []config.Address{
+		{Name: "nas", Type: "host", Value: "192.168.1.5"},
+		{Name: "nas6", Type: "host", Value: "2001:db8:1::5"},
+		{Name: "bad6", Type: "subnet", Value: "2001:db8:bad::/48"},
+		{Name: "v6range", Type: "range", Value: "2001:db8:2::10-2001:db8:2::1f"},
+	}
+	cfg.AddressGroups = []config.AddressGroup{{Name: "nas-all", Members: []string{"nas", "nas6"}}}
+	cfg.Services = []config.Service{{Name: "ping", Protocol: "icmp"}, {Name: "smb", Protocol: "tcp", Ports: "445"}}
+	cfg.Profiles.DNSFilter = []config.DNSFilterProfile{{Name: "kids", BlockDomains: []string{"example.com"}}}
+	pol := func(id uint32, name string, src, dst, srcAddr, dstAddr, svc []string, action string) config.Policy {
+		return config.Policy{ID: id, Name: name, Enabled: true, SrcIntf: src, DstIntf: dst, SrcAddr: srcAddr, DstAddr: dstAddr, Service: svc, Action: action}
+	}
+	all := []string{"all"}
+	cfg.Policies = []config.Policy{
+		pol(10, "block-bad6", []string{"lan"}, []string{"wan1"}, all, []string{"bad6"}, all, "deny"),
+		pol(11, "nas-smb", []string{"guest"}, []string{"lan"}, all, []string{"nas-all"}, []string{"smb", "ping"}, "accept"),
+		pol(12, "v4-to-v6-never", []string{"lan"}, []string{"wan1"}, []string{"nas"}, []string{"v6range"}, all, "accept"),
+		pol(13, "nas-or-range", []string{"lan"}, []string{"wan1"}, []string{"nas6", "v6range", "nas"}, all, all, "accept"),
+		{ID: 14, Name: "guest-out", Enabled: true, SrcIntf: []string{"guest"}, DstIntf: []string{"wan1"}, SrcAddr: all, DstAddr: all,
+			Service: all, Action: "accept", NAT: true, DNSFilterProfile: "kids"},
+		cfg.Policies[0],
+	}
+	return cfg
+}
+func pfx(s string) *netip.Prefix { p := netip.MustParsePrefix(s); return &p }

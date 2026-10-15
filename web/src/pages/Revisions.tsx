@@ -4,7 +4,7 @@ import { Button } from '../components/Button'
 import { Badge } from '../components/Badge'
 import { Dialog } from '../components/Dialog'
 import { DiffViewer } from '../components/DiffViewer'
-import { getRevisions } from '../api/config'
+import { getRevisions, rollbackRevisionTo } from '../api/config'
 
 // "Oct 11, 2026, 14:05" in the viewer's locale (date-fns is not an allowed dependency).
 const formatTime = (ts: string) =>
@@ -42,13 +42,7 @@ export const Revisions: React.FC = () => {
   
   const rollbackMutation = useMutation({
     mutationFn: async (revisionId: number) => {
-      const response = await fetch(`/api/v1/revisions/${revisionId}/rollback`, {
-        method: 'POST'
-      })
-      if (!response.ok) {
-        throw new Error('Failed to rollback')
-      }
-      return response.json()
+      return rollbackRevisionTo(revisionId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['revisions'] })
@@ -197,12 +191,17 @@ export const Revisions: React.FC = () => {
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             This action will restore the configuration to the state at that revision.
           </p>
+          {rollbackMutation.isError && (
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400" role="alert">
+              {(rollbackMutation.error as Error).message}
+            </p>
+          )}
         </div>
         <div className="flex justify-end space-x-2 mt-4">
           <Button variant="secondary" onClick={() => setShowRollbackModal(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={confirmRollback}>
+          <Button variant="danger" onClick={confirmRollback} disabled={rollbackMutation.isPending}>
             Rollback
           </Button>
         </div>

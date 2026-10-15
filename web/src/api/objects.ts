@@ -98,7 +98,53 @@ export interface IPSProfile {
   suppress?: { sid: number; track?: string; ip?: string }[]
 }
 
+export interface SSHKey {
+  name: string
+  key: string
+}
+
+// Notifications (task 053/054): channels and per-event routing. Types mirror
+// internal/config/notify.go by JSON name.
+export type NotifyType = 'email' | 'webhook' | 'discord' | 'ntfy' | 'telegram'
+
+export interface NotifyChannel {
+  name: string
+  type: NotifyType
+  enabled: boolean
+  url?: string // webhook / discord / ntfy
+  token?: string // webhook (Bearer) / ntfy, optional
+  bot_token?: string // telegram
+  chat_id?: string // telegram
+  smtp_host?: string // email
+  smtp_port?: number // email; 0 = 587 STARTTLS, 465 = TLS
+  username?: string // email
+  password?: string // email
+  from?: string // email
+  to?: string[] // email recipients
+}
+
+export interface NotifyRule {
+  event: string
+  channels: string[]
+}
+
+// The events a rule can name (config.NotifyEvents).
+export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'test'] as const
+
+export interface SystemSettings {
+  hostname: string
+  domain?: string
+  timezone: string
+  admin_port?: number
+  ntp_servers?: string[]
+  dns_servers?: string[]
+  ssh_keys?: SSHKey[]
+  update_channel?: 'stable' | 'beta' | 'nightly'
+  update_url?: string
+}
+
 export interface Candidate {
+  system?: SystemSettings
   interfaces?: Interface[]
   vlans?: VLAN[]
   addresses?: Address[]
@@ -113,6 +159,7 @@ export interface Candidate {
     appctrl?: AppCtrlProfile[]
   }
   feeds?: Feed[]
+  notifications?: { channels?: NotifyChannel[]; rules?: NotifyRule[] }
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -126,6 +173,16 @@ export function patchSection(path: string, value: unknown): Promise<SaveResult> 
   return apiClient<SaveResult>('/api/v1/config/candidate', {
     method: 'PATCH',
     body: JSON.stringify({ path, value }),
+  })
+}
+
+// testNotification sends a "test" event to one channel (POST /notifications/test).
+// It resolves with the status string on success and throws an Error whose
+// message is the server's reason (unknown_channel, delivery_failed, ...).
+export function testNotification(channel: string): Promise<{ status: string }> {
+  return apiClient<{ status: string }>('/api/v1/notifications/test', {
+    method: 'POST',
+    body: JSON.stringify({ channel }),
   })
 }
 

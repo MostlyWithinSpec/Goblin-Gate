@@ -53,6 +53,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkInterfaces()
 	v.checkVLANs()
 	v.checkInterfaceOverlap()
+	v.checkIPv6()
 	v.checkAddresses()
 	v.checkGroups()
 	v.checkServices()

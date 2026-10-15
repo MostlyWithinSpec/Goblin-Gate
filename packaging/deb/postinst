@@ -31,6 +31,10 @@ if [ -L /etc/resolv.conf ]; then
 fi
 printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf 2>/dev/null || true
 
+# Do not touch /etc/apt here: during installation the remaining packages
+# still come from the CD. goblind comments out the installer's cdrom: line
+# when it writes the APT sources (apply group "apt").
+
 if [ -d /run/systemd/system ]; then
 	systemctl daemon-reload || true
 fi

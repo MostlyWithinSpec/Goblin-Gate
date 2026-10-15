@@ -93,48 +93,6 @@ func parseIPv4(s string) (netip.Addr, error) {
 	return a, nil
 }
 
-// addrValueSpan parses an address object value of the given type
-// (subnet, host or range) into a span.
-func addrValueSpan(typ, value string) (span, error) {
-	value = strings.TrimSpace(value)
-	switch typ {
-	case "subnet":
-		p, err := netip.ParsePrefix(value)
-		if err != nil {
-			return span{}, err
-		}
-		if !p.Addr().Unmap().Is4() {
-			return span{}, fmt.Errorf("%s: IPv6 is not supported yet", value)
-		}
-		return prefixSpan(netip.PrefixFrom(p.Addr().Unmap(), p.Bits())), nil
-	case "host":
-		a, err := parseIPv4(value)
-		if err != nil {
-			return span{}, err
-		}
-		v := ip4ToUint(a)
-		return span{v, v}, nil
-	case "range":
-		lo, hi, ok := strings.Cut(value, "-")
-		if !ok {
-			return span{}, fmt.Errorf("range %q: want a-b", value)
-		}
-		a, err := parseIPv4(lo)
-		if err != nil {
-			return span{}, err
-		}
-		b, err := parseIPv4(hi)
-		if err != nil {
-			return span{}, err
-		}
-		if ip4ToUint(a) > ip4ToUint(b) {
-			return span{}, fmt.Errorf("range %q: start after end", value)
-		}
-		return span{ip4ToUint(a), ip4ToUint(b)}, nil
-	}
-	return span{}, fmt.Errorf("unsupported address type %q", typ)
-}
-
 // parsePorts parses "80,443,8000-8100" into merged port spans.
 // An empty string yields no spans (meaning "all ports").
 func parsePorts(s string) ([]span, error) {
@@ -176,4 +134,114 @@ func formatPortSpan(s span) string {
 		return strconv.FormatUint(uint64(s.lo), 10)
 	}
 	return fmt.Sprintf("%d-%d", s.lo, s.hi)
+}
+
+// span6 is an inclusive range of IPv6 addresses (task 045).
+type span6 struct{ lo, hi netip.Addr }
+
+// mergeSpans6 is mergeSpans for IPv6 ranges.
+func mergeSpans6(in []span6) []span6 {
+	if len(in) == 0 {
+		return nil
+	}
+	s := append([]span6(nil), in...)
+	sort.Slice(s, func(i, j int) bool {
+		if c := s[i].lo.Compare(s[j].lo); c != 0 {
+			return c < 0
+		}
+		return s[i].hi.Less(s[j].hi)
+	})
+	out := []span6{s[0]}
+	for _, v := range s[1:] {
+		last := &out[len(out)-1]
+		next := last.hi.Next() // invalid after the last address: everything is covered
+		if !next.IsValid() || v.lo.Compare(next) <= 0 {
+			if last.hi.Less(v.hi) {
+				last.hi = v.hi
+			}
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// prefixSpan6 converts an IPv6 prefix to its address span.
+func prefixSpan6(p netip.Prefix) span6 {
+	p = p.Masked()
+	hi := p.Addr().As16()
+	for i := p.Bits(); i < 128; i++ {
+		hi[i/8] |= 0x80 >> (i % 8)
+	}
+	return span6{p.Addr(), netip.AddrFrom16(hi)}
+}
+
+// formatAddrSpan6 renders an IPv6 span as a host, prefix or a-b range.
+func formatAddrSpan6(s span6) string {
+	if s.lo == s.hi {
+		return s.lo.String()
+	}
+	for bits := 0; bits <= 128; bits++ {
+		if p := netip.PrefixFrom(s.lo, bits); p.Masked().Addr() == s.lo && prefixSpan6(p).hi == s.hi {
+			return p.String()
+		}
+	}
+	return s.lo.String() + "-" + s.hi.String()
+}
+
+// addrValue parses an address object value of the given type (subnet, host
+// or range) into an IPv4 or an IPv6 span.
+func addrValue(typ, value string) ([]span, []span6, error) {
+	value = strings.TrimSpace(value)
+	parse := func(s string) (netip.Addr, error) {
+		a, err := netip.ParseAddr(strings.TrimSpace(s))
+		return a.Unmap(), err
+	}
+	switch typ {
+	case "subnet":
+		p, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, nil, err
+		}
+		if a := p.Addr(); a.Is4In6() {
+			return nil, nil, fmt.Errorf("%s: write IPv4-mapped subnets as IPv4", value)
+		} else if a.Is6() {
+			return nil, []span6{prefixSpan6(p)}, nil
+		}
+		return []span{prefixSpan(p)}, nil, nil
+	case "host":
+		a, err := parse(value)
+		if err != nil {
+			return nil, nil, err
+		}
+		if a.Is6() {
+			return nil, []span6{{a, a}}, nil
+		}
+		v := ip4ToUint(a)
+		return []span{{v, v}}, nil, nil
+	case "range":
+		loS, hiS, ok := strings.Cut(value, "-")
+		if !ok {
+			return nil, nil, fmt.Errorf("range %q: want a-b", value)
+		}
+		lo, err := parse(loS)
+		if err != nil {
+			return nil, nil, err
+		}
+		hi, err := parse(hiS)
+		if err != nil {
+			return nil, nil, err
+		}
+		if lo.Is4() != hi.Is4() {
+			return nil, nil, fmt.Errorf("range %q mixes IPv4 and IPv6", value)
+		}
+		if hi.Less(lo) {
+			return nil, nil, fmt.Errorf("range %q: start after end", value)
+		}
+		if lo.Is6() {
+			return nil, []span6{{lo, hi}}, nil
+		}
+		return []span{{ip4ToUint(lo), ip4ToUint(hi)}}, nil, nil
+	}
+	return nil, nil, fmt.Errorf("unsupported address type %q", typ)
 }

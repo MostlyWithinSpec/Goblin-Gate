@@ -10,6 +10,7 @@ import Security from './pages/Security'
 import Log from './pages/Log'
 import System from './pages/System'
 import { Revisions } from './pages/Revisions'
+import Notifications from './pages/system/Notifications'
 import Interfaces from './pages/network/Interfaces'
 import Addresses from './pages/network/Addresses'
 import AddressGroups from './pages/network/AddressGroups'
@@ -64,6 +65,7 @@ function App() {
               <Route path="/log" element={<Log />} />
               <Route path="/system" element={<System />} />
               <Route path="/system/revisions" element={<Revisions />} />
+              <Route path="/system/notifications" element={<Notifications />} />
             </Route>
           </Routes>
         </div>

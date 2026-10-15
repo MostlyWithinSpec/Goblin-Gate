@@ -20,6 +20,8 @@ d-i apt-setup/services-select multiselect
 d-i apt-setup/cdrom/set-first boolean false
 d-i apt-setup/cdrom/set-next boolean false
 d-i apt-setup/cdrom/set-failed boolean false
+# the installed system has no CD: comment out its cdrom: source at the end
+d-i apt-setup/disable-cdrom-entries boolean true
 
 # Root gets a random password nobody knows (scripts/iso/build.sh puts a
 # fresh hash here); the console menu on tty1 is the way in (physical

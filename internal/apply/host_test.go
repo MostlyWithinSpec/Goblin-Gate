@@ -621,3 +621,20 @@ func TestApplySystemSettings(t *testing.T) {
 		t.Errorf("time zone change (-want +got):\n%s", diff)
 	}
 }
+
+// TestAptGroupDisablesCDROM: the installer's cdrom: source is commented out
+// by goblind when it writes the APT sources, not by the package's postinst
+// (which would cut off the CD while the installer still installs from it).
+func TestAptGroupDisablesCDROM(t *testing.T) {
+	for _, g := range groups {
+		if g.name != "apt" {
+			continue
+		}
+		cmds := g.activate(nil)
+		if len(cmds) != 1 || !strings.Contains(strings.Join(cmds[0], " "), `s|^deb cdrom:|# deb cdrom:|`) {
+			t.Fatalf("apt activate = %v", cmds)
+		}
+		return
+	}
+	t.Fatal("no apt group")
+}

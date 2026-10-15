@@ -52,6 +52,7 @@ func ParseNftables(line string) (*Event, error) {
 		Src       string `json:"src_ip"`
 		Dst       string `json:"dest_ip"`
 		Proto     *int   `json:"ip.protocol"`
+		NextHdr   *int   `json:"ip6.nexthdr"` // IPv6 packets carry this instead of ip.protocol
 		SrcPort   int    `json:"src_port"`
 		DstPort   int    `json:"dest_port"`
 		TotLen    int    `json:"ip.totlen"`
@@ -78,6 +79,9 @@ func ParseNftables(line string) (*Event, error) {
 	}
 	if e.Bytes == 0 {
 		e.Bytes = v.PktLen
+	}
+	if v.Proto == nil {
+		v.Proto = v.NextHdr
 	}
 	if v.Proto != nil {
 		if name, ok := protoNames[*v.Proto]; ok {

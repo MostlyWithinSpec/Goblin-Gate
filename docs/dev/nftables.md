@@ -65,8 +65,16 @@ port or range onto that one port. Remapping one range onto a different range is 
 
 ## Known limits and notes for later tasks
 
-- **IPv4 only.** IPv6 address objects are rejected. With no address match, `all` rules in the inet table
-  also match IPv6, but 008 only enables IPv4 forwarding.
+- **IPv6** (task 045). Address objects hold IPv4 or IPv6 values; each gets an IPv4 set (`addr_<name>`,
+  `addrgrp_<name>`) and/or an IPv6 set (`addr6_<name>`, `addr6grp_<name>`, type `ipv6_addr`). FQDN objects get
+  both. A policy with no address objects is one family-less rule (matches IPv4 and IPv6). A policy with address
+  objects gets one rule per family that both sides can match (`ip saddr @x` / `ip6 saddr @x6`, per-policy unions
+  `policy_<id>_src` / `policy_<id>_src6`), all sharing the policy counter; if no family fits, a comment explains
+  why. Service `icmp` means ICMPv4 in IPv4 rules, `ipv6-icmp` in IPv6 rules, both in family-less ones. With IPv6
+  on, `input` accepts ND/RA/PMTU/ICMPv6 errors, `ping` also accepts ICMPv6 echo, and dhcp6 WANs accept DHCPv6
+  replies from fe80::/10. **No IPv6 NAT** (`goblin_nat` stays `ip`), and port forwards and threat feed sets stay
+  IPv4. Interfaces with a DNS/web filter or app control reject DNS over IPv6 (input and forward) so clients use
+  IPv4, where Unbound knows the filter by subnet.
 - **FQDN addresses** render as empty sets, so accept rules that use them match nothing. A later task must resolve
   them and add the elements. Until then, a *deny* rule that uses an FQDN does not block it.
 - **Counters and runtime set elements reset on every apply**, because the table is recreated.

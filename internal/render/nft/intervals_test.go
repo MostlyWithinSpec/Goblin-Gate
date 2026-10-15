@@ -2,6 +2,7 @@ package nft
 
 import (
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -53,26 +54,60 @@ func TestFormatAddrSpan(t *testing.T) {
 	}
 }
 
-func TestAddrValueSpan(t *testing.T) {
+func TestAddrValue(t *testing.T) {
 	tests := []struct {
 		typ, value string
-		wantErr    bool
+		want       string // formatted span; "" = error
 	}{
-		{"subnet", "10.0.0.0/8", false},
-		{"host", "10.1.2.3", false},
-		{"range", "10.0.0.1-10.0.0.9", false},
-		{"range", "10.0.0.9-10.0.0.1", true},
-		{"range", "10.0.0.9", true},
-		{"host", "2001:db8::1", true},
-		{"subnet", "2001:db8::/32", true},
-		{"host", "nope", true},
-		{"fqdn", "example.com", true},
+		{"subnet", "10.0.0.0/8", "10.0.0.0/8"},
+		{"host", "10.1.2.3", "10.1.2.3"},
+		{"range", "10.0.0.1-10.0.0.9", "10.0.0.1-10.0.0.9"},
+		{"range", "10.0.0.9-10.0.0.1", ""},
+		{"range", "10.0.0.9", ""},
+		{"host", "2001:db8::1", "2001:db8::1"},
+		{"subnet", "2001:db8::/32", "2001:db8::/32"},
+		{"subnet", "2001:db8::5/64", "2001:db8::/64"},
+		{"range", "2001:db8::1-2001:db8::9", "2001:db8::1-2001:db8::9"},
+		{"range", "2001:db8::-2001:db8::ff", "2001:db8::/120"},
+		{"range", "10.0.0.1-2001:db8::9", ""},
+		{"subnet", "::ffff:10.0.0.0/104", ""},
+		{"host", "nope", ""},
+		{"fqdn", "example.com", ""},
 	}
 	for _, tt := range tests {
-		_, err := addrValueSpan(tt.typ, tt.value)
-		if (err != nil) != tt.wantErr {
-			t.Errorf("addrValueSpan(%q, %q) err = %v, wantErr %v", tt.typ, tt.value, err, tt.wantErr)
+		v4, v6, err := addrValue(tt.typ, tt.value)
+		got := ""
+		switch {
+		case err != nil:
+		case len(v4) == 1 && len(v6) == 0:
+			got = formatAddrSpan(v4[0])
+		case len(v6) == 1 && len(v4) == 0:
+			got = formatAddrSpan6(v6[0])
+		default:
+			got = "?"
 		}
+		if got != tt.want {
+			t.Errorf("addrValue(%q, %q) = %q (err %v), want %q", tt.typ, tt.value, got, err, tt.want)
+		}
+	}
+}
+
+func TestMergeSpans6(t *testing.T) {
+	a := func(s string) netip.Addr { return netip.MustParseAddr(s) }
+	got := mergeSpans6([]span6{
+		{a("2001:db8::10"), a("2001:db8::20")},
+		prefixSpan6(netip.MustParsePrefix("2001:db8::/124")), // ::0-::f, adjacent to ::10
+		{a("2001:db8::100"), a("2001:db8::100")},
+		{a("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0"), a("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")},
+		{a("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff8"), a("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")},
+	})
+	var out []string
+	for _, s := range got {
+		out = append(out, formatAddrSpan6(s))
+	}
+	want := "2001:db8::-2001:db8::20 2001:db8::100 ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff0/124"
+	if strings.Join(out, " ") != want {
+		t.Errorf("got %v, want %s", out, want)
 	}
 }
 

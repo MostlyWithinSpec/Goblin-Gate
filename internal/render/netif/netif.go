@@ -42,7 +42,7 @@ func (Renderer) Name() string { return "netif" }
 // Render returns one .network per interface, a .netdev and .network per VLAN,
 // and SysctlPath. Devices are matched by kernel name (VLANs use
 // render.VLANDevice, e.g. eth1.20) so names agree with the nft renderer.
-// IPv6 is not configured: link-local addressing and RAs are turned off.
+// Links without IPv6 keep link-local addressing and RAs off; see ipv6.go.
 func (Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 	files, err := build(cfg)
 	if err != nil {
@@ -65,14 +65,21 @@ type link struct {
 	gw              *netip.Addr
 	mtu             int
 	enabled         bool
+	wan             bool
 	vlans           []string // VLAN devices carried by this link
+	v6              *config.IPv6
+	v6uplink        string // delegated: the uplink's device
+	raDNS           bool   // announce the box as DNS server in RAs
 }
 
 func build(cfg *config.Config) (map[string][]byte, error) {
-	files := map[string][]byte{
-		SysctlPath: []byte(header + "net.ipv4.ip_forward=1\n"),
+	sysctl := header + "net.ipv4.ip_forward=1\n"
+	if cfg.IPv6Enabled() {
+		sysctl += "net.ipv6.conf.all.forwarding=1\n"
 	}
+	files := map[string][]byte{SysctlPath: []byte(sysctl)}
 	devs := render.Devices(cfg)
+	v6 := newV6Info(cfg, devs)
 	seen := map[string]bool{}
 	claim := func(kind, name, dev string) error {
 		if !nameRe.MatchString(name) {
@@ -98,7 +105,10 @@ func build(cfg *config.Config) (map[string][]byte, error) {
 			return nil, err
 		}
 		l := &link{name: ifc.Name, dev: ifc.Device, mode: ifc.Mode, addr: ifc.Address,
-			gw: ifc.Gateway, mtu: ifc.MTU, enabled: ifc.Enabled}
+			gw: ifc.Gateway, mtu: ifc.MTU, enabled: ifc.Enabled, wan: ifc.Role == "wan"}
+		if err := v6.attach(l, ifc.IPv6); err != nil {
+			return nil, fmt.Errorf("interface %q: %w", ifc.Name, err)
+		}
 		phys = append(phys, l)
 		byName[ifc.Name] = l
 	}
@@ -119,7 +129,10 @@ func build(cfg *config.Config) (map[string][]byte, error) {
 		files[NetdevPath(v.Name)] = []byte(fmt.Sprintf(
 			"%s[NetDev]\nName=%s\nKind=vlan\n\n[VLAN]\nId=%d\n", header, dev, v.VLANID))
 		l := &link{name: v.Name, dev: dev, mode: v.Mode, addr: v.Address,
-			gw: v.Gateway, mtu: v.MTU, enabled: v.Enabled}
+			gw: v.Gateway, mtu: v.MTU, enabled: v.Enabled, wan: parent.wan}
+		if err := v6.attach(l, v.IPv6); err != nil {
+			return nil, fmt.Errorf("vlan %q: %w", v.Name, err)
+		}
 		b, err := network(l)
 		if err != nil {
 			return nil, fmt.Errorf("vlan %q: %w", v.Name, err)
@@ -155,10 +168,16 @@ func network(l *link) ([]byte, error) {
 	}
 
 	b.WriteString("\n[Network]\n")
+	v6on := l.enabled && l.v6 != nil && l.v6.Mode != "none" && l.v6.Mode != ""
+	dhcp6 := v6on && l.v6.Mode == "dhcp6"
 	if l.enabled {
 		switch l.mode {
 		case "dhcp":
-			b.WriteString("DHCP=ipv4\n")
+			if dhcp6 {
+				b.WriteString("DHCP=yes\n")
+			} else {
+				b.WriteString("DHCP=ipv4\n")
+			}
 		case "static":
 			if l.addr == nil || !l.addr.Addr().Is4() {
 				return nil, fmt.Errorf("static mode needs an IPv4 address")
@@ -171,14 +190,26 @@ func network(l *link) ([]byte, error) {
 				fmt.Fprintf(&b, "Gateway=%s\n", l.gw)
 			}
 		case "none", "":
+			if dhcp6 {
+				b.WriteString("DHCP=ipv6\n")
+			}
 		default:
 			return nil, fmt.Errorf("unknown mode %q", l.mode)
 		}
 		b.WriteString("IPForward=yes\n")
 	}
-	b.WriteString("LinkLocalAddressing=no\nIPv6AcceptRA=no\n")
+	sections := ""
+	if v6on {
+		var err error
+		if sections, err = ipv6Network(&b, l); err != nil {
+			return nil, err
+		}
+	} else {
+		b.WriteString("LinkLocalAddressing=no\nIPv6AcceptRA=no\n")
+	}
 	for _, dev := range slices.Sorted(slices.Values(l.vlans)) {
 		fmt.Fprintf(&b, "VLAN=%s\n", dev)
 	}
+	b.WriteString(sections)
 	return []byte(b.String()), nil
 }

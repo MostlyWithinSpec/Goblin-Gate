@@ -38,7 +38,15 @@ func TestRealChecks(t *testing.T) {
 	vlans.DNS.DNSSEC = true
 	vlans.DNS.LocalRecords = map[string]string{"nas.home.arpa": "192.168.1.5"}
 
-	for name, cfg := range map[string]*config.Config{"default": config.Default(), "vlans": vlans} {
+	dual := config.Default()
+	dual.Interfaces[0].IPv6 = &config.IPv6{Mode: "dhcp6"}
+	dual.Interfaces[1].IPv6 = &config.IPv6{Mode: "delegated"}
+	dual.Interfaces[1].AllowAccess = []string{"ping"}
+	dual.Addresses = []config.Address{{Name: "bad6", Type: "subnet", Value: "2001:db8:bad::/48"}}
+	dual.Policies = append([]config.Policy{{ID: 9, Name: "block-bad6", Enabled: true, SrcIntf: []string{"lan"}, DstIntf: []string{"wan1"},
+		SrcAddr: []string{"all"}, DstAddr: []string{"bad6"}, Service: []string{"all"}, Action: "deny"}}, dual.Policies...)
+
+	for name, cfg := range map[string]*config.Config{"default": config.Default(), "vlans": vlans, "dual-stack": dual} {
 		t.Run(name, func(t *testing.T) {
 			if errs := config.Validate(cfg); len(errs) > 0 {
 				t.Fatalf("fixture invalid: %v", errs)
