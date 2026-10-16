@@ -64,3 +64,25 @@ Description: Goblin Gate firewall
  filter, application control, WireGuard and Tailscale, managed through
  a web UI, a FortiOS-style CLI and a console menu.
 
+Package: goblin-gate
+Architecture: amd64
+Version: 0.1.0~alpha.3
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Installed-Size: 30960
+Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates, iputils-ping
+Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Filename: pool/nightly/goblin-gate_0.1.0~alpha.3_amd64.deb
+Size: 7865352
+MD5sum: cd2a5ca85de9420ec29dec4f4021f804
+SHA1: e6d5b2f79680d51ddb821c2cce906dc0614a0a9d
+SHA256: ddff3af4f28bcc09080425da1b3403b451e36151a5078c3debb26d159119d85b
+SHA512: b116406ceebe9b4a2d42c084e0a87d42f8e5c757414c65f3a7053275c10b6913508c8426c5800cc951c2b5e598d84212aed9fa46031e574ea9c49c5afe283858
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.
+
