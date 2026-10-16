@@ -28,6 +28,13 @@ type Config struct {
 	VPN           VPN            `json:"vpn,omitzero"`
 	Notifications Notifications  `json:"notifications,omitzero"`
 	Schedules     []Schedule     `json:"schedules,omitempty"`
+	UPnP          UPnP           `json:"upnp,omitzero"`
+	Gateways      []Gateway      `json:"gateways,omitempty"`
+	GatewayGroups []GatewayGroup `json:"gateway_groups,omitempty"`
+	Routes        []Route        `json:"routes,omitempty"`
+	// DefaultGateway carries traffic no policy routes elsewhere (a gateway
+	// or group); "" = every gateway, failing over in list order.
+	DefaultGateway string `json:"default_gateway,omitempty"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

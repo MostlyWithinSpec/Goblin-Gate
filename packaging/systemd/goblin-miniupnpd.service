@@ -1,0 +1,23 @@
+[Unit]
+Description=Goblin Gate UPnP IGD / NAT-PMP / PCP (miniupnpd)
+Documentation=man:miniupnpd(8)
+# goblind writes the config when UPnP is enabled and loads the nft chains
+# miniupnpd fills (tables inet goblin and goblin_upnp) before starting it.
+After=network-online.target nftables.service goblind.service
+ConditionPathExists=/etc/goblingate/upnp/miniupnpd.conf
+
+[Service]
+Type=forking
+PIDFile=/run/goblin-miniupnpd.pid
+StateDirectory=goblingate/upnp
+ExecStart=/usr/sbin/miniupnpd -f /etc/goblingate/upnp/miniupnpd.conf -P /run/goblin-miniupnpd.pid
+Restart=on-failure
+RestartSec=5
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BROADCAST CAP_NET_RAW CAP_SYSLOG
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

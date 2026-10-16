@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -19,7 +19,13 @@ vi.mock('../api/stats', async (orig) => {
 vi.mock('../pages/dashboard/Chart', () => ({
   default: ({ option }: { option: { yAxis?: { data?: string[] } } }) => <div data-testid="chart">{(option.yAxis?.data ?? []).join(',')}</div>,
 }))
+vi.mock('../api/gateways', () => ({
+  getGatewayStatus: vi.fn(),
+  getWireGuardClientPublicKey: vi.fn(),
+  setWireGuardClientPrivateKey: vi.fn(),
+}))
 import * as api from '../api/stats'
+import * as gatewaysApi from '../api/gateways'
 import Dashboard from '../pages/Dashboard'
 
 const renderPage = () =>
@@ -38,6 +44,16 @@ beforeEach(() => {
   vi.mocked(api.getSystemStats).mockResolvedValue({ cpu_percent: 12.5, mem_total_bytes: 2 * 1024 ** 3, mem_used_bytes: 1024 ** 3, uptime_seconds: 90061, sessions: 42 })
   vi.mocked(api.getFeedStats).mockResolvedValue({ feeds: [] })
   vi.mocked(api.getPolicyStats).mockResolvedValue({ policies: [{ id: 1, packets: 120, bytes: 9000 }] })
+  vi.mocked(gatewaysApi.getGatewayStatus).mockResolvedValue({
+    enabled: true,
+    gateways: [
+      { name: 'wan1', interface: 'eth0', state: 'up', loss_percent: 0, latency_ms: 12 },
+      { name: 'wan2', interface: 'eth1', state: 'down', loss_percent: 100, latency_ms: 0 },
+      { name: 'wan3', interface: 'eth2', state: 'unknown', loss_percent: 0, latency_ms: 0 },
+    ],
+    targets: [],
+    default: { name: 'default', active: ['wan1'], mode: 'gateways' },
+  })
 })
 
 describe('Dashboard', () => {
@@ -51,6 +67,18 @@ describe('Dashboard', () => {
     expect(await screen.findByText('#1')).toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByTestId('chart').some((c) => c.textContent === '192.168.1.20')).toBe(true))
     expect(api.statsQuery).toHaveBeenCalledWith(expect.objectContaining({ group_by: ['src_ip'], metric: 'bytes', from: '-1h' }))
+  })
+
+  test('shows WAN status with up/down/unknown badges', async () => {
+    renderPage()
+    const tile = await screen.findByTestId('widget-gateways')
+    expect(await within(tile).findByText('wan1')).toBeInTheDocument()
+    expect(within(tile).getByText('up')).toBeInTheDocument()
+    expect(within(tile).getByText('wan2')).toBeInTheDocument()
+    expect(within(tile).getByText('down')).toBeInTheDocument()
+    expect(within(tile).getByText('wan3')).toBeInTheDocument()
+    expect(within(tile).getByText('unknown')).toBeInTheDocument()
+    expect(gatewaysApi.getGatewayStatus).toHaveBeenCalled()
   })
 
   test('changing the time range re-queries, and changes are saved', async () => {

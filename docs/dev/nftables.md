@@ -19,7 +19,22 @@ transaction that replaces the table atomically. Other tables (Docker, etc.) are 
 | `threat_feeds` | regular chain | empty; reserved for task 028 |
 
 **`table ip goblin_nat`**: `prerouting` (dstnat) jumps to `dns_redirect` (empty; reserved for task 029),
-then has one DNAT rule per port forward. `postrouting` (srcnat) masquerades packets that carry the masquerade mark.
+then has one DNAT rule per port forward. `postrouting` (srcnat) masquerades packets that carry the masquerade mark and leave through a WAN interface (or VLAN on one), so a `nat: true` policy towards "all" never translates LAN-to-LAN traffic.
+
+**Policy routing** (task 049, only with gateways): chain `route_policies` and a `prerouting` chain (filter
+hook, priority mangle) in `inet goblin`. New IPv4 connections from the LAN side walk the policies in order; the
+first match sets its gateway's route mark (`ct mark` bits 0x00ff0000) or none. New connections arriving on a
+WAN or tunnel get that gateway's mark (replies leave where they came in). Packets from the LAN side copy the
+route bits to the packet mark, which the ip rules route on (numbers in internal/render/routing.go). With
+gateways, masquerade also applies to WireGuard client tunnels.
+
+**`table inet goblin_upnp`** (task 059, only with `upnp.enabled`): `prerouting`/`postrouting` nat hooks jump to
+`upnp_dnat`/`upnp_snat`, which miniupnpd fills at run time; its forward accepts go to chain `upnp_forward` in
+`inet goblin` (jumped to from `forward` after `threat_feeds`, before the policies). The file always deletes the
+table, so disabling UPnP drops every mapping. Every reload empties these chains: the nft apply group then
+try-restarts `goblin-miniupnpd.service`, which re-adds the mappings from its lease file
+(`/var/lib/goblingate/upnp/leases`). Input on the served interfaces: udp 1900 (SSDP), tcp 2189 (UPnP control),
+udp 5351 (NAT-PMP/PCP). miniupnpd prints its forward rules as raw payload matches (`@nh,128,32 0xc0a80132`).
 
 ## Policies
 

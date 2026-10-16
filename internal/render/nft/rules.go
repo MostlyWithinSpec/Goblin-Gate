@@ -247,6 +247,9 @@ func (r *ruleset) policy(p config.Policy, counter string) ([]string, error) {
 	if len(fams) == 0 {
 		return []string{fmt.Sprintf("# policy %d %s: its source and destination addresses share no address family", p.ID, quote(p.Name))}, nil
 	}
+	if err := r.routeRules(p, iif, src, dst, svc, times, fams); err != nil {
+		return nil, err
+	}
 	var feedDrops, rules []string
 	for _, fam := range fams {
 		s, d, l4 := src.match(fam), dst.match(fam), svc.matches(fam)

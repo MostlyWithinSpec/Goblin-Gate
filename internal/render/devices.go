@@ -37,5 +37,10 @@ func Devices(cfg *config.Config) map[string]string {
 			m[w.Name] = w.Name
 		}
 	}
+	for _, w := range cfg.VPN.WireGuardClients {
+		if w.Enabled {
+			m[w.Name] = w.Name
+		}
+	}
 	return m
 }

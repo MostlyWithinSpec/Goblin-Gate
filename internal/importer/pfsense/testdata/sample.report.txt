@@ -1,0 +1,76 @@
+system | converted | hostname | edge
+system | converted | domain | home.example
+system | approximated | time zone | EST is an old zone name (a fixed offset without daylight saving time): using America/New_York, check it on the System page
+system | converted | NTP servers | 0.pool.ntp.example 1.pool.ntp.example
+system | converted | DNS servers | 2 server(s)
+system | converted | SSH keys | 1 public key(s) of pfSense users may log in as root over SSH
+system | skipped | users | 1 pfSense user(s) not imported: their password hashes use another scheme. Your Goblin Gate admins stay as they are
+interfaces | converted | wan | IPv6 by DHCPv6 with prefix delegation
+interfaces | converted | wan | wan (igb0) → "wan" on eth0
+interfaces | skipped | wan | MAC address spoofing (00:11:22:33:44:55) is not supported yet
+interfaces | skipped | wan | "block private/bogon networks" has no switch here: Goblin Gate drops unsolicited WAN traffic anyway; add a bogon threat feed for the rest
+interfaces | converted | lan | IPv6 track interface wan (prefix id 0) → delegated
+interfaces | converted | lan | lan (igb1) → "lan" on eth1
+interfaces | skipped | opt2 | PPPoE is not supported yet: "lab" has no IPv4 now [risk]
+interfaces | converted | opt2 | opt2 (igb2) → "lab" on eth2
+interfaces | converted | opt1 | IPv6 track interface wan (prefix id 3) → delegated
+interfaces | converted | opt1 | VLAN 30 on lan → "iot-devices"
+interfaces | approximated | igb3 | pfSense carries VLANs on igb3 without assigning it: added as interface "igb3" without addresses
+interfaces | converted | opt3 | VLAN 99 on igb3 → "cameras"
+schedules | approximated | SchoolNights | 2 range(s); a range on calendar dates (12/24) was left out
+aliases | converted | Kids_Devices | group of 3
+aliases | converted | NAS | host 192.168.10.5
+aliases | converted | Blocked_Nets | group of 2
+aliases | converted | Web_Ports | port alias: becomes services where rules use it
+aliases | approximated | Bad_IPs | URL alias → IP threat feed "bad_ips-feed" (refreshed daily); rules using it are converted to feed blocking where possible
+gateways | converted | WAN_DHCP | multi-WAN gateway "wan_dhcp": dhcp on wan
+gateways | converted | BACKUP_GW | multi-WAN gateway "backup_gw": 198.51.100.1 on lab
+gateways | approximated | Failover | gateway group "failover" with 2 member(s); GONE_GW left out
+routes | converted | 10.99.0.0/16 | via backup_gw
+nat | converted | Plex | tcp 32400 → 192.168.10.20
+nat | converted | Console | tcp+udp 3074-3079 → 192.168.10.40
+nat | converted | NAS ssh | tcp 2222 → 192.168.10.5:22
+nat | converted | DMZ host | tcp+udp 1-65535 → 192.168.10.99: EVERY port of the WAN goes to 192.168.10.99; that host is fully exposed to the internet. Consider forwarding only the ports it needs, or UPnP [risk]
+nat | skipped | Shifted range | moving the port range 4000-4010 to start at 5000 is not supported: forward it unchanged or port by port
+nat | approximated | Office only | tcp 8443 → 192.168.10.5:443; its source restriction is not supported: anyone may connect [risk]
+rules | converted | port forward rules | 1 rule(s) pfSense created for port forwards: the forwards let their traffic in
+rules | approximated | Block bad nets | policy 1 "block-bad-nets": floating rule: matched on the interfaces it lists, as traffic arriving there; direction "out" is matched as incoming traffic instead
+rules | skipped | Anti-Lockout Rule | traffic to the firewall itself: Goblin Gate opens its own services per interface (Interfaces → allowed access: ping, https, ssh), DNS and DHCP automatically
+rules | converted | Kids bed time | policy 3 "kids-bed-time"
+rules | approximated | Block bad IPs | blocking a URL alias → threat feed "bad_ips-feed" now drops its addresses on every WAN interface
+rules | converted | LAN to NAS web | policy 5 "lan-to-nas-web"
+rules | skipped | mDNS from port | source ports are not supported in policies
+rules | skipped | Not to IoT | destination: negated addresses ("not") are not supported
+rules | approximated | Via VPN | policy 8 "via-vpn": its gateway VPN_GW (a VPN or an unconverted gateway) is ignored: the traffic takes the default route
+rules | converted | Default allow LAN to any rule | policy 9 "default-allow-lan-to-any-rule"
+rules | approximated | Default allow LAN IPv6 to any rule | policy 10 "default-allow-lan-ipv6-to-any-rule": it was IPv6 only; without addresses it now matches IPv4 too
+rules | approximated | IoT ping | policy 11 "iot-ping": ICMP type echoreq became any ICMP
+rules | converted | IoT out | policy 12 "iot-out"
+rules | skipped | OpenVPN clients | interface "openvpn" (VPN, interface group or unassigned) is not converted
+nat | converted | outbound NAT | hybrid mode: 6 policy(ies) from internal interfaces masquerade traffic that leaves through a WAN
+nat | converted | static port | 1 static-port rule(s) need no setting: Linux keeps the source port unless two connections clash
+dhcp | approximated | lan | 192.168.10.100-192.168.10.199, 1 static mapping(s); static mapping aa:bb:cc:00:00:06 without an IP address (pfSense only registers its name) was left out
+dhcp | approximated | opt1 | 192.168.30.100-192.168.30.150, 0 static mapping(s); its own domain iot.example is not supported (one LAN domain: DNS → local domain)
+dhcp | approximated | DHCPv6 lan | DHCPv6 server / router advertisements (assist) → SLAAC with router advertisements on IPv6 interfaces; there is no DHCPv6 server yet
+dns | converted | forwarding | forwarding to 2 server(s) from System → DNS servers
+dns | converted | nas.home.example | host override → 192.168.10.5
+dns | approximated | corp.example | the server's port in "192.0.2.11@5353" is ignored (port 53 is used)
+dns | converted | corp.example | domain override → 2 server(s)
+upnp | approximated | UPnP | on lan, iot-devices, 2 permission rule(s); "allow 3074 192.168.10.40/32 3075": external ports follow the internal ones (3075); deny entry "deny 0-65535 0.0.0.0/0 0-65535" left out (everything not allowed is denied)
+ips | approximated | IDS/IPS | IPS profile "imported" (prevent, Emerging Threats Open rules) on 4 allow policy(ies); pfSense's rule selection, suppressions and blocking of offenders are not imported
+pfblockerng | approximated | abuse | IP list → threat feed "threats-abuse-ip" (Deny_Both)
+pfblockerng | skipped | allow | action Permit_Outbound is not converted
+pfblockerng | approximated | outbound IP lists | 1 feed(s) block destinations on 6 internet policy(ies)
+pfblockerng | approximated | adlist | DNSBL list → domain feed "ads-adlist-dns"
+pfblockerng | approximated | DNSBL | DNS filter profile "pfblockerng" with 1 list(s) on 6 internet policy(ies)
+vpn | skipped | OpenVPN server Road warrior | OpenVPN is not supported: use WireGuard (VPN → WireGuard) or Tailscale for remote access
+vpn | skipped | OpenVPN client VPN provider | OpenVPN clients are not supported: if the provider offers WireGuard, add it as a WireGuard client (VPN providers) and route traffic to it with a policy gateway
+system | skipped | certificates | 1 CA(s)/certificate(s) and their private keys are never imported
+system | skipped | dynamic DNS home | dynamic DNS is not supported yet
+packages | skipped | ntopng | package ntopng has no counterpart that the importer knows
+interface wan (igb0) -> wan role=wan vlan=false device="eth0"
+interface lan (igb1) -> lan role=lan vlan=false device="eth1"
+interface opt2 (igb2) -> lab role=wan vlan=false device="eth2"
+interface opt1 (igb1.30) -> iot-devices role=lan vlan=true device="(VLAN 30 on lan)"
+interface igb3 (igb3) -> igb3 role=lan vlan=false device="eth3"
+interface opt3 (igb3.99) -> cameras role=lan vlan=true device="(VLAN 99 on igb3)"

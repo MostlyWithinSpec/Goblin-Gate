@@ -200,6 +200,9 @@ table inet goblin {
 		iifname { "eth0", "eth0.7" } udp dport 51820 accept comment "wireguard wg0"
 		iifname "wg0" meta l4proto { tcp, udp } th dport 53 accept comment "wg0: dns"
 		iifname "wg0" tcp dport 8443 accept comment "wg0: https admin"
+		iifname "eth1" udp dport 1900 accept comment "lan: upnp discovery"
+		iifname "eth1" tcp dport 2189 accept comment "lan: upnp control"
+		iifname "eth1" udp dport 5351 accept comment "lan: nat-pmp/pcp"
 		iifname "eth2" icmp type echo-request accept comment "dmz: ping"
 		iifname "eth2" meta l4proto { tcp, udp } th dport 53 accept comment "dmz: dns"
 		iifname "eth1.20" udp dport 67 accept comment "guest: dhcp server"
@@ -220,6 +223,7 @@ table inet goblin {
 		ct state invalid drop
 		iifname != { "tailscale0", "eth0", "eth0.7" } ip saddr 100.64.0.0/10 drop comment "tailscale: no tailnet addresses from local networks"
 		jump threat_feeds
+		jump upnp_forward comment "upnp mappings (miniupnpd)"
 		iifname "eth1.20" tcp dport 853 reject with tcp reset comment "web filter office: no DNS-over-TLS"
 		iifname "eth1" tcp dport 853 reject with tcp reset comment "web filter office: no DNS-over-TLS"
 		iifname "eth0" ip daddr 10.10.0.10 tcp dport 443 ct status dnat counter name "portfwd_https_in" accept comment "port forward https-in"
@@ -244,6 +248,9 @@ table inet goblin {
 		type filter hook output priority filter; policy accept;
 		ct state invalid drop
 	}
+
+	chain upnp_forward {
+	}
 }
 
 table ip goblin_nat
@@ -265,6 +272,27 @@ table ip goblin_nat {
 
 	chain postrouting {
 		type nat hook postrouting priority srcnat; policy accept;
-		meta mark & 0x00000001 == 0x00000001 masquerade comment "policies with nat enabled"
+		oifname { "eth0", "eth0.7" } meta mark & 0x00000001 == 0x00000001 masquerade comment "policies with nat enabled"
+	}
+}
+
+table inet goblin_upnp
+delete table inet goblin_upnp
+
+table inet goblin_upnp {
+	chain prerouting {
+		type nat hook prerouting priority dstnat; policy accept;
+		jump upnp_dnat
+	}
+
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		jump upnp_snat
+	}
+
+	chain upnp_dnat {
+	}
+
+	chain upnp_snat {
 	}
 }

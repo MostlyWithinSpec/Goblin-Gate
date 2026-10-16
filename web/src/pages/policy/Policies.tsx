@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { GripVertical, MoreVertical, Plus } from 'lucide-react'
+import { Clock, GripVertical, MoreVertical, Plus } from 'lucide-react'
 import {
   getCandidate,
   getPolicyHits,
@@ -95,6 +95,14 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
         </div>
       </td>
       <td className="px-2 py-1 text-sm">{p.log && p.log !== 'off' ? p.log : ''}</td>
+      <td className="px-2 py-1 text-sm">
+        {p.schedule && (
+          <span className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
+            <Clock size={12} />
+            {p.schedule}
+          </span>
+        )}
+      </td>
       <td className="px-2 py-1 text-right text-sm tabular-nums">{hit}</td>
       <td className="px-2 py-1">
         <input type="checkbox" aria-label={`Enable policy ${p.id}`} checked={p.enabled} onChange={onToggle} />
@@ -230,7 +238,7 @@ export default function Policies() {
     />
   )
 
-  const head = ['', 'ID', 'Name', 'From → To', 'Source', 'Destination', 'Service', 'Action', 'NAT', 'Security', 'Log', 'Hits', 'On', '']
+  const head = ['', 'ID', 'Name', 'From → To', 'Source', 'Destination', 'Service', 'Action', 'NAT', 'Security', 'Log', 'Schedule', 'Hits', 'On', '']
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">

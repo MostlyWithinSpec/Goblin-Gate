@@ -29,6 +29,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
@@ -39,9 +40,11 @@ import (
 	sysrender "github.com/networkgoblinlabs/goblin-gate/internal/render/system"
 	tsrender "github.com/networkgoblinlabs/goblin-gate/internal/render/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/unbound"
+	upnprender "github.com/networkgoblinlabs/goblin-gate/internal/render/upnp"
 	wgrender "github.com/networkgoblinlabs/goblin-gate/internal/render/wireguard"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
+	"github.com/networkgoblinlabs/goblin-gate/internal/upnp"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
 	"github.com/networkgoblinlabs/goblin-gate/internal/webfilter"
 	"github.com/networkgoblinlabs/goblin-gate/internal/wireguard"
@@ -201,7 +204,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}}
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
 	// Web filter (task 033): goblind answers the DNS of web-filtered
@@ -231,7 +234,15 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if o.dev {
 		dhcpNames.Control = func(context.Context, ...string) error { return nil }
 	}
+	// Multi-WAN (task 049): the gateway monitor owns the default route and
+	// the policy-routing tables once gateways are configured.
+	gwMon := &gateways.Monitor{Pinger: gateways.ExecPinger{}, Router: gateways.ExecRouter{}, Logger: logger}
 	engine.AfterApply = func(live *config.Config) {
+		if !o.dev {
+			if err := gwMon.Update(ctx, live); err != nil {
+				logger.Warn("gateways: monitor", "error", err)
+			}
+		}
 		wf.Resync(live)
 		dnsSync.Resync(live)
 		feedSync.Resync(live)
@@ -283,6 +294,21 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	go notifier.Run(ctx)
 	apiServer.Notify = notifier
+	apiServer.Gateways = gwMon
+	gwMon.SetChanged(func(st gateways.Status) {
+		kind, title := "wan_up", "Gateway "+st.Name+" is up again"
+		if st.State == "down" {
+			kind, title = "wan_down", "Gateway "+st.Name+" is down"
+		}
+		msg := fmt.Sprintf("%s (%s, monitor %s): %s", title, st.Interface, st.MonitorIP, st.Reason)
+		notifier.Publish(notify.Event{Kind: kind, Key: st.Name, Title: title, Message: msg})
+		if logStore != nil {
+			e := &logs.Event{Time: time.Now().Unix(), Kind: "system", Action: kind, InIntf: st.Device, Message: msg}
+			if err := logStore.InsertBatch([]*logs.Event{e}); err != nil {
+				logger.Warn("gateways: storing event failed", "error", err)
+			}
+		}
+	})
 	feedMgr.OnError = func(name string, err error) {
 		notifier.Publish(notify.Event{Kind: "feed_error", Key: name, Title: "Threat feed download failed",
 			Message: fmt.Sprintf("Feed %q: %v. Its last good copy stays in use.", name, err)})
@@ -337,6 +363,21 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	defer logStore.Close()
 	go runLogMaintenance(ctx, logStore, logger)
+	// UPnP / NAT-PMP mappings (task 059) are logged as system events.
+	if !o.dev {
+		go upnp.Watch(ctx, upnprender.LeaseFile, 30*time.Second, func(m upnp.Mapping, added bool) {
+			action, verb := "upnp_mapping_added", "opened"
+			if !added {
+				action, verb = "upnp_mapping_removed", "closed"
+			}
+			e := &logs.Event{Time: time.Now().Unix(), Kind: "system", Action: action, Proto: m.Protocol,
+				DstIP: m.InternalIP, DstPort: m.InternalPort,
+				Message: fmt.Sprintf("UPnP %s %s port %d -> %s:%d (%s)", verb, m.Protocol, m.ExternalPort, m.InternalIP, m.InternalPort, m.Description)}
+			if err := logStore.InsertBatch([]*logs.Event{e}); err != nil {
+				logger.Warn("upnp: storing event failed", "error", err)
+			}
+		})
+	}
 	sources, err := parseLogSources(o.logSrc)
 	if err != nil {
 		return err

@@ -3,5 +3,6 @@ goblin-gate
 suricata
 suricata-update
 tailscale
+miniupnpd-nftables
 openssh-server
 open-vm-tools

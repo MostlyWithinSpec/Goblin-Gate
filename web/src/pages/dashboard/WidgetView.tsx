@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { getFeedStats, getPolicyStats, getSystemStats, statsQuery, type TimeRange, type Widget } from '../../api/stats'
+import { getGatewayStatus } from '../../api/gateways'
 import Chart from './Chart'
 import { builtin, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
 
@@ -73,6 +74,31 @@ function PolicyBody() {
   )
 }
 
+function GatewayBody() {
+  const q = useQuery({ queryKey: ['gateways', 'status'], queryFn: getGatewayStatus, refetchInterval: REFRESH })
+  if (q.isLoading) return <Empty text="Loading…" />
+  if (q.isError) return <Empty text="Gateway status is not available." />
+  const gateways = q.data?.gateways ?? []
+  if (gateways.length === 0) return <Empty text="No gateways are configured." />
+  const badge = (state: string) =>
+    state === 'up' ? 'bg-green-100 text-green-700' : state === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+  return (
+    <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+      {gateways.map((g) => (
+        <li key={g.name} className="flex items-center gap-2 py-1.5 text-sm">
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge(g.state)}`}>{g.state}</span>
+          <span className="flex-1 truncate font-medium text-gray-800 dark:text-gray-100">{g.name}</span>
+          {g.state === 'up' && (
+            <span className="text-xs text-gray-500">
+              {g.latency_ms} ms · {g.loss_percent}% loss
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
   const navigate = useNavigate()
   const query = queryFor(widget)
@@ -116,7 +142,7 @@ function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
 export default function WidgetView({ widget, onChange, onRemove }: { widget: Widget; onChange: (patch: Partial<Widget>) => void; onRemove: () => void }) {
   const dark = useDark()
   const chart = chartFor(widget)
-  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies'
+  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways'
   return (
     <div className="flex h-full flex-col rounded-lg bg-white p-3 shadow dark:bg-gray-800" data-testid={`widget-${widget.type}`}>
       <div className="widget-drag mb-2 flex cursor-move items-center gap-2">
@@ -137,7 +163,7 @@ export default function WidgetView({ widget, onChange, onRemove }: { widget: Wid
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : <QueryBody widget={widget} dark={dark} />}
+        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : chart === 'gateways' ? <GatewayBody /> : <QueryBody widget={widget} dark={dark} />}
       </div>
     </div>
   )

@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Upload, Plus, Trash2, KeyRound } from 'lucide-react'
-import { getCandidate, patchSection, type Candidate, type SystemSettings, type SSHKey } from '../api/objects'
+import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle } from 'lucide-react'
+import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device } from '../api/objects'
 import { inputClass, NAME_RE, omitEmpty } from '../components/ConfigList'
 import { getConfigDiff, type DiffResponse } from '../api/config'
-import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, getSystemInfo, type AdminInfo, type TokenInfo, type SystemInfo } from '../api/system'
+import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry } from '../api/system'
 import { getMe, type Me } from '../api/auth'
+import { Badge } from '../components/Badge'
 
-const TABS = ['General', 'Admins', 'API Tokens', 'Backup', 'About'] as const
+const TABS = ['General', 'Admins', 'API Tokens', 'Backup', 'Import', 'About'] as const
 type Tab = (typeof TABS)[number]
 
 // Common timezones for the select; free-text fallback via datalist.
@@ -41,6 +42,7 @@ const System: React.FC = () => {
         {tab === 'Admins' && <AdminsTab />}
         {tab === 'API Tokens' && <TokensTab />}
         {tab === 'Backup' && <BackupTab />}
+        {tab === 'Import' && <ImportTab />}
         {tab === 'About' && <AboutTab />}
       </div>
       <div className="mt-4 flex gap-3">
@@ -430,6 +432,210 @@ const BackupTab: React.FC = () => {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// --- Import from pfSense --------------------------------------------------------
+
+type ImportStep = 'upload' | 'assign' | 'report'
+
+const ImportTab: React.FC = () => {
+  const [step, setStep] = useState<ImportStep>('upload')
+  const [file, setFile] = useState<File | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [deviceMap, setDeviceMap] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { getDevices().then(setDevices).catch(() => {}) }, [])
+
+  const doUpload = async (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const f = ev.target.files?.[0]
+    if (!f) return
+    setBusy(true); setError(null); setResult(null)
+    try {
+      const res = await importPfSense(f)
+      setFile(f)
+      setResult(res)
+      // pre-fill device assignments from pfsense_device names that match a real device
+      const map: Record<string, string> = {}
+      for (const iface of res.interfaces) {
+        if (!iface.vlan && iface.device === '') {
+          const match = devices.find((d) => d.name === iface.pfsense_device)
+          map[iface.pfsense] = match ? match.name : ''
+        }
+      }
+      setDeviceMap(map)
+      // If all non-VLAN interfaces are already assigned, go straight to report
+      const unassigned = res.interfaces.filter((i) => !i.vlan && i.device === '')
+      if (unassigned.length === 0) {
+        setStep('report')
+      } else {
+        setStep('assign')
+      }
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setBusy(false); ev.target.value = '' }
+  }
+
+  const applyAssignment = async () => {
+    if (!file) return
+    setBusy(true); setError(null)
+    try {
+      const res = await importPfSense(file, deviceMap)
+      setResult(res)
+      setStep('report')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setBusy(false) }
+  }
+
+  if (step === 'upload') {
+    return (
+      <div className="max-w-2xl space-y-4">
+        {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+        <div className="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm dark:border-yellow-800 dark:bg-yellow-900/20">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-yellow-600" />
+          <p className="text-yellow-800 dark:text-yellow-200">Importing a pfSense config <strong>replaces the current candidate</strong>. Nothing is committed until you review and commit.</p>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed border-gray-300 p-6 text-sm hover:border-blue-400 dark:border-gray-600">
+          <FileUp size={20} className="text-gray-400" />
+          <span>Upload pfSense config.xml</span>
+          <input type="file" accept=".xml" className="hidden" onChange={doUpload} disabled={busy} aria-label="Upload pfSense config" />
+        </label>
+      </div>
+    )
+  }
+
+  if (step === 'assign') {
+    const rows = result?.interfaces.filter((i) => !i.vlan && i.device === '') ?? []
+    return (
+      <div className="max-w-3xl space-y-4">
+        {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Assign devices to interfaces</h3>
+        <p className="text-xs text-gray-500">Select which physical device backs each pfSense interface. VLANs follow their parent.</p>
+        <table className="min-w-full text-sm">
+          <thead className="text-left text-xs uppercase text-gray-500">
+            <tr><th className="px-3 py-2">pfSense</th><th className="px-3 py-2">Device (from pfSense)</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Assign to</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((iface) => (
+              <tr key={iface.pfsense} className="border-t border-gray-100 dark:border-gray-700">
+                <td className="px-3 py-2 font-medium">{iface.pfsense}</td>
+                <td className="px-3 py-2 font-mono text-xs">{iface.pfsense_device || '—'}</td>
+                <td className="px-3 py-2"><Badge variant="secondary">{iface.role}</Badge></td>
+                <td className="px-3 py-2">
+                  <select
+                    aria-label={`Device for ${iface.pfsense}`}
+                    className="rounded border border-gray-300 px-2 py-1 text-sm dark:bg-gray-700"
+                    value={deviceMap[iface.pfsense] ?? ''}
+                    onChange={(e) => setDeviceMap((m) => ({ ...m, [iface.pfsense]: e.target.value }))}
+                  >
+                    <option value="">— unassigned —</option>
+                    {devices.map((d) => <option key={d.name} value={d.name}>{d.name}{d.up ? '' : ' (down)'}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="flex gap-2">
+          <button type="button" onClick={applyAssignment} disabled={busy} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+            {busy ? 'Applying…' : 'Apply assignment'}
+          </button>
+          <button type="button" onClick={() => { setStep('upload'); setResult(null); setFile(null) }} className="rounded border border-gray-300 px-4 py-1.5 text-sm dark:border-gray-600">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // step === 'report'
+  return <ImportReport result={result} error={error} onReset={() => { setStep('upload'); setResult(null); setFile(null) }} />
+}
+
+const ImportReport: React.FC<{ result: ImportResult | null; error: string | null; onReset: () => void }> = ({ result, error, onReset }) => {
+  if (!result) return <p className="text-gray-500">{error ?? 'No report.'}</p>
+
+  const converted = result.report.filter((e) => e.status === 'converted')
+  const approximated = result.report.filter((e) => e.status === 'approximated')
+  const skipped = result.report.filter((e) => e.status === 'skipped')
+  const risks = result.report.filter((e) => e.risk)
+
+  const statusBadge = (s: string) => {
+    if (s === 'converted') return <Badge variant="success">converted</Badge>
+    if (s === 'approximated') return <Badge variant="warning">approximated</Badge>
+    return <Badge variant="secondary">skipped</Badge>
+  }
+
+  const Section: React.FC<{ title: string; entries: ImportReportEntry[] }> = ({ title, entries }) => (
+    <div className="mb-4">
+      <h4 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">{title} ({entries.length})</h4>
+      {entries.length === 0 ? (
+        <p className="text-xs text-gray-400">None.</p>
+      ) : (
+        <ul className="space-y-1">
+          {entries.map((e, i) => (
+            <li key={i} className={`rounded px-2 py-1.5 text-xs ${e.risk ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-700/40'}`}>
+              <span className="font-mono text-gray-500">{e.section}</span>
+              <span className="ml-2 font-medium">{e.item}</span>
+              <span className="ml-2">{statusBadge(e.status)}</span>
+              {e.risk && <AlertTriangle size={12} className="ml-1 inline text-red-600" />}
+              {e.detail && <p className="mt-0.5 text-gray-600 dark:text-gray-400">{e.detail}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+      {/* Summary */}
+      <div className="flex gap-3 text-sm">
+        <span className="rounded bg-green-100 px-2 py-1 text-green-800 dark:bg-green-900/40 dark:text-green-200">{result.summary.converted} converted</span>
+        <span className="rounded bg-yellow-100 px-2 py-1 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">{result.summary.approximated} approximated</span>
+        <span className="rounded bg-gray-100 px-2 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{result.summary.skipped} skipped</span>
+      </div>
+
+      {/* Risk warnings first */}
+      {risks.length > 0 && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+          <h4 className="mb-1 flex items-center gap-1 text-sm font-semibold text-red-700 dark:text-red-300"><AlertTriangle size={14} /> Warnings</h4>
+          <ul className="space-y-1 text-xs text-red-700 dark:text-red-300">
+            {risks.map((e, i) => (
+              <li key={i}><span className="font-mono">{e.section}</span>: {e.item} — {e.detail ?? 'review this item'}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Grouped report */}
+      <Section title="Converted" entries={converted} />
+      <Section title="Approximated" entries={approximated} />
+      <Section title="Skipped" entries={skipped} />
+
+      {/* Validation errors */}
+      {result.validation_errors && result.validation_errors.length > 0 && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+          <h4 className="mb-1 text-sm font-semibold text-red-700 dark:text-red-300">Validation errors (fix before committing)</h4>
+          <ul className="space-y-1 text-xs text-red-700 dark:text-red-300">
+            {result.validation_errors.map((ve, i) => (
+              <li key={i}><span className="font-mono">{ve.path}</span>: {ve.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-2">
+        <Link to="/system/revisions" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Review changes</Link>
+        <button type="button" onClick={onReset} className="rounded border border-gray-300 px-4 py-1.5 text-sm dark:border-gray-600">Import another file</button>
+      </div>
     </div>
   )
 }

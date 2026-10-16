@@ -17,6 +17,9 @@ const objects: PolicyObjects = {
   services: ['any', 'web'],
   profiles: { ips: ['basic', 'strict'], webfilter: ['basic'], dnsfilter: [], appctrl: ['strict'] },
   feeds: ['drop'],
+  schedules: ['business-hours'],
+  gateways: [],
+  gatewayGroups: [],
 }
 
 const pol = (id: number, extra: Partial<Policy> = {}): Policy => ({

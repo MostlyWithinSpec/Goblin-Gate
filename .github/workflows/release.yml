@@ -19,6 +19,9 @@ concurrency:
 
 jobs:
   build:
+    # only the public repository publishes (the private dev repository has the
+    # same workflow but no gh-pages branch or signing key)
+    if: github.repository == 'MostlyWithinSpec/Goblin-Gate'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

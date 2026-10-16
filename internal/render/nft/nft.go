@@ -103,6 +103,8 @@ type ruleset struct {
 	spoof    []string // input and forward: anti-spoofing drops
 	dnsFwd   []string // forward: no DNS-over-TLS around the filter
 	pre      []string // goblin_nat prerouting
+	route    render.RoutingPlan
+	routePol []string // chain route_policies (task 049)
 }
 
 type counterDecl struct{ name, comment string }
@@ -115,11 +117,15 @@ func build(cfg *config.Config) ([]byte, error) {
 	}
 	r.objs = objs
 	r.sets = append(r.sets, objs.sets...)
+	if r.route, err = render.Routing(cfg); err != nil {
+		return nil, err
+	}
 	r.feedSets()
 	r.dnsFilter()
 	r.ipsQueues()
 	r.tailscale()
 	r.wireguard()
+	r.upnpInput()
 	r.inputRules()
 	if err := r.portForwards(); err != nil {
 		return nil, err

@@ -20,6 +20,9 @@ type Policy struct {
 	DNSFilterProfile string   `json:"dnsfilter_profile,omitempty"`
 	AppCtrlProfile   string   `json:"appctrl_profile,omitempty"`
 	ThreatFeeds      []string `json:"threat_feeds,omitempty"` // feed names
+	// Gateway sends the traffic this policy accepts through a gateway or
+	// gateway group (policy routing, task 049); "" = the default route.
+	Gateway string `json:"gateway,omitempty"`
 }
 
 // NAT holds the outbound/inbound translation rules.

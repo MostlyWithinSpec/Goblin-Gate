@@ -90,6 +90,9 @@ var groups = []group{
 			for _, f := range files {
 				cmds = append(cmds, []string{"nft", "-f", f})
 			}
+			// the reload emptied miniupnpd's chains: it re-adds its mappings
+			// from the lease file on restart (task 059)
+			cmds = append(cmds, ifUnit(upnpUnit, "try-restart"))
 			return cmds
 		},
 	},
@@ -207,7 +210,22 @@ var groups = []group{
 		also:     []string{"/etc/ssh/goblin_authorized_keys/"},
 		activate: func([]string) [][]string { return [][]string{ifUnit("ssh.service", "try-reload-or-restart")} },
 	},
+	{
+		// UPnP / NAT-PMP / PCP (task 059): miniupnpd runs while its config
+		// exists. After the nft group: its chains must exist first.
+		name:   "upnp",
+		prefix: "/etc/goblingate/upnp/",
+		activate: func(files []string) [][]string {
+			if len(files) == 0 {
+				return [][]string{ifUnit(upnpUnit, "disable --now")}
+			}
+			return [][]string{{"systemctl", "enable", upnpUnit}, {"systemctl", "restart", upnpUnit}}
+		},
+	},
 }
+
+// upnpUnit runs miniupnpd (internal/render/upnp.Unit).
+const upnpUnit = "goblin-miniupnpd.service"
 
 // ifUnit runs `systemctl <verb> <unit>` only when the unit is installed, so a
 // box without it (no sshd, a different time daemon) can still commit.

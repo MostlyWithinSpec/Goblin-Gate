@@ -12,6 +12,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/unbound"
 )
 
@@ -46,7 +47,7 @@ func TestRealChecks(t *testing.T) {
 	dual.Policies = append([]config.Policy{{ID: 9, Name: "block-bad6", Enabled: true, SrcIntf: []string{"lan"}, DstIntf: []string{"wan1"},
 		SrcAddr: []string{"all"}, DstAddr: []string{"bad6"}, Service: []string{"all"}, Action: "deny"}}, dual.Policies...)
 
-	for name, cfg := range map[string]*config.Config{"default": config.Default(), "vlans": vlans, "dual-stack": dual} {
+	for name, cfg := range map[string]*config.Config{"default": config.Default(), "vlans": vlans, "dual-stack": dual, "multi-wan": rendertest.MultiWAN()} {
 		t.Run(name, func(t *testing.T) {
 			if errs := config.Validate(cfg); len(errs) > 0 {
 				t.Fatalf("fixture invalid: %v", errs)

@@ -101,7 +101,7 @@ describe('Addresses', () => {
     fireEvent.change(screen.getByLabelText('Value'), { target: { value: '10.0.0.0/33' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Name already used')).toBeInTheDocument()
-    expect(screen.getByText(/IPv4 subnet/)).toBeInTheDocument()
+    expect(screen.getByText(/IPv4 or IPv6 subnet/)).toBeInTheDocument()
     expect(api.patchSection).not.toHaveBeenCalled()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'office' } })
@@ -118,6 +118,62 @@ describe('Addresses', () => {
     expect(await screen.findByText(/in use by policy x/)).toBeInTheDocument()
     expect(screen.queryByText('other')).not.toBeInTheDocument()
     expect(lastPatch()).toEqual(['addresses', []])
+  })
+
+  test('accepts IPv6 values for subnet, host and range', async () => {
+    wrap(<Addresses />)
+    await screen.findByRole('button', { name: 'nas' })
+    fireEvent.click(screen.getByRole('button', { name: /New address/ }))
+
+    // v6 subnet
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'v6subnet' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'subnet' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '2001:db8::/32' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(lastPatch()).toEqual(['addresses', [cfg.addresses![0], { name: 'v6subnet', type: 'subnet', value: '2001:db8::/32' }]])
+
+    // v6 host
+    fireEvent.click(screen.getByRole('button', { name: /New address/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'v6host' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'host' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '2001:db8::1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledTimes(2))
+    const [, list2] = lastPatch() as [string, api.Address[]]
+    expect(list2).toContainEqual({ name: 'v6host', type: 'host', value: '2001:db8::1' })
+
+    // v6 range
+    fireEvent.click(screen.getByRole('button', { name: /New address/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'v6range' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'range' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '2001:db8::1-2001:db8::ff' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledTimes(3))
+    const [, list3] = lastPatch() as [string, api.Address[]]
+    expect(list3).toContainEqual({ name: 'v6range', type: 'range', value: '2001:db8::1-2001:db8::ff' })
+  })
+
+  test('rejects mixed-family ranges and invalid v6', async () => {
+    wrap(<Addresses />)
+    await screen.findByRole('button', { name: 'nas' })
+    fireEvent.click(screen.getByRole('button', { name: /New address/ }))
+
+    // Mixed family range (v4-v6)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'mixed' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'range' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '192.168.1.1-2001:db8::1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText(/range like/)).toBeInTheDocument()
+    expect(api.patchSection).not.toHaveBeenCalled()
+
+    // Invalid v6 subnet (too many groups)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'badv6' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'subnet' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '2001:db8::1:2:3:4:5:6:7/64' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText(/IPv4 or IPv6 subnet/)).toBeInTheDocument()
+    expect(api.patchSection).not.toHaveBeenCalled()
   })
 })
 
@@ -159,7 +215,7 @@ describe('Interfaces', () => {
   test('switching to dhcp removes the static address on save', async () => {
     wrap(<Interfaces />)
     fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
-    fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'dhcp' } })
+    fireEvent.change(screen.getByLabelText((t) => t === 'Mode'), { target: { value: 'dhcp' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
     const [path, list] = lastPatch()
@@ -174,6 +230,68 @@ describe('Interfaces', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByText(/inside the interface subnet/)).toBeInTheDocument()
     expect(api.patchSection).not.toHaveBeenCalled()
+  })
+
+  test('IPv6 static mode: PATCH body has correct ipv6 block', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
+    // Set IPv6 mode to static
+    fireEvent.change(screen.getByLabelText('IPv6 mode'), { target: { value: 'static' } })
+    // Enter the v6 address
+    fireEvent.change(screen.getByLabelText('IPv6 address'), { target: { value: '2001:db8::1/64' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [path, list] = lastPatch()
+    expect(path).toBe('interfaces')
+    const lan = (list as api.Interface[])[1]
+    expect(lan.ipv6).toEqual({ mode: 'static', address: '2001:db8::1/64' })
+  })
+
+  test('IPv6 delegated mode: PATCH body has uplink and prefix_id', async () => {
+    // Set wan1 to dhcp6 so it can be an uplink for delegated.
+    const cfgWithDhcp6 = structuredClone(cfg)
+    cfgWithDhcp6.interfaces![0].ipv6 = { mode: 'dhcp6' }
+    vi.mocked(api.getCandidate).mockResolvedValue(cfgWithDhcp6)
+
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
+    // Set IPv6 mode to delegated
+    fireEvent.change(screen.getByLabelText('IPv6 mode'), { target: { value: 'delegated' } })
+    // Select the uplink
+    fireEvent.change(screen.getByLabelText('IPv6 uplink'), { target: { value: 'wan1' } })
+    // Set prefix_id
+    fireEvent.change(screen.getByLabelText('IPv6 prefix ID'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [path, list] = lastPatch()
+    expect(path).toBe('interfaces')
+    const lan = (list as api.Interface[])[1]
+    expect(lan.ipv6).toEqual({ mode: 'delegated', uplink: 'wan1', prefix_id: 3 })
+  })
+
+  test('IPv6 dhcp6 on non-WAN is rejected by validation', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
+    // lan is not wan, so dhcp6 option should not be available.
+    // Verify the select does not offer dhcp6 for a LAN interface.
+    const modeSelect = screen.getByLabelText('IPv6 mode') as HTMLSelectElement
+    const options = Array.from(modeSelect.options).map((o) => o.value)
+    expect(options).not.toContain('dhcp6')
+    expect(options).toContain('delegated')
+  })
+
+  test('IPv6 dhcp6 on WAN: pd_size in PATCH body', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
+    // wan is the role, so dhcp6 should be available
+    fireEvent.change(screen.getByLabelText('IPv6 mode'), { target: { value: 'dhcp6' } })
+    fireEvent.change(screen.getByLabelText('IPv6 PD size'), { target: { value: '56' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [path, list] = lastPatch()
+    expect(path).toBe('interfaces')
+    const wan1 = (list as api.Interface[])[0]
+    expect(wan1.ipv6).toEqual({ mode: 'dhcp6', pd_size: 56 })
   })
 })
 

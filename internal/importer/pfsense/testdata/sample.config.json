@@ -1,0 +1,617 @@
+{
+  "schema_version": 1,
+  "system": {
+    "hostname": "edge",
+    "domain": "home.example",
+    "timezone": "America/New_York",
+    "admin_port": 443,
+    "ntp_servers": [
+      "0.pool.ntp.example",
+      "1.pool.ntp.example"
+    ],
+    "dns_servers": [
+      "192.0.2.53",
+      "192.0.2.54"
+    ],
+    "ssh_keys": [
+      {
+        "name": "admin-1",
+        "key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f admin@example.test"
+      }
+    ]
+  },
+  "interfaces": [
+    {
+      "name": "wan",
+      "device": "eth0",
+      "role": "wan",
+      "mode": "dhcp",
+      "enabled": true,
+      "description": "WAN",
+      "ipv6": {
+        "mode": "dhcp6",
+        "pd_size": 56
+      }
+    },
+    {
+      "name": "lan",
+      "device": "eth1",
+      "role": "lan",
+      "mode": "static",
+      "address": "192.168.10.1/24",
+      "enabled": true,
+      "description": "LAN",
+      "allow_access": [
+        "ping",
+        "https",
+        "ssh"
+      ],
+      "ipv6": {
+        "mode": "delegated",
+        "uplink": "wan"
+      }
+    },
+    {
+      "name": "lab",
+      "device": "eth2",
+      "role": "wan",
+      "mode": "none",
+      "enabled": false,
+      "description": "Lab"
+    },
+    {
+      "name": "igb3",
+      "device": "eth3",
+      "role": "lan",
+      "mode": "none",
+      "enabled": true
+    }
+  ],
+  "vlans": [
+    {
+      "name": "iot-devices",
+      "parent": "lan",
+      "vlan_id": 30,
+      "mode": "static",
+      "address": "192.168.30.1/24",
+      "enabled": true,
+      "description": "IoT Devices",
+      "allow_access": [
+        "ping"
+      ],
+      "ipv6": {
+        "mode": "delegated",
+        "uplink": "wan",
+        "prefix_id": 3
+      }
+    },
+    {
+      "name": "cameras",
+      "parent": "igb3",
+      "vlan_id": 99,
+      "mode": "static",
+      "address": "192.168.99.1/24",
+      "enabled": true,
+      "description": "Cameras",
+      "allow_access": [
+        "ping"
+      ]
+    }
+  ],
+  "addresses": [
+    {
+      "name": "Kids_Devices-1",
+      "type": "host",
+      "value": "192.168.10.50"
+    },
+    {
+      "name": "Kids_Devices-2",
+      "type": "host",
+      "value": "192.168.10.51"
+    },
+    {
+      "name": "Kids_Devices-3",
+      "type": "fqdn",
+      "value": "tablet.home.example"
+    },
+    {
+      "name": "NAS",
+      "type": "host",
+      "value": "192.168.10.5"
+    },
+    {
+      "name": "Blocked_Nets-1",
+      "type": "subnet",
+      "value": "198.51.100.0/24"
+    },
+    {
+      "name": "lan-net",
+      "type": "subnet",
+      "value": "192.168.10.0/24"
+    },
+    {
+      "name": "192.168.10.60",
+      "type": "host",
+      "value": "192.168.10.60"
+    },
+    {
+      "name": "iot-devices-net",
+      "type": "subnet",
+      "value": "192.168.30.0/24"
+    }
+  ],
+  "address_groups": [
+    {
+      "name": "Kids_Devices",
+      "members": [
+        "Kids_Devices-1",
+        "Kids_Devices-2",
+        "Kids_Devices-3"
+      ]
+    },
+    {
+      "name": "Blocked_Nets",
+      "members": [
+        "Blocked_Nets-1",
+        "NAS"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "name": "tcp-web_ports",
+      "protocol": "tcp",
+      "ports": "80,443,8000-8080"
+    },
+    {
+      "name": "udp-web_ports",
+      "protocol": "udp",
+      "ports": "80,443,8000-8080"
+    },
+    {
+      "name": "icmp",
+      "protocol": "icmp"
+    }
+  ],
+  "policies": [
+    {
+      "id": 1,
+      "name": "block-bad-nets",
+      "enabled": true,
+      "src_intf": [
+        "wan",
+        "iot-devices"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "all"
+      ],
+      "dst_addr": [
+        "Blocked_Nets"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "deny",
+      "log": "all"
+    },
+    {
+      "id": 3,
+      "name": "kids-bed-time",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "Kids_Devices"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "deny",
+      "schedule": "schoolnights"
+    },
+    {
+      "id": 5,
+      "name": "lan-to-nas-web",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "lan-net"
+      ],
+      "dst_addr": [
+        "NAS"
+      ],
+      "service": [
+        "tcp-web_ports",
+        "udp-web_ports"
+      ],
+      "action": "accept",
+      "nat": true,
+      "ips_profile": "imported",
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "via-vpn",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "192.168.10.60"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true,
+      "ips_profile": "imported",
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "default-allow-lan-to-any-rule",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "lan-net"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true,
+      "ips_profile": "imported",
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "default-allow-lan-ipv6-to-any-rule",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "all"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true,
+      "ips_profile": "imported",
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "iot-ping",
+      "enabled": false,
+      "src_intf": [
+        "iot-devices"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "iot-devices-net"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "icmp"
+      ],
+      "action": "accept",
+      "nat": true,
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "iot-out",
+      "enabled": true,
+      "src_intf": [
+        "iot-devices"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "iot-devices-net"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true,
+      "dnsfilter_profile": "pfblockerng",
+      "threat_feeds": [
+        "threats-abuse-ip"
+      ]
+    }
+  ],
+  "nat": {
+    "port_forwards": [
+      {
+        "name": "plex",
+        "in_intf": "wan",
+        "ext_port": "32400",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.20",
+        "to_port": ""
+      },
+      {
+        "name": "console-tcp",
+        "in_intf": "wan",
+        "ext_port": "3074-3079",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.40",
+        "to_port": ""
+      },
+      {
+        "name": "console-udp",
+        "in_intf": "wan",
+        "ext_port": "3074-3079",
+        "protocol": "udp",
+        "to_addr": "192.168.10.40",
+        "to_port": ""
+      },
+      {
+        "name": "nas-ssh",
+        "in_intf": "wan",
+        "ext_port": "2222",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.5",
+        "to_port": "22"
+      },
+      {
+        "name": "dmz-host-tcp",
+        "in_intf": "wan",
+        "ext_port": "1-65535",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.99",
+        "to_port": ""
+      },
+      {
+        "name": "dmz-host-udp",
+        "in_intf": "wan",
+        "ext_port": "1-65535",
+        "protocol": "udp",
+        "to_addr": "192.168.10.99",
+        "to_port": ""
+      },
+      {
+        "name": "office-only",
+        "in_intf": "wan",
+        "ext_port": "8443",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.5",
+        "to_port": "443"
+      }
+    ]
+  },
+  "dhcp": [
+    {
+      "interface": "lan",
+      "range_start": "192.168.10.100",
+      "range_end": "192.168.10.199",
+      "lease_seconds": 7200,
+      "dns": [
+        "192.168.10.1"
+      ],
+      "static_leases": [
+        {
+          "mac": "aa:bb:cc:00:00:05",
+          "ip": "192.168.10.5",
+          "hostname": "nas"
+        }
+      ]
+    },
+    {
+      "interface": "iot-devices",
+      "range_start": "192.168.30.100",
+      "range_end": "192.168.30.150"
+    }
+  ],
+  "dns": {
+    "forwarders": [
+      "192.0.2.53",
+      "192.0.2.54"
+    ],
+    "dnssec": true,
+    "local_records": {
+      "files.home.example": "192.168.10.5",
+      "nas.home.example": "192.168.10.5"
+    },
+    "local_domain": "home.example",
+    "domain_forwards": [
+      {
+        "domain": "corp.example",
+        "servers": [
+          "192.0.2.10",
+          "192.0.2.11"
+        ]
+      }
+    ]
+  },
+  "profiles": {
+    "ips": [
+      {
+        "name": "imported",
+        "comment": "from pfSense",
+        "mode": "prevent"
+      }
+    ],
+    "dnsfilter": [
+      {
+        "name": "pfblockerng",
+        "comment": "DNSBL lists from pfSense",
+        "block_feeds": [
+          "ads-adlist-dns"
+        ]
+      }
+    ]
+  },
+  "feeds": [
+    {
+      "name": "bad_ips-feed",
+      "type": "ip",
+      "url": "https://lists.example/bad-ips.txt",
+      "refresh_minutes": 1440,
+      "enabled": true,
+      "block_wan": true
+    },
+    {
+      "name": "threats-abuse-ip",
+      "type": "ip",
+      "url": "https://lists.example/abuse.txt",
+      "refresh_minutes": 1440,
+      "enabled": true,
+      "block_wan": true
+    },
+    {
+      "name": "ads-adlist-dns",
+      "type": "domain",
+      "url": "https://lists.example/ads.txt",
+      "refresh_minutes": 1440,
+      "enabled": true
+    }
+  ],
+  "admins": [
+    {
+      "username": "admin",
+      "role": "admin"
+    }
+  ],
+  "schedules": [
+    {
+      "name": "schoolnights",
+      "comment": "bed time",
+      "ranges": [
+        {
+          "days": [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "sun"
+          ],
+          "start": "21:00",
+          "end": "24:00"
+        },
+        {
+          "days": [
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri"
+          ],
+          "start": "00:00",
+          "end": "06:30"
+        }
+      ]
+    }
+  ],
+  "upnp": {
+    "enabled": true,
+    "interfaces": [
+      "lan",
+      "iot-devices"
+    ],
+    "allow": [
+      {
+        "address": "192.168.10.0/24",
+        "ports": "1024-65535"
+      },
+      {
+        "address": "192.168.10.40/32",
+        "ports": "3075"
+      }
+    ]
+  },
+  "gateways": [
+    {
+      "name": "wan_dhcp",
+      "interface": "wan",
+      "address": "dhcp"
+    },
+    {
+      "name": "backup_gw",
+      "interface": "lab",
+      "address": "198.51.100.1"
+    }
+  ],
+  "gateway_groups": [
+    {
+      "name": "failover",
+      "members": [
+        {
+          "gateway": "wan_dhcp",
+          "tier": 1
+        },
+        {
+          "gateway": "backup_gw",
+          "tier": 2
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "destination": "10.99.0.0/16",
+      "gateway": "backup_gw"
+    }
+  ]
+}

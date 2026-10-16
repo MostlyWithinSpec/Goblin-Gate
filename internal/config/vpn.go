@@ -6,6 +6,8 @@ import "net/netip"
 type VPN struct {
 	Tailscale Tailscale   `json:"tailscale,omitzero"`
 	WireGuard []WireGuard `json:"wireguard,omitempty"`
+	// WireGuardClients are tunnels to VPN providers used as gateways (task 049).
+	WireGuardClients []WireGuardClient `json:"wireguard_clients,omitempty"`
 }
 
 // WireGuardKeyDir holds the WireGuard servers' private keys (one

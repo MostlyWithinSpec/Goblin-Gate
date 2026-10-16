@@ -68,8 +68,9 @@ type link struct {
 	wan             bool
 	vlans           []string // VLAN devices carried by this link
 	v6              *config.IPv6
-	v6uplink        string // delegated: the uplink's device
-	raDNS           bool   // announce the box as DNS server in RAs
+	v6uplink        string       // delegated: the uplink's device
+	raDNS           bool         // announce the box as DNS server in RAs
+	route           *linkRouting // multi-WAN: this link carries a gateway
 }
 
 func build(cfg *config.Config) (map[string][]byte, error) {
@@ -99,6 +100,7 @@ func build(cfg *config.Config) (map[string][]byte, error) {
 	}
 
 	phys := make([]*link, 0, len(cfg.Interfaces))
+	var vlans []*link
 	byName := map[string]*link{}
 	for _, ifc := range cfg.Interfaces {
 		if err := claim("interface", ifc.Name, ifc.Device); err != nil {
@@ -133,13 +135,27 @@ func build(cfg *config.Config) (map[string][]byte, error) {
 		if err := v6.attach(l, v.IPv6); err != nil {
 			return nil, fmt.Errorf("vlan %q: %w", v.Name, err)
 		}
-		b, err := network(l)
-		if err != nil {
-			return nil, fmt.Errorf("vlan %q: %w", v.Name, err)
-		}
-		files[NetworkPath(20, v.Name)] = b
+		vlans = append(vlans, l)
+		byName[v.Name] = l
 	}
 
+	plan, err := render.Routing(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachRouting(cfg, plan, byName); err != nil {
+		return nil, err
+	}
+	if plan.Enabled {
+		files[RulesPath] = rulesFile(plan)
+	}
+	for _, l := range vlans {
+		b, err := network(l)
+		if err != nil {
+			return nil, fmt.Errorf("vlan %q: %w", l.name, err)
+		}
+		files[NetworkPath(20, l.name)] = b
+	}
 	for _, l := range phys {
 		b, err := network(l)
 		if err != nil {
@@ -183,7 +199,7 @@ func network(l *link) ([]byte, error) {
 				return nil, fmt.Errorf("static mode needs an IPv4 address")
 			}
 			fmt.Fprintf(&b, "Address=%s\n", l.addr)
-			if l.gw != nil {
+			if l.gw != nil && l.route == nil { // with a gateway: its own table
 				if !l.gw.Is4() {
 					return nil, fmt.Errorf("gateway %s is not IPv4", l.gw)
 				}
@@ -211,5 +227,8 @@ func network(l *link) ([]byte, error) {
 		fmt.Fprintf(&b, "VLAN=%s\n", dev)
 	}
 	b.WriteString(sections)
+	if l.route != nil && l.enabled {
+		b.WriteString(l.route.sections(l.mode == "dhcp"))
+	}
 	return []byte(b.String()), nil
 }

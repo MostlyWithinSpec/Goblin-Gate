@@ -97,7 +97,7 @@ func TestApplyFirstRun(t *testing.T) {
 		"unbound-checkconf CHECK/unbound-goblin.conf",
 		"/usr/lib/systemd/systemd-sysctl /etc/sysctl.d/90-goblin.conf",
 		"networkctl reload",
-		"nft -f /etc/nftables.d/goblin.nft",
+		"nft -f /etc/nftables.d/goblin.nft", upnpRestart,
 		"systemctl reload-or-restart kea-dhcp4-server.service",
 		"systemctl restart unbound.service",
 	}
@@ -134,7 +134,7 @@ func TestApplyOnlyChangedGroups(t *testing.T) {
 	if err := h.Apply(ctx, files); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"nft -c -f CHECK/nft-goblin.nft", "nft -f /etc/nftables.d/goblin.nft"}
+	want := []string{"nft -c -f CHECK/nft-goblin.nft", "nft -f /etc/nftables.d/goblin.nft", upnpRestart}
 	if diff := cmp.Diff(want, r.lines(h.Root)); diff != "" {
 		t.Errorf("commands (-want +got):\n%s", diff)
 	}
@@ -231,11 +231,11 @@ func TestApplyActivationFailureRollsBack(t *testing.T) {
 	got := r.lines(h.Root)
 	// Forward: checks, networkd, nft, kea (fails). Rollback: networkd, nft, kea again
 	// (the rollback kea restart fails too in this fake, which is reported).
-	wantTail := []string{"networkctl reload", "nft -f /etc/nftables.d/goblin.nft", "systemctl reload-or-restart kea-dhcp4-server.service"}
+	wantTail := []string{"networkctl reload", "nft -f /etc/nftables.d/goblin.nft", upnpRestart, "systemctl reload-or-restart kea-dhcp4-server.service"}
 	if len(got) < 6 {
 		t.Fatalf("too few commands: %v", got)
 	}
-	if diff := cmp.Diff(wantTail, got[len(got)-3:]); diff != "" {
+	if diff := cmp.Diff(wantTail, got[len(got)-len(wantTail):]); diff != "" {
 		t.Errorf("rollback commands (-want +got):\n%s", diff)
 	}
 	if !strings.Contains(err.Error(), "rollback also failed") {
@@ -310,7 +310,7 @@ func TestApplyAfterRestartActivatesAll(t *testing.T) {
 	want := []string{
 		"/usr/lib/systemd/systemd-sysctl /etc/sysctl.d/90-goblin.conf",
 		"networkctl reload",
-		"nft -f /etc/nftables.d/goblin.nft",
+		"nft -f /etc/nftables.d/goblin.nft", upnpRestart,
 		"systemctl reload-or-restart kea-dhcp4-server.service",
 		"systemctl restart unbound.service",
 	}
@@ -638,3 +638,6 @@ func TestAptGroupDisablesCDROM(t *testing.T) {
 	}
 	t.Fatal("no apt group")
 }
+
+// upnpRestart follows every ruleset load: miniupnpd re-adds its mappings.
+const upnpRestart = "sh -c ! systemctl cat goblin-miniupnpd.service >/dev/null 2>&1 || systemctl try-restart goblin-miniupnpd.service"

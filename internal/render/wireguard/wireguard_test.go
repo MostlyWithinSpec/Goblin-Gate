@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -66,6 +67,27 @@ func TestValidate(t *testing.T) {
 	for _, p := range []string{"vpn.wireguard[0].peers[2].name", "vpn.wireguard[0].peers[2].public_key", "vpn.wireguard[0].peers[2].address", "vpn.wireguard[1].name", "vpn.wireguard[1].listen_port"} {
 		if !got[p] {
 			t.Errorf("missing %s in %v", p, got)
+		}
+	}
+}
+
+// TestClientGolden (task 049): a VPN-provider tunnel used as a gateway.
+func TestClientGolden(t *testing.T) {
+	files, err := Renderer{}.Render(rendertest.MultiWAN())
+	if err != nil || len(files) != 2 {
+		t.Fatalf("%v %v", len(files), err)
+	}
+	for p, got := range files {
+		golden := filepath.Join("testdata", "client-"+filepath.Base(p))
+		if *update {
+			os.WriteFile(golden, got, 0o644)
+		}
+		want, err := os.ReadFile(golden)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != strings.ReplaceAll(string(want), "\r\n", "\n") {
+			t.Errorf("%s:\n%s", p, got)
 		}
 	}
 }

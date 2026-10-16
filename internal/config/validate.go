@@ -59,6 +59,8 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkServices()
 	v.checkPolicies()
 	v.checkSchedules()
+	v.checkUPnP()
+	v.checkRouting()
 	v.checkPortForwards()
 	v.checkDHCP()
 	v.checkFeedsAndAdmins()

@@ -35,6 +35,30 @@ export interface DNSSettings {
   local_records?: Record<string, string> // name -> IPv4
 }
 
+export interface UPnpAllow {
+  address: string
+  ports: string
+}
+
+export interface UPnPConfig {
+  enabled: boolean
+  interfaces?: string[]
+  nat_pmp?: boolean
+  secure_mode?: boolean
+  allow?: UPnpAllow[]
+  max_lease?: number
+  stun?: boolean
+}
+
+export interface UPnpMapping {
+  protocol: string
+  external_port: number
+  internal_ip: string
+  internal_port: number
+  description?: string
+  expires?: string
+}
+
 export interface NetIf {
   name: string
   role?: string // interfaces only; a VLAN inherits its parent's
@@ -50,6 +74,7 @@ export interface NetworkConfig {
   nat?: { port_forwards?: PortForward[] }
   dhcp?: DHCPServer[]
   dns?: DNSSettings
+  upnp?: UPnPConfig
 }
 
 export interface DHCPLease {
@@ -93,4 +118,9 @@ export function wanInterfaces(cfg: NetworkConfig): string[] {
 // staticInterfaces lists interfaces and VLANs that can run a DHCP server.
 export function staticInterfaces(cfg: NetworkConfig): NetIf[] {
   return [...(cfg.interfaces ?? []), ...(cfg.vlans ?? [])].filter((i) => i.mode === 'static' && i.address)
+}
+
+// getUpnpMappings returns the active UPnP port mappings from miniupnpd.
+export function getUpnpMappings(): Promise<{ enabled: boolean; mappings: UPnpMapping[] }> {
+  return apiClient('/api/v1/upnp/mappings')
 }

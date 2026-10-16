@@ -56,6 +56,9 @@ table ip goblin_nat {
 
 	chain postrouting {
 		type nat hook postrouting priority srcnat; policy accept;
-		meta mark & 0x00000001 == 0x00000001 masquerade comment "policies with nat enabled"
+		oifname "eth0" meta mark & 0x00000001 == 0x00000001 masquerade comment "policies with nat enabled"
 	}
 }
+
+table inet goblin_upnp
+delete table inet goblin_upnp

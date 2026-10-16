@@ -95,6 +95,9 @@ func (r *ruleset) write() []byte {
 		p(2, "%s", l)
 	}
 	p(2, "jump threat_feeds")
+	if r.cfg.UPnP.Enabled {
+		p(2, "jump %s comment %s", UPnPForwardChain, quote("upnp mappings (miniupnpd)"))
+	}
 	for _, l := range r.dnsFwd {
 		p(2, "%s", l)
 	}
@@ -110,6 +113,28 @@ func (r *ruleset) write() []byte {
 	p(2, "type filter hook output priority filter; policy accept;")
 	p(2, "ct state invalid drop")
 	p(1, "}")
+	if r.cfg.UPnP.Enabled {
+		// filled by miniupnpd at run time (task 059)
+		p(0, "")
+		p(1, "chain %s {", UPnPForwardChain)
+		p(1, "}")
+	}
+	if r.route.Enabled {
+		// policy routing (task 049, see routing.go): before the routing decision
+		p(0, "")
+		p(1, "chain route_policies {")
+		for _, l := range r.routePol {
+			p(2, "%s", l)
+		}
+		p(1, "}")
+		p(0, "")
+		p(1, "chain prerouting {")
+		p(2, "type filter hook prerouting priority mangle; policy accept;")
+		for _, l := range r.routePrerouting() {
+			p(2, "%s", l)
+		}
+		p(1, "}")
+	}
 	p(0, "}")
 	p(0, "")
 
@@ -133,8 +158,47 @@ func (r *ruleset) write() []byte {
 	p(0, "")
 	p(1, "chain postrouting {")
 	p(2, "type nat hook postrouting priority srcnat; policy accept;")
-	p(2, "meta mark & 0x%08x == 0x%08x masquerade comment %s", MarkMasquerade, MarkMasquerade, quote("policies with nat enabled"))
+	// nat: true translates traffic that leaves through a WAN only: a
+	// policy towards "all" interfaces must not masquerade LAN-to-LAN traffic
+	// (with multi-WAN also through a VPN-provider tunnel)
+	egress := r.wanMatch()
+	if r.route.Enabled {
+		if ext := r.externalDevs(); len(ext) > 0 {
+			egress = devSet(ext)
+		}
+	}
+	if egress != "" {
+		p(2, "oifname %s meta mark & 0x%08x == 0x%08x masquerade comment %s", egress, MarkMasquerade, MarkMasquerade, quote("policies with nat enabled"))
+	}
 	p(1, "}")
 	p(0, "}")
+
+	// UPnP / NAT-PMP mappings (task 059): miniupnpd adds its DNAT rules to
+	// upnp_dnat at run time. Always deleted, so disabling UPnP drops them;
+	// recreated empty when enabled (the applier restarts miniupnpd, which
+	// re-adds the mappings from its lease file).
+	p(0, "")
+	p(0, "table inet %s", UPnPNATTable)
+	p(0, "delete table inet %s", UPnPNATTable)
+	if r.cfg.UPnP.Enabled {
+		p(0, "")
+		p(0, "table inet %s {", UPnPNATTable)
+		p(1, "chain prerouting {")
+		p(2, "type nat hook prerouting priority dstnat; policy accept;")
+		p(2, "jump %s", UPnPDNATChain)
+		p(1, "}")
+		p(0, "")
+		p(1, "chain postrouting {")
+		p(2, "type nat hook postrouting priority srcnat; policy accept;")
+		p(2, "jump %s", UPnPSNATChain)
+		p(1, "}")
+		p(0, "")
+		p(1, "chain %s {", UPnPDNATChain)
+		p(1, "}")
+		p(0, "")
+		p(1, "chain %s {", UPnPSNATChain)
+		p(1, "}")
+		p(0, "}")
+	}
 	return []byte(b.String())
 }

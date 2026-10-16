@@ -16,7 +16,7 @@ import * as api from '../api/policy'
 import Policies from '../pages/policy/Policies'
 
 const policies: Policy[] = [
-  { id: 1, name: 'lan-to-internet', enabled: true, src_intf: ['lan'], dst_intf: ['wan1'], src_addr: ['all'], dst_addr: ['all'], service: ['any'], action: 'accept', nat: true, ips_profile: 'basic' },
+  { id: 1, name: 'lan-to-internet', enabled: true, src_intf: ['lan'], dst_intf: ['wan1'], src_addr: ['all'], dst_addr: ['all'], service: ['any'], action: 'accept', nat: true, ips_profile: 'basic', schedule: 'business-hours' },
   { id: 2, name: 'block-guest', enabled: false, src_intf: ['guest'], dst_intf: ['lan'], src_addr: ['all'], dst_addr: ['all'], service: ['any'], action: 'deny', log: 'all' },
 ]
 
@@ -28,6 +28,9 @@ const cfg: PolicyConfig = {
   policies,
   profiles: { ips: [{ name: 'basic' }] },
   feeds: [{ name: 'drop' }],
+  schedules: [{ name: 'business-hours' }],
+  gateways: [{ name: 'wan1' }, { name: 'vpn' }],
+  gateway_groups: [{ name: 'failover' }],
 }
 
 const saved = () => {
@@ -50,6 +53,7 @@ describe('Policies table', () => {
     expect(within(row1).getByText('ACCEPT')).toBeInTheDocument()
     expect(within(row1).getByText('NAT')).toBeInTheDocument()
     expect(within(row1).getByText('IPS')).toBeInTheDocument()
+    expect(within(row1).getByText('business-hours')).toBeInTheDocument()
     expect(within(row1).getByText('1,234')).toBeInTheDocument()
     expect(within(row2).getByText('DENY')).toBeInTheDocument()
     expect(within(row2).getByText('—')).toBeInTheDocument()
@@ -146,5 +150,33 @@ describe('Policy editor', () => {
     await waitFor(() => expect(api.savePolicies).toHaveBeenCalled())
     expect(saved().map((p) => p.id)).toEqual([1, 2])
     expect(saved()[1].action).toBe('accept')
+  })
+
+  test('offers the defined schedules in the Schedule select', async () => {
+    render(<Policies />)
+    fireEvent.click(await screen.findByRole('button', { name: 'block-guest' }))
+    const sel = screen.getByLabelText('Schedule') as HTMLSelectElement
+    expect(Array.from(sel.options).map((o) => o.value)).toEqual(['', 'business-hours'])
+  })
+
+  test('sets the schedule on a policy and saves it', async () => {
+    render(<Policies />)
+    fireEvent.click(await screen.findByRole('button', { name: 'block-guest' }))
+    fireEvent.change(screen.getByLabelText('Schedule'), { target: { value: 'business-hours' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.savePolicies).toHaveBeenCalled())
+    expect(saved().find((p) => p.id === 2)?.schedule).toBe('business-hours')
+  })
+
+  test('routes a policy through a gateway group and saves it', async () => {
+    render(<Policies />)
+    fireEvent.click(await screen.findByRole('button', { name: 'block-guest' }))
+    const sel = screen.getByLabelText('Gateway') as HTMLSelectElement
+    expect(Array.from(sel.options).map((o) => o.value)).toEqual(['', 'wan1', 'vpn', 'failover'])
+    fireEvent.change(sel, { target: { value: 'failover' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.savePolicies).toHaveBeenCalled())
+    expect(saved().find((p) => p.id === 2)?.gateway).toBe('failover')
+    expect(saved().find((p) => p.id === 1)).not.toHaveProperty('gateway')
   })
 })

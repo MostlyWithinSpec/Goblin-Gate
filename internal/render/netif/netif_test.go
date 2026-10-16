@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -79,6 +80,7 @@ func TestGolden(t *testing.T) {
 		"disabled":   disabled(),
 		"dual-stack": dualStack(),
 		"static-v6":  staticV6(),
+		"multi-wan":  rendertest.MultiWAN(),
 	}
 	for name, cfg := range cases {
 		t.Run(name, func(t *testing.T) {

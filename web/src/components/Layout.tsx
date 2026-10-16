@@ -18,15 +18,19 @@ import {
   AppWindow,
   KeyRound,
   Waypoints,
-  ShieldAlert
+  ShieldAlert,
+  Clock,
+  Server
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
 import { toggleTheme } from '../theme'
 import UserMenu from './UserMenu'
+import { getUpdates } from '../api/system'
 
 const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState(false)
   const location = useLocation()
 
   // Toggle sidebar on mobile
@@ -38,6 +42,17 @@ const Layout: React.FC = () => {
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [location])
+
+  // Show a small badge on the System item when an update is available.
+  useEffect(() => {
+    let cancelled = false
+    getUpdates(false)
+      .then((s) => {
+        if (!cancelled && s.available && s.available !== '') setUpdateAvailable(true)
+      })
+      .catch(() => { /* ignore — badge stays off */ })
+    return () => { cancelled = true }
+  }, [])
 
 
   // Navigation items
@@ -60,6 +75,7 @@ const Layout: React.FC = () => {
       icon: Shield,
       group: 'Policy & Objects'
     },
+    { name: 'Schedules', path: '/policy/schedules', icon: Clock, group: 'Policy & Objects' },
     {
       name: 'Security Profiles',
       path: '/security',
@@ -73,6 +89,7 @@ const Layout: React.FC = () => {
     { name: 'IPS', path: '/security/ips', icon: ShieldAlert, group: 'Security Profiles' },
     { name: 'Tailscale', path: '/vpn/tailscale', icon: Waypoints, group: 'VPN' },
     { name: 'WireGuard', path: '/vpn/wireguard', icon: KeyRound, group: 'VPN' },
+    { name: 'VPN Providers', path: '/vpn/providers', icon: Server, group: 'VPN' },
     {
       name: 'Log & Report',
       path: '/log',
@@ -150,7 +167,10 @@ const Layout: React.FC = () => {
                         }`}
                       >
                         <Icon size={18} className="mr-3" />
-                        <span>{item.name}</span>
+                        <span className="flex-1">{item.name}</span>
+                        {updateAvailable && item.path === '/system' && (
+                          <span className="ml-2 h-2 w-2 rounded-full bg-green-500" title="Update available" />
+                        )}
                       </Link>
                     )
                   })}

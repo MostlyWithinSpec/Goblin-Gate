@@ -123,7 +123,7 @@ export default function PolicyEditor({ policy, isNew, objects, others, onSave, o
         <MultiSelect label="Destination" options={objects.addresses} value={p.dst_addr ?? []} onChange={(v) => set('dst_addr', v)} error={errors.dst_addr} exclusive="all" />
         <MultiSelect label="Service" options={objects.services} value={p.service ?? []} onChange={(v) => set('service', v)} error={errors.service} exclusive="any" />
 
-        <div className="mb-4 grid grid-cols-2 gap-2">
+        <div className="mb-4 grid grid-cols-3 gap-2">
           <label className="text-sm text-gray-700 dark:text-gray-300">
             Action
             <select aria-label="Action" className={input} value={p.action} onChange={(e) => set('action', e.target.value as Policy['action'])}>
@@ -139,6 +139,15 @@ export default function PolicyEditor({ policy, isNew, objects, others, onSave, o
               <option value="deny">denied only</option>
             </select>
           </label>
+          <label className="text-sm text-gray-700 dark:text-gray-300">
+            Schedule
+            <select aria-label="Schedule" className={input} value={p.schedule ?? ''} onChange={(e) => set('schedule', e.target.value || undefined)}>
+              <option value="">— none —</option>
+              {objects.schedules.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <label className="mb-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={!!p.nat} onChange={(e) => set('nat', e.target.checked)} />
@@ -147,6 +156,23 @@ export default function PolicyEditor({ policy, isNew, objects, others, onSave, o
         <label className="mb-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={p.enabled} onChange={(e) => set('enabled', e.target.checked)} />
           Enabled
+        </label>
+
+        <label className="mb-4 block text-sm text-gray-700 dark:text-gray-300">
+          Gateway
+          <select aria-label="Gateway" className={input} value={p.gateway ?? ''} onChange={(e) => set('gateway', e.target.value || undefined)}>
+            <option value="">— none —</option>
+            {objects.gateways.length > 0 && (
+              <optgroup label="Gateways">
+                {objects.gateways.map((o) => <option key={o} value={o}>{o}</option>)}
+              </optgroup>
+            )}
+            {objects.gatewayGroups.length > 0 && (
+              <optgroup label="Gateway groups">
+                {objects.gatewayGroups.map((o) => <option key={o} value={o}>{o}</option>)}
+              </optgroup>
+            )}
+          </select>
         </label>
 
         <fieldset className="mb-4 rounded border border-gray-200 p-3 dark:border-gray-700">

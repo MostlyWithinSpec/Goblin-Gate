@@ -91,6 +91,57 @@ export function restoreBackup(file: File): Promise<{ status: string; hostname?: 
   })
 }
 
+// --- Import from pfSense --------------------------------------------------------
+
+export interface ImportReportEntry {
+  section: string
+  item: string
+  status: 'converted' | 'approximated' | 'skipped'
+  detail?: string
+  risk?: boolean
+}
+
+export interface ImportedInterface {
+  pfsense: string
+  pfsense_device: string
+  description?: string
+  name: string
+  role: string
+  vlan?: boolean
+  device: string
+}
+
+export interface ImportResult {
+  report: ImportReportEntry[]
+  interfaces: ImportedInterface[]
+  summary: { converted: number; approximated: number; skipped: number }
+  validation_errors?: { path: string; message: string }[]
+}
+
+export function importPfSense(file: File, devices?: Record<string, string>): Promise<ImportResult> {
+  const form = new FormData()
+  form.append('config', file)
+  if (devices && Object.keys(devices).length > 0) {
+    form.append('devices', JSON.stringify(devices))
+  }
+  return fetch('/api/v1/import/pfsense', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+    headers: { 'X-CSRF-Token': csrfToken() },
+  }).then(async (res) => {
+    if (!res.ok) {
+      let message = `HTTP ${res.status}`
+      try {
+        const body = await res.json()
+        if (body?.error?.message) message = body.error.message
+      } catch { /* not JSON */ }
+      throw new Error(message)
+    }
+    return res.json() as Promise<ImportResult>
+  })
+}
+
 // --- System info ----------------------------------------------------------------
 
 export interface SystemInfo {
@@ -104,3 +155,37 @@ export interface SystemInfo {
 }
 
 export const getSystemInfo = () => apiClient<SystemInfo>('/api/v1/system/info')
+
+// --- Updates ------------------------------------------------------------------
+// Mirrors the /api/v1/system/updates handlers added in task 051.
+
+export interface UpdateLast {
+  state: 'running' | 'done' | 'rolled_back' | 'failed'
+  from?: string
+  to?: string
+  include_os?: boolean
+  step?: string
+  message?: string
+  started?: string
+  finished?: string
+}
+
+export interface UpdatesStatus {
+  installed: string
+  available?: string
+  release_url?: string
+  os_updates?: number
+  checked?: string // time of the last check; absent = never checked
+  check_error?: string
+  last?: UpdateLast
+}
+
+export const getUpdates = (refresh = false) =>
+  apiClient<UpdatesStatus>(`/api/v1/system/updates${refresh ? '?refresh=1' : ''}`)
+
+export function applyUpdate(body: { version?: string; include_os?: boolean }): Promise<{ status: string }> {
+  return apiClient<{ status: string }>('/api/v1/system/updates/apply', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}

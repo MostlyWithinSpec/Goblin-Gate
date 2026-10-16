@@ -35,9 +35,11 @@ if [ -f packaging/blockpage/index.html ]; then
 	install -m644 packaging/blockpage/index.html "$ROOT/usr/share/goblin-gate/blockpage.html"
 fi
 install -d "$ROOT/lib/systemd/system" "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d" "$ROOT/etc/systemd/system/nftables.service.d" "$ROOT/etc/systemd/system/getty@tty1.service.d"
-install -m644 packaging/systemd/goblind.service packaging/systemd/goblin-suricata@.service "$ROOT/lib/systemd/system/"
+install -m644 packaging/systemd/goblind.service packaging/systemd/goblin-suricata@.service packaging/systemd/goblin-miniupnpd.service "$ROOT/lib/systemd/system/"
 install -m644 packaging/systemd/systemd-networkd-wait-online.service.d/goblin.conf "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d/"
 install -m644 packaging/systemd/nftables.service.d/goblin.conf "$ROOT/etc/systemd/system/nftables.service.d/"
+install -d "$ROOT/etc/systemd/networkd.conf.d"
+install -m644 packaging/systemd/networkd.conf.d/goblin.conf "$ROOT/etc/systemd/networkd.conf.d/"
 install -m644 packaging/systemd/getty@tty1.service.d/goblin-console.conf "$ROOT/etc/systemd/system/getty@tty1.service.d/"
 install -d -m750 "$ROOT/etc/goblingate"
 install -m640 packaging/default/goblind.json "$ROOT/etc/goblingate/goblind.json"

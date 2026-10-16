@@ -15,6 +15,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
@@ -56,6 +57,12 @@ type Server struct {
 	Notify *notify.Dispatcher
 	// Updates installs package updates (task 051); nil answers 503 (dev mode).
 	Updates *updates.Manager
+	// Gateways reports the multi-WAN gateway monitor (task 049); nil answers
+	// "not enabled".
+	Gateways interface{ Report() gateways.Report }
+	// UPnPLeaseFile is miniupnpd's lease file (task 059); "" = the box's
+	// default (internal/render/upnp.LeaseFile).
+	UPnPLeaseFile string
 
 	// Logs, Policies and System serve the stats and log endpoints; nil
 	// answers 503.
@@ -120,6 +127,11 @@ func (s *Server) Routes() http.Handler {
 	handle("PATCH /api/v1/admins/{name}", s.updateAdmin)
 	handle("DELETE /api/v1/admins/{name}", s.deleteAdmin)
 	handle("POST /api/v1/notifications/test", s.notifyTest)
+	handle("GET /api/v1/upnp/mappings", s.upnpMappings)
+	handle("POST /api/v1/import/pfsense", s.importPfSense)
+	handle("GET /api/v1/gateways/status", s.gatewayStatus)
+	handle("GET /api/v1/vpn/wireguard-clients/{name}/public-key", s.wireguardClientPublicKey)
+	handle("PUT /api/v1/vpn/wireguard-clients/{name}/private-key", s.wireguardClientSetKey)
 	handle("GET /api/v1/system/updates", s.updateStatus)
 	handle("POST /api/v1/system/updates/apply", s.applyUpdate)
 	handle("GET /api/v1/feeds", s.feedStatus)
@@ -166,8 +178,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		// a backup upload is the one non-JSON body (a zip, raw or as a form)
-		upload := r.Method == http.MethodPost && r.URL.Path == "/api/v1/system/restore"
+		// uploads are the non-JSON bodies: a backup (zip) and a pfSense
+		// config.xml, raw or as a form
+		upload := r.Method == http.MethodPost && (r.URL.Path == "/api/v1/system/restore" || r.URL.Path == "/api/v1/import/pfsense")
 		if r.Body != nil {
 			limit := int64(MaxBodyBytes)
 			if upload {
@@ -199,7 +212,8 @@ func isJSON(ct string) bool {
 // isUpload accepts the content types a backup upload may use.
 func isUpload(ct string) bool {
 	mt, _, err := mime.ParseMediaType(ct)
-	return err == nil && (mt == "multipart/form-data" || mt == "application/zip" || mt == "application/octet-stream")
+	return err == nil && (mt == "multipart/form-data" || mt == "application/zip" || mt == "application/octet-stream" ||
+		mt == "application/xml" || mt == "text/xml")
 }
 
 type statusRecorder struct {

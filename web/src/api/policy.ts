@@ -23,6 +23,7 @@ export interface Policy {
   dnsfilter_profile?: string
   appctrl_profile?: string
   threat_feeds?: string[]
+  gateway?: string // a gateway or gateway group name; "" = default route
 }
 
 interface Named {
@@ -45,6 +46,9 @@ export interface PolicyConfig {
     appctrl?: Named[]
   }
   feeds?: Named[]
+  schedules?: Named[]
+  gateways?: Named[]
+  gateway_groups?: Named[]
 }
 
 export interface ValidationError {
@@ -64,6 +68,9 @@ export interface PolicyObjects {
   services: string[] // includes "any"
   profiles: { ips: string[]; webfilter: string[]; dnsfilter: string[]; appctrl: string[] }
   feeds: string[]
+  schedules: string[]
+  gateways: string[]
+  gatewayGroups: string[]
 }
 
 const names = (xs?: Named[]) => (xs ?? []).map((x) => x.name)
@@ -80,6 +87,9 @@ export function objectsOf(cfg: PolicyConfig): PolicyObjects {
       appctrl: names(cfg.profiles?.appctrl),
     },
     feeds: names(cfg.feeds),
+    schedules: names(cfg.schedules),
+    gateways: names(cfg.gateways),
+    gatewayGroups: names(cfg.gateway_groups),
   }
 }
 

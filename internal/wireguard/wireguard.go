@@ -105,7 +105,36 @@ func EnsureKeys(dir string, cfg *config.Config) error {
 			return fmt.Errorf("wireguard %s: %w", w.Name, err)
 		}
 	}
+	// VPN provider tunnels (task 049): generated unless one was pasted
+	for _, w := range cfg.VPN.WireGuardClients {
+		if _, err := EnsureKey(dir, config.ClientKeyName(w.Name)); err != nil {
+			return fmt.Errorf("wireguard client %s: %w", w.Name, err)
+		}
+	}
 	return nil
+}
+
+// SetKey stores a private key given by a VPN provider for the key file
+// name (config.ClientKeyName) and returns its public key.
+func SetKey(dir, name, private string) (Key, error) {
+	k, err := ParseKey(private)
+	if err != nil {
+		return Key{}, err
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return Key{}, err
+	}
+	shareWithNetworkd(dir)
+	path := KeyPath(dir, name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(k.String()+"\n"), 0o640); err != nil {
+		return Key{}, err
+	}
+	shareWithNetworkd(tmp)
+	if err := os.Rename(tmp, path); err != nil {
+		return Key{}, err
+	}
+	return k.Public(), nil
 }
 
 // NextAddress returns the first free host address in the interface's

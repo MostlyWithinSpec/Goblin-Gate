@@ -5,9 +5,9 @@ import type { Address } from '../../api/objects'
 import { validateAddress } from './networkLogic'
 
 const placeholders: Record<Address['type'], string> = {
-  subnet: '192.168.1.0/24',
-  host: '192.168.1.10',
-  range: '192.168.1.100-192.168.1.150',
+  subnet: '192.168.1.0/24 or 2001:db8::/32',
+  host: '192.168.1.10 or 2001:db8::1',
+  range: '192.168.1.100-192.168.1.150 or 2001:db8::1-2001:db8::ff',
   fqdn: 'example.com',
 }
 

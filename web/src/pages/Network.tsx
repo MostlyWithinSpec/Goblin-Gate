@@ -8,8 +8,12 @@ const tabs = [
   ['services', 'Services'],
   ['service-groups', 'Service Groups'],
   ['port-forwards', 'Port Forwards'],
+  ['upnp', 'UPnP'],
   ['dhcp', 'DHCP'],
   ['dns', 'DNS'],
+  ['gateways', 'Gateways'],
+  ['gateway-groups', 'Gateway Groups'],
+  ['static-routes', 'Static Routes'],
 ] as const
 
 export default function Network() {

@@ -5,6 +5,16 @@
 import { apiClient } from './client'
 import type { Policy, SaveResult } from './policy'
 
+export interface IPv6 {
+  mode: 'none' | 'dhcp6' | 'static' | 'delegated'
+  address?: string // CIDR, static only
+  gateway?: string
+  pd_size?: number // 48-64, dhcp6 only
+  uplink?: string // delegated: name of a dhcp6 interface ("" = automatic)
+  prefix_id?: number // delegated
+  ra?: { enabled: boolean; dns: boolean; managed?: boolean; other?: boolean }
+}
+
 export interface Interface {
   name: string
   device: string
@@ -16,6 +26,7 @@ export interface Interface {
   enabled: boolean
   description?: string
   allow_access?: string[] // ping | https | ssh
+  ipv6?: IPv6
 }
 
 export interface VLAN {
@@ -29,6 +40,7 @@ export interface VLAN {
   enabled: boolean
   description?: string
   allow_access?: string[]
+  ipv6?: IPv6
 }
 
 export interface Address {
@@ -131,6 +143,21 @@ export interface NotifyRule {
 // The events a rule can name (config.NotifyEvents).
 export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'test'] as const
 
+// Schedules (task 057): weekly time windows a policy can be limited to.
+// Times are in system.timezone. End before Start runs overnight; "24:00" is
+// midnight; Start == End is invalid.
+export interface ScheduleRange {
+  days: string[] // mon tue wed thu fri sat sun
+  start: string // HH:MM
+  end: string // HH:MM, may be 24:00
+}
+
+export interface Schedule {
+  name: string
+  comment?: string
+  ranges: ScheduleRange[]
+}
+
 export interface SystemSettings {
   hostname: string
   domain?: string
@@ -141,6 +168,54 @@ export interface SystemSettings {
   ssh_keys?: SSHKey[]
   update_channel?: 'stable' | 'beta' | 'nightly'
   update_url?: string
+}
+
+// Multi-WAN gateways, groups and routes (task 049/050). Types mirror
+// internal/config/routing.go by JSON name.
+
+export interface GatewayMonitor {
+  ip?: string // IPv4; "" = pick a public resolver per gateway
+  disabled?: boolean // keep the gateway always up (no pings)
+  interval_seconds?: number // 0 = 2
+  loss_percent?: number // 0 = 40
+  latency_ms?: number // 0 = 1000
+}
+
+export interface Gateway {
+  name: string
+  interface: string // WAN interface/VLAN or a WireGuard client name
+  address?: string // "dhcp" | router IPv4 | "" (tunnel)
+  monitor?: GatewayMonitor
+}
+
+export interface GatewayGroupMember {
+  gateway: string
+  tier?: number // 1 = first choice
+  weight?: number // share within the tier (1-100)
+}
+
+export interface GatewayGroup {
+  name: string
+  members: GatewayGroupMember[]
+}
+
+export interface Route {
+  destination: string // IPv4 CIDR
+  gateway: string // a gateway, not a group
+  comment?: string
+}
+
+export interface WireGuardClient {
+  name: string // device name: 1-15 of [a-z0-9_-]
+  enabled: boolean
+  address: string // tunnel IPv4/32 from the provider, e.g. 10.64.12.34/32
+  peer_public_key: string
+  endpoint: string // "host:port"
+  allowed_ips?: string[] // default 0.0.0.0/0
+  dns?: string[]
+  keepalive?: number // seconds, 0 = 25
+  mtu?: number
+  kill_switch?: boolean
 }
 
 export interface Candidate {
@@ -159,7 +234,13 @@ export interface Candidate {
     appctrl?: AppCtrlProfile[]
   }
   feeds?: Feed[]
+  schedules?: Schedule[]
   notifications?: { channels?: NotifyChannel[]; rules?: NotifyRule[] }
+  gateways?: Gateway[]
+  gateway_groups?: GatewayGroup[]
+  routes?: Route[]
+  default_gateway?: string
+  vpn?: { wireguard_clients?: WireGuardClient[] }
 }
 
 export function getCandidate(): Promise<Candidate> {

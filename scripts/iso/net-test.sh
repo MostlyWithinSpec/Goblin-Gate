@@ -58,9 +58,9 @@ rm -f run.qcow2; qemu-img create -f qcow2 -b "$BASE" -F qcow2 run.qcow2 >/dev/nu
 # --- networks
 log "building the networks"
 sysctl -qw net.ipv4.ip_forward=1
-for br in br-wan br-lan; do ip link add $br type bridge; ip link set $br up; done
-for t in tap-wan tap-lan; do ip tuntap add $t mode tap; done
-ip link set tap-wan master br-wan up; ip link set tap-lan master br-lan up
+for br in br-wan br-lan br-wan2; do ip link add $br type bridge; ip link set $br up; done
+for t in tap-wan tap-lan tap-wan2; do ip tuntap add $t mode tap; done
+ip link set tap-wan master br-wan up; ip link set tap-lan master br-lan up; ip link set tap-wan2 master br-wan2 up
 # Docker's bridge netfilter would run bridged frames through iptables
 sysctl -qw net.bridge.bridge-nf-call-iptables=0 2>/dev/null || true
 
@@ -119,6 +119,22 @@ retry 30 sh -c "$IN ip -6 addr show dev inet0 scope link | grep fe80 | grep -qv 
 $IN kea-dhcp6 -c /tmp/kea6.json >"$A/kea6.out" 2>&1 &
 for a in 80 81; do $IN python3 /s/net-web.py 2001:db8:0:1::$a 80 internet6-$a 2>>"$A/inet-web.log" & done
 
+# Multi-WAN (task 049): a second "internet" on br-wan2 (198.51.100.0/24,
+# the box is .2). 192.0.2.80 and .81 exist behind BOTH WANs, each answering
+# with the WAN it is behind, so the reply shows which way the box sent it.
+ip netns add inet2
+IN2="ip netns exec inet2"
+ip link add inet2-br type veth peer name inet20; ip link set inet20 netns inet2; ip link set inet2-br master br-wan2 up
+$IN2 ip link set lo up
+$IN2 ip addr add 198.51.100.1/24 dev inet20; $IN2 ip link set inet20 up
+for ns in inet inet2; do
+	for a in 80 81; do ip netns exec $ns ip addr add 192.0.2.$a/32 dev lo; done
+done
+for a in 80 81; do
+	$IN python3 /s/net-web.py 192.0.2.$a 80 via-wan1 2>>"$A/inet-web.log" &
+	$IN2 python3 /s/net-web.py 192.0.2.$a 80 via-wan2 2>>"$A/inet-web.log" &
+done
+
 ip netns add client
 mkdir -p /etc/netns/client; : > /etc/netns/client/resolv.conf
 ip link add client-br type veth peer name lan0; ip link set lan0 netns client; ip link set client-br master br-lan up
@@ -132,6 +148,7 @@ qemu-system-x86_64 -machine q35 -accel $ACCEL -cpu max -m 3072 -smp 2 -display n
 	-device ahci,id=ahci -drive file=run.qcow2,if=none,id=hd -device ide-hd,drive=hd,bus=ahci.0 \
 	-netdev tap,id=wan,ifname=tap-wan,script=no,downscript=no -device virtio-net-pci,netdev=wan,mac=52:54:00:00:01:01 \
 	-netdev tap,id=lan,ifname=tap-lan,script=no,downscript=no -device virtio-net-pci,netdev=lan,mac=52:54:00:00:01:02 \
+	-netdev tap,id=wan2,ifname=tap-wan2,script=no,downscript=no -device virtio-net-pci,netdev=wan2,mac=52:54:00:00:01:03 \
 	-serial file:"$A/boot.log" -daemonize -pidfile /tmp/fw.pid
 
 cleanup() {
@@ -228,6 +245,34 @@ check v6-no-inbound sh -c "! $IN curl -6 -s -m 5 'http://[${CLIENT6:-::1}]:8081/
 # IPS: suricata-update downloads ET Open through the WAN, then Suricata starts;
 # keep fetching the test page until an alert is logged.
 check ips-alert retry 900 sh -c "$CL curl -s -m 5 -o /dev/null http://203.0.113.80/id.txt; $CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=ips' | jq -e '[.events[] | select(.signature // \"\" | test(\"id check returned root\"))] | length > 0'"
+
+# --- multi-WAN (task 049): wan2 on eth2, failover group wan1 -> wan2 as the
+# default route, 192.0.2.81 pinned to wan2 by a policy; then WAN 1's cable is
+# pulled (its monitor stops answering) and plugged back in.
+log "multi-WAN: second WAN, failover, a policy pinned to WAN 2"
+cand() { api GET /api/v1/config/candidate; }
+patch interfaces "$(cand | jq -c '.interfaces + [{"name":"wan2","device":"eth2","role":"wan","mode":"static","address":"198.51.100.2/24","enabled":true}]')"
+patch gateways '[{"name":"wan1","interface":"wan1","address":"dhcp","monitor":{"ip":"203.0.113.1","interval_seconds":1}},{"name":"wan2","interface":"wan2","address":"198.51.100.1","monitor":{"ip":"198.51.100.1","interval_seconds":1}}]'
+patch gateway_groups '[{"name":"failover","members":[{"gateway":"wan1","tier":1},{"gateway":"wan2","tier":2}]}]'
+patch default_gateway '"failover"'
+patch addresses "$(cand | jq -c '.addresses + [{"name":"pin-dest","type":"host","value":"192.0.2.81"}]')"
+patch policies "$(cand | jq -c '[{"id":10,"name":"pin-to-wan2","enabled":true,"src_intf":["lan"],"dst_intf":["all"],"src_addr":["all"],"dst_addr":["pin-dest"],"service":["all"],"action":"accept","nat":true,"gateway":"wan2"}] + [.policies[] | .dst_intf = ["all"]]')"
+api POST /api/v1/commit '{"comment":"multi-wan"}' | tee "$A/commit-multiwan.json"; echo
+W="$CL curl -s -m 5"
+GW="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/gateways/status"
+check mw-default-via-wan1 retry 60 sh -c "$W http://192.0.2.80/ | grep -q 'hello from via-wan1'"
+check mw-pinned-via-wan2 retry 60 sh -c "$W http://192.0.2.81/ | grep -q 'hello from via-wan2'"
+check mw-both-up retry 30 sh -c "$GW | jq -e '[.gateways[] | select(.state == \"up\")] | length == 2'"
+log "pulling WAN 1's cable"
+ip link set inet-br down
+check mw-failover-to-wan2 retry 90 sh -c "$W http://192.0.2.80/ | grep -q 'hello from via-wan2'"
+check mw-wan1-reported-down retry 30 sh -c "$GW | jq -e '.gateways[] | select(.name == \"wan1\") | .state == \"down\"'"
+api GET /api/v1/gateways/status >"$A/gateways-failed-over.json"
+log "plugging WAN 1 back in"
+ip link set inet-br up
+check mw-failback-to-wan1 retry 120 sh -c "$W http://192.0.2.80/ | grep -q 'hello from via-wan1'"
+check mw-wan-down-logged retry 30 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=system' | jq -e '[.events[] | select(.action == \"wan_down\")] | length > 0'"
+api GET /api/v1/gateways/status >"$A/gateways-final.json"
 
 # --- artifacts
 for p in /api/v1/system/status /api/v1/feeds "/api/v1/logs?limit=200" /api/v1/config/running /api/v1/stats/policies; do

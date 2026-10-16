@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -116,6 +117,7 @@ func fullConfig() *config.Config {
 		{Name: "alt-web", InIntf: "wan1", ExtPort: "8080", Protocol: "tcp", ToAddr: "10.10.0.10", ToPort: "80"},
 		{Name: "game", InIntf: "wan1", ExtPort: "27000-27010", Protocol: "udp", ToAddr: "192.168.1.20"},
 	}
+	cfg.UPnP = config.UPnP{Enabled: true, Interfaces: []string{"lan"}}
 	return cfg
 }
 
@@ -127,6 +129,7 @@ func TestGolden(t *testing.T) {
 		{"default", config.Default()},
 		{"full", fullConfig()},
 		{"dual-stack", dualStackConfig()},
+		{"multi-wan", rendertest.MultiWAN()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

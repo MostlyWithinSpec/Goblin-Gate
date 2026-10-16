@@ -94,6 +94,8 @@ func run(args []string) int {
 			}
 			command = args[i+1]
 			i += 2
+		case "import-pfsense":
+			return runImportPfSense(server, token, args[i+1:], os.Stdout)
 		case "-f":
 			if i+1 >= len(args) {
 				fmt.Fprintf(os.Stderr, "goblin: missing argument for -f\n")
@@ -153,6 +155,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `  goblin -c "config interfaces edit lan set address 192.168.1.1/24 next end"`)
 	fmt.Fprintln(os.Stderr, `  goblin -c "commit"`)
 	fmt.Fprintln(os.Stderr, `  goblin -f changes.gob   # run a script of commands`)
+	fmt.Fprintln(os.Stderr, `  goblin import-pfsense config.xml --devices wan=eth0,lan=eth1   # pfSense backup -> candidate`)
 }
 
 func runCommand(server, token, command string) int {
