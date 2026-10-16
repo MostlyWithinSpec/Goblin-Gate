@@ -1,20 +1,20 @@
 Architectures: amd64
 Codename: beta
 Components: main
-Date: Thu, 15 Oct 2026 02:46:22 +0000
+Date: Fri, 16 Oct 2026 16:25:10 +0000
 Description: Goblin Gate packages (beta channel)
 Label: Goblin Gate
 Origin: Goblin Gate
 Suite: beta
 MD5Sum:
- 2d989cb176a56ca66c588ff5d635186a             2254 main/binary-amd64/Packages
- d5646607a324d5cfe7777bf5a30fbe44              972 main/binary-amd64/Packages.gz
+ 6d04b74e02bad561a6266dfcce8d2762             3415 main/binary-amd64/Packages
+ e538e9cdcbdd51cc584901d47b61101e             1201 main/binary-amd64/Packages.gz
 SHA1:
- b5affb1beedf8a8d6bee98b0e30977e9a4718ceb             2254 main/binary-amd64/Packages
- 39121376ce16fb4eaccd810339c96486eaf57a80              972 main/binary-amd64/Packages.gz
+ edea20638f1e516193c8c7b5c33668f64cc8a008             3415 main/binary-amd64/Packages
+ 25d6f238d124998e8d415eea07a7c65073502007             1201 main/binary-amd64/Packages.gz
 SHA256:
- a3dd1fb8ceb557621e12ecfdffef97790db529583f618e10fb3d35bae7492948             2254 main/binary-amd64/Packages
- 768f2b470fafd76abf590866b56f30137028ac1625037a0bc380cf4ae1d9bfd1              972 main/binary-amd64/Packages.gz
+ c914d8eb02cb5f4b4627f5dea221a5f9a664142fde2e9e26ec20cfe7acd8f70e             3415 main/binary-amd64/Packages
+ f0e613d5689836fa212b0fa2c8b79b71e4fbbadea31a6eca8d4884842210ce15             1201 main/binary-amd64/Packages.gz
 SHA512:
- 94c5c0fdeb7cc517d6db35c8f8d5643dd6975f0de23271b531d2fa02fb74cab5338e2b97a6b00f1cfb764237e3f5797e0f9e43c754d844dfa87019affb588f3a             2254 main/binary-amd64/Packages
- d1719bfaa5818d0a6ca2f386900fef0c8f18240081212b689f11b43e87fa04569b17e579a8be18baedc51b4ec7d73226cc4ac72214e49f23b0e55a1a9fc90310              972 main/binary-amd64/Packages.gz
+ 91bf7789fb68dcd48a69b429b0270a7f4239799fa2832bc51e3f25b8ec7935e6d446307c20fb4bdd8491b801147b50fb138f6b6c5d081fd35340bcf763677fa2             3415 main/binary-amd64/Packages
+ c3dfe22f370975ca66895d3aabf1af1b81c29dea9c62f4389cb64f489b28aef1a631db69997758400555c4b32101e780884176c02beb004bdde29f7009c2d9a8             1201 main/binary-amd64/Packages.gz
