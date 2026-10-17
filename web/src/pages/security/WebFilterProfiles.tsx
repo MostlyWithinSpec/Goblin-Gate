@@ -91,7 +91,7 @@ export default function WebFilterProfiles() {
         ]}
         after={(cfg, items) => (
           <>
-            <UsedBy used={profileInterfaces(cfg, 'webfilter_profile', items.map((p) => p.name))} />
+            <UsedBy used={profileInterfaces(cfg, 'webfilter_profile', items.map((p) => p.name))} names={items.map((p) => p.name)} />
             <Lookup />
           </>
         )}

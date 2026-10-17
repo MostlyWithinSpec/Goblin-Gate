@@ -1,0 +1,18 @@
+{
+  "name": "sentry",
+  "version": "0.1.0",
+  "description": "Goblin Sentry: turns IPS alerts into incidents, asks before acting, blocks with temporary blocks only",
+  "min_goblind": "0.1.0~alpha.4",
+  "capabilities": ["events:read", "config:read", "notify:send", "blocks:read", "blocks:write"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "mode": {"type": "string", "enum": ["off", "shadow", "approve", "auto"], "default": "approve",
+               "description": "off: nothing; shadow: record what it would do; approve: ask before blocking; auto: rules act, blocks only where you said always"},
+      "dedup_minutes": {"type": "integer", "minimum": 5, "maximum": 1440, "default": 60,
+                        "description": "alerts with the same signature and address within this time are one incident"},
+      "block_minutes": {"type": "integer", "minimum": 1, "maximum": 10080, "default": 60,
+                        "description": "how long a block lasts when no rule says otherwise"}
+    }
+  }
+}

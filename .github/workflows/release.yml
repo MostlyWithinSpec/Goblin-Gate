@@ -51,9 +51,12 @@ jobs:
         run: cd web && npm ci --no-audit --no-fund && npm run build
 
       - name: deb
+        # goblind and the first-party plugins (same version: a plugin needs a
+        # goblind at least as new as the one it was released with)
         run: |
           docker run --rm -v "$PWD:/src" -w /src -e VERSION="${{ steps.v.outputs.version }}" \
-            -e GOFLAGS=-buildvcs=false golang:1.26-bookworm bash scripts/build-deb.sh
+            -e GOFLAGS=-buildvcs=false golang:1.26-bookworm \
+            bash -c "bash scripts/build-deb.sh && bash plugins/sentry/build-deb.sh dist"
           ls -l dist
 
       - name: installer ISO

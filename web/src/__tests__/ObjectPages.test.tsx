@@ -30,7 +30,7 @@ import AddressGroups from '../pages/network/AddressGroups'
 import Services from '../pages/network/Services'
 import Interfaces from '../pages/network/Interfaces'
 import ThreatFeeds from '../pages/security/ThreatFeeds'
-import DNSFilterProfiles from '../pages/security/DNSFilterProfiles'
+import DNSFilterProfiles, { UsedBy } from '../pages/security/DNSFilterProfiles'
 import WebFilterProfiles from '../pages/security/WebFilterProfiles'
 import AppControl from '../pages/security/AppControl'
 
@@ -351,6 +351,11 @@ describe('Web filter', () => {
   test('shows which interfaces use a profile', async () => {
     wrap(<WebFilterProfiles />)
     expect(await screen.findByTestId('used-by')).toHaveTextContent('family: guest')
+  })
+
+  test('warns about profiles no policy applies', () => {
+    render(<UsedBy used={{ family: ['guest'] }} names={['family', 'kids']} />)
+    expect(screen.getByTestId('unused-profiles')).toHaveTextContent('Not applied anywhere: kids.')
   })
 })
 

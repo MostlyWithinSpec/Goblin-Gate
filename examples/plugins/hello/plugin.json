@@ -1,0 +1,15 @@
+{
+  "name": "hello",
+  "version": "1.0.0",
+  "description": "Example plugin: reads events, says hello",
+  "min_goblind": "0.1.0~alpha.4",
+  "capabilities": ["events:read", "config:read", "notify:send"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "greeting": {"type": "string", "default": "hi", "maxLength": 64, "description": "What the plugin says"},
+      "interval_seconds": {"type": "integer", "minimum": 10, "maximum": 3600, "default": 60}
+    }
+  },
+  "ui": {"pages": [{"path": "status.html", "title": "Hello"}]}
+}

@@ -13,7 +13,8 @@ import (
 // routing target and the default route use now (task 049).
 func (s *Server) gatewayStatus(w http.ResponseWriter, r *http.Request) {
 	if s.Gateways == nil {
-		writeJSON(w, http.StatusOK, gateways.Report{Gateways: []gateways.Status{}, Targets: []gateways.TargetStatus{}})
+		writeJSON(w, http.StatusOK, gateways.Report{Gateways: []gateways.Status{}, Targets: []gateways.TargetStatus{},
+			Default: gateways.TargetStatus{Active: []string{}, Mode: "default"}})
 		return
 	}
 	writeJSON(w, http.StatusOK, s.Gateways.Report())

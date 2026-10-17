@@ -80,6 +80,16 @@ describe('Gateways page', () => {
     expect(targets).toHaveTextContent('Group failover: isp2 · gateways')
   })
 
+  test('renders with no gateways configured (status lists null)', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ interfaces: cfg.interfaces } as Candidate)
+    vi.mocked(gatewaysApi.getGatewayStatus).mockResolvedValue({
+      enabled: false, gateways: null, targets: null, default: { name: '', active: null, mode: '' },
+    } as unknown as Awaited<ReturnType<typeof gatewaysApi.getGatewayStatus>>)
+    renderPage()
+    const targets = await screen.findByRole('list', { name: 'Routing targets' })
+    expect(targets).toHaveTextContent('Default route: (none)')
+  })
+
   test('changing the default route PATCHes default_gateway', async () => {
     renderPage()
     const sel = (await screen.findByLabelText('Default route')) as HTMLSelectElement

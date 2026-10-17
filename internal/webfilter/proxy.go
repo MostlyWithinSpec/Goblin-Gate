@@ -188,6 +188,10 @@ func (f *Filter) Answer(ctx context.Context, client netip.Addr, query []byte, tc
 	if !ok {
 		return nil, errors.New("webfilter: client is not in a filtered subnet")
 	}
+	if render.IsDoHCanary(q.name) {
+		// tells browsers this network filters DNS: no DNS-over-HTTPS
+		return nxdomainAnswer(query, q), nil
+	}
 	if d.Action != ActionAllow {
 		f.record(client, q.name, d, s)
 	}

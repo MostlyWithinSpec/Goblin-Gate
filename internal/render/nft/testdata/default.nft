@@ -5,8 +5,31 @@ table inet goblin
 delete table inet goblin
 
 table inet goblin {
+	set block_tmp {
+		type ipv4_addr
+		flags timeout
+		comment "temporary blocks"
+	}
+
+	set block_tmp6 {
+		type ipv6_addr
+		flags timeout
+		comment "temporary blocks"
+	}
+
 	counter policy_1 {
 		comment "lan-to-internet"
+	}
+
+	chain temp_blocks {
+		ip saddr @block_tmp limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip saddr @block_tmp drop
+		ip daddr @block_tmp limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip daddr @block_tmp drop
+		ip6 saddr @block_tmp6 limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip6 saddr @block_tmp6 drop
+		ip6 daddr @block_tmp6 limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip6 daddr @block_tmp6 drop
 	}
 
 	chain threat_feeds {
@@ -17,6 +40,7 @@ table inet goblin {
 
 	chain input {
 		type filter hook input priority filter; policy drop;
+		jump temp_blocks
 		ct state established,related accept
 		ct state invalid drop
 		iifname "lo" accept
@@ -30,6 +54,7 @@ table inet goblin {
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
+		jump temp_blocks
 		ct state established,related accept
 		ct state invalid drop
 		jump threat_feeds

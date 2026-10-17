@@ -76,7 +76,7 @@ export default function AppControl() {
         ]}
         after={(cfg, items) => (
           <>
-            <UsedBy used={profileInterfaces(cfg, 'appctrl_profile', items.map((p) => p.name))} />
+            <UsedBy used={profileInterfaces(cfg, 'appctrl_profile', items.map((p) => p.name))} names={items.map((p) => p.name)} />
             <AppEvents apps={apps} />
           </>
         )}

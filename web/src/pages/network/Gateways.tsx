@@ -58,7 +58,7 @@ function targetLine(t: TargetStatus) {
   const mode = t.mode === 'blackhole' ? 'blackhole (kill switch)' : t.mode
   return (
     <span className="text-xs text-gray-600 dark:text-gray-400">
-      {t.active.length ? t.active.join(', ') : '(none)'} · {mode}
+      {t.active?.length ? t.active.join(', ') : '(none)'} · {mode}
     </span>
   )
 }
@@ -112,7 +112,7 @@ function StatusPanel({ cfg }: { cfg: Candidate }) {
             </tr>
           </thead>
           <tbody>
-            {q.data.gateways.map((s) => (
+            {(q.data.gateways ?? []).map((s) => (
               <tr key={s.name} className="border-t border-gray-100 dark:border-gray-700">
                 <td className="px-3 py-1">{s.name}</td>
                 <td className="px-3 py-1">
@@ -128,10 +128,12 @@ function StatusPanel({ cfg }: { cfg: Candidate }) {
       )}
       {q.data && (
         <ul aria-label="Routing targets" className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
-          <li>
-            Default route: {targetLine(q.data.default)}
-          </li>
-          {q.data.targets.map((t) => (
+          {q.data.default && (
+            <li>
+              Default route: {targetLine(q.data.default)}
+            </li>
+          )}
+          {(q.data.targets ?? []).map((t) => (
             <li key={t.name}>
               {t.group ? 'Group' : 'Gateway'} {t.name}: {targetLine(t)}
             </li>

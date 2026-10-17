@@ -14,7 +14,23 @@ func (s *Server) getRunning(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, "read running config", err)
 		return
 	}
+	if _, ok := pluginFrom(r); ok {
+		redactSecrets(cfg)
+	}
 	writeJSON(w, http.StatusOK, cfg)
+}
+
+// redactSecrets blanks what a plugin with config:read must not see:
+// password hashes and notification credentials (URLs can carry webhook
+// secrets).
+func redactSecrets(cfg *config.Config) {
+	for i := range cfg.Admins {
+		cfg.Admins[i].PasswordHash = ""
+	}
+	for i := range cfg.Notifications.Channels {
+		c := &cfg.Notifications.Channels[i]
+		c.URL, c.Token, c.BotToken, c.Password = "", "", "", ""
+	}
 }
 
 func (s *Server) getCandidate(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +108,7 @@ func (s *Server) storeCandidate(w http.ResponseWriter, cfg *config.Config) {
 		s.internal(w, "write candidate config", err)
 		return
 	}
-	errs := config.Validate(cfg)
+	errs := config.ValidateCandidate(cfg)
 	if errs == nil {
 		errs = []config.ValidationError{}
 	}
@@ -121,7 +137,7 @@ func (s *Server) validate(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg = c
 	}
-	errs := config.Validate(cfg)
+	errs := config.ValidateCandidate(cfg)
 	if errs == nil {
 		errs = []config.ValidationError{}
 	}

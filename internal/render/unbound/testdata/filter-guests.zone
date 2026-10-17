@@ -13,3 +13,6 @@ evil.example CNAME .
 *.evil.example CNAME .
 torrent.example CNAME .
 *.torrent.example CNAME .
+use-application-dns.net CNAME .
+mask.icloud.com CNAME .
+mask-h2.icloud.com CNAME .

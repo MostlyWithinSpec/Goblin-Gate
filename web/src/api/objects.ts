@@ -141,7 +141,7 @@ export interface NotifyRule {
 }
 
 // The events a rule can name (config.NotifyEvents).
-export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'test'] as const
+export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'plugin', 'block_added', 'test'] as const
 
 // Schedules (task 057): weekly time windows a policy can be limited to.
 // Times are in system.timezone. End before Start runs overnight; "24:00" is

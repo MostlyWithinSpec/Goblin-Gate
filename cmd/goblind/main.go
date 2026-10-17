@@ -25,6 +25,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/api"
 	"github.com/networkgoblinlabs/goblin-gate/internal/apply"
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
+	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
@@ -33,6 +34,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
+	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
@@ -237,7 +239,25 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	// Multi-WAN (task 049): the gateway monitor owns the default route and
 	// the policy-routing tables once gateways are configured.
 	gwMon := &gateways.Monitor{Pinger: gateways.ExecPinger{}, Router: gateways.ExecRouter{}, Logger: logger}
+	// Plugins (docs/dev/plugins.md): goblind starts the enabled ones as
+	// sandboxed systemd units after each commit. Not in --dev.
+	var pluginMgr *plugins.Manager
+	if !o.dev {
+		pluginMgr = &plugins.Manager{ManifestDir: plugins.ManifestDir, ProgramDir: plugins.ProgramDir,
+			Version: version.Version, Systemd: plugins.Systemctl{}, Logger: logger}
+		config.SetPluginCatalog(pluginMgr.Lookup)
+	}
+	// Temporary blocks: kept in the nft sets block_tmp/block_tmp6, which a
+	// ruleset load empties, so they are put back after every apply.
+	blockMgr := &blocks.Manager{Path: filepath.Join(dataDir, "blocks.json"), Logger: logger}
+	if o.dev {
+		blockMgr.Run = func(context.Context, []byte) error { return nil }
+	}
 	engine.AfterApply = func(live *config.Config) {
+		blockMgr.Resync(ctx)
+		if pluginMgr != nil {
+			pluginMgr.Resync(ctx, live)
+		}
 		if !o.dev {
 			if err := gwMon.Update(ctx, live); err != nil {
 				logger.Warn("gateways: monitor", "error", err)
@@ -295,6 +315,11 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	go notifier.Run(ctx)
 	apiServer.Notify = notifier
 	apiServer.Gateways = gwMon
+	apiServer.Plugins = pluginMgr
+	apiServer.Blocks = blockMgr
+	if !o.dev {
+		apiServer.LiveAddrs = blocks.LiveAddrs
+	}
 	gwMon.SetChanged(func(st gateways.Status) {
 		kind, title := "wan_up", "Gateway "+st.Name+" is up again"
 		if st.State == "down" {
@@ -453,7 +478,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	srv := newServer()
 	servers := []*http.Server{srv}
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
 	go func() { errc <- srv.Serve(ln) }()
 
 	// The local CLI talks over a unix socket only root can open; requests
@@ -467,6 +492,20 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 			sockSrv.ConnContext = api.WithSocketConn
 			servers = append(servers, sockSrv)
 			go func() { errc <- sockSrv.Serve(sockLn) }()
+		}
+		// Plugins call goblind on their own socket, which serves only the
+		// plugin routes; the caller is identified by its systemd unit.
+		if pluginMgr != nil {
+			plugLn, err := listenPluginSocket(plugins.SocketPath)
+			if err != nil {
+				logger.Warn("plugin API socket unavailable", "path", plugins.SocketPath, "error", err)
+			} else {
+				plugSrv := newServer()
+				plugSrv.Handler = apiServer.PluginRoutes()
+				plugSrv.ConnContext = api.PluginConnContext(plugins.PeerUnit)
+				servers = append(servers, plugSrv)
+				go func() { errc <- plugSrv.Serve(plugLn) }()
+			}
 		}
 	}
 
@@ -506,6 +545,29 @@ func listenSocket(path string) (net.Listener, error) {
 		return nil, err
 	}
 	if err := os.Chmod(path, 0o600); err != nil {
+		ln.Close()
+		return nil, err
+	}
+	return ln, nil
+}
+
+// listenPluginSocket creates the plugin socket. Plugins run as dynamic
+// users, so anyone may connect; goblind answers only processes of running
+// plugin units (plugins.PeerUnit).
+func listenPluginSocket(path string) (net.Listener, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		return nil, err
+	}
+	_ = os.Remove(path)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0o666); err != nil {
 		ln.Close()
 		return nil, err
 	}

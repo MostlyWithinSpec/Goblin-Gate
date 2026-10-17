@@ -129,6 +129,11 @@ func TestListEvents(t *testing.T) {
 	if err != nil || len(rest) != 3 || next2 != 0 || rest[2].Message != "old" {
 		t.Fatalf("page 2: %v %d %+v", err, next2, rest)
 	}
+	// after: only events newer than a reader's last id
+	newer, _, err := s.ListEvents(ctx, EventFilter{After: page[1].ID})
+	if err != nil || len(newer) != 1 || newer[0].ID != page[0].ID {
+		t.Fatalf("after: %v %+v", err, newer)
+	}
 	// LIKE wildcards in the search text are literal
 	hits, _, _ := s.ListEvents(ctx, EventFilter{Text: "100%_"})
 	none, _, _ := s.ListEvents(ctx, EventFilter{Text: "1%0"})

@@ -23,6 +23,9 @@ const (
 
 var prefixRe = regexp.MustCompile(`^GG:(\d+):`) // internal/render/nft LogPrefix
 
+// blockPrefix logs packets dropped by a temporary block (nft BlockLogPrefix).
+const blockPrefix = "GG:block:"
+
 // eveTime is the timestamp layout of Suricata EVE and ulogd2 JSON.
 const eveTime = "2006-01-02T15:04:05.999999-0700"
 
@@ -62,7 +65,8 @@ func ParseNftables(line string) (*Event, error) {
 		return nil, fmt.Errorf("nftables log: %w", err)
 	}
 	m := prefixRe.FindStringSubmatch(v.Prefix)
-	if m == nil {
+	block := strings.HasPrefix(v.Prefix, blockPrefix)
+	if m == nil && !block {
 		return nil, ErrSkip
 	}
 	// ulogd's "timestamp" has no zone; oob.time.sec is exact.
@@ -73,9 +77,15 @@ func ParseNftables(line string) (*Event, error) {
 		return nil, fmt.Errorf("nftables log: %w", err)
 	}
 	e := &Event{
-		Time: t, Kind: "traffic", PolicyID: m[1],
+		Time: t, Kind: "traffic",
 		SrcIP: v.Src, DstIP: v.Dst, SrcPort: v.SrcPort, DstPort: v.DstPort,
 		InIntf: v.In, OutIntf: v.Out, Bytes: v.TotLen,
+	}
+	if block {
+		// a temporary block dropped it (no policy involved)
+		e.Action, e.Category = "deny", "temporary block"
+	} else {
+		e.PolicyID = m[1]
 	}
 	if e.Bytes == 0 {
 		e.Bytes = v.PktLen

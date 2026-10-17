@@ -24,7 +24,7 @@ export default function DNSFilterProfiles() {
         ]}
         after={(cfg, items) => {
           const used = profileInterfaces(cfg, 'dnsfilter_profile', items.map((p) => p.name))
-          return <UsedBy used={used} />
+          return <UsedBy used={used} names={items.map((p) => p.name)} />
         }}
         form={(p, set, { cfg, err }) => (
           <>
@@ -60,13 +60,22 @@ export default function DNSFilterProfiles() {
 }
 
 // UsedBy lists the interfaces each profile applies to.
-export function UsedBy({ used }: { used: Record<string, string[]> }) {
+export function UsedBy({ used, names = [] }: { used: Record<string, string[]>; names?: string[] }) {
   const rows = Object.entries(used)
+  const unused = names.filter((n) => !used[n])
   return (
-    <p className="mt-3 text-sm text-gray-600 dark:text-gray-400" data-testid="used-by">
-      {rows.length === 0
-        ? 'No policy uses these profiles yet: pick one in a policy to apply it.'
-        : rows.map(([prof, ifs]) => `${prof}: ${ifs.join(', ')}`).join(' · ')}
-    </p>
+    <>
+      <p className="mt-3 text-sm text-gray-600 dark:text-gray-400" data-testid="used-by">
+        {rows.length === 0
+          ? 'No policy uses these profiles yet: pick one in a policy to apply it.'
+          : rows.map(([prof, ifs]) => `${prof}: ${ifs.join(', ')}`).join(' · ')}
+      </p>
+      {rows.length > 0 && unused.length > 0 && (
+        <p role="status" className="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200" data-testid="unused-profiles">
+          Not applied anywhere: {unused.join(', ')}. A profile works only when an enabled accept policy selects it and
+          its source interfaces include the network, and no earlier policy already gives that network another profile.
+        </p>
+      )}
+    </>
   )
 }

@@ -244,6 +244,7 @@ type EventFilter struct {
 	Text     string // substring of message, ips, signature, app, category, policy_id
 	From, To int64  // Unix seconds, inclusive; 0 = unbounded
 	Before   int64  // cursor: only ids below this; 0 = newest
+	After    int64  // only ids above this (new events since a reader's last id); 0 = all
 	Limit    int    // default 100, max MaxQueryRows
 	// Fields are exact matches on event fields (GroupFields("events"),
 	// e.g. "src_ip": "192.168.1.5"); other keys are an error.
@@ -281,6 +282,10 @@ func (s *Store) ListEvents(ctx context.Context, f EventFilter) ([]StoredEvent, i
 	if f.Before > 0 {
 		where = append(where, "id < ?")
 		args = append(args, f.Before)
+	}
+	if f.After > 0 {
+		where = append(where, "id > ?")
+		args = append(args, f.After)
 	}
 	for _, k := range sortedKeys(f.Fields) {
 		if !allowed("events", k) {

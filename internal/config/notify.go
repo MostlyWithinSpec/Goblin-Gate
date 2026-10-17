@@ -51,6 +51,8 @@ var NotifyEvents = []string{
 	"wan_down",         // a WAN gateway stopped answering (multi-WAN, task 049)
 	"wan_up",           // a WAN gateway is back
 	"update_available", // a newer Goblin Gate is in the update channel
+	"plugin",           // a plugin sent an alert (POST /api/v1/plugin/notify)
+	"block_added",      // an address was blocked temporarily (POST /api/v1/blocks)
 	"test",             // sent by POST /api/v1/notifications/test
 }
 

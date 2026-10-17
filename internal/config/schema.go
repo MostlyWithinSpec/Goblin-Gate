@@ -35,6 +35,8 @@ type Config struct {
 	// DefaultGateway carries traffic no policy routes elsewhere (a gateway
 	// or group); "" = every gateway, failing over in list order.
 	DefaultGateway string `json:"default_gateway,omitempty"`
+	// Plugins are the optional plugins the admin enabled (docs/dev/plugins.md).
+	Plugins []Plugin `json:"plugins,omitempty"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

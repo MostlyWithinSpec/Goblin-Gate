@@ -62,7 +62,8 @@ func sanitize(s string) string {
 // covers its subdomains (a "*." record). allow_domains become rpz-passthru
 // and win over the block lists; blocked names answer NXDOMAIN (CNAME .) or,
 // with action blockpage, blockAddr. Safe search rewrites the search
-// engines to their safe hosts. feeds may be nil (no feed entries yet).
+// engines to their safe hosts. The DoH canaries (render.DoHCanaries) answer
+// NXDOMAIN. feeds may be nil (no feed entries yet).
 func ZoneFile(p config.DNSFilterProfile, feeds FeedSource, blockAddr string) []byte {
 	allow := map[string]bool{}
 	for _, d := range p.AllowDomains {
@@ -110,6 +111,13 @@ func ZoneFile(p config.DNSFilterProfile, feeds FeedSource, blockAddr string) []b
 	}
 	for _, d := range sortedKeys(block) {
 		fmt.Fprintf(&b, "%s %s\n*.%s %s\n", d, answer, d, answer)
+	}
+	// NXDOMAIN (never the block page) for the DoH canaries, so browsers
+	// keep using this filtered DNS
+	for _, c := range render.DoHCanaries {
+		if !allow[c] && !block[c] {
+			fmt.Fprintf(&b, "%s CNAME .\n", c)
+		}
 	}
 	return []byte(b.String())
 }

@@ -2,6 +2,7 @@ package gateways
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -172,5 +173,17 @@ func TestStats(t *testing.T) {
 	loss, lat := stats([]sample{{true, 10 * time.Millisecond}, {false, 0}, {true, 30 * time.Millisecond}, {false, 0}})
 	if loss != 50 || lat != 20 {
 		t.Fatalf("loss %d latency %d", loss, lat)
+	}
+}
+
+// Before any gateway is configured the report's lists are [] in JSON, not
+// null: the web UI reads their length.
+func TestReportEmptyListsNotNull(t *testing.T) {
+	b, err := json.Marshal((&Monitor{}).Report())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(b); strings.Contains(s, "null") {
+		t.Fatalf("report has null: %s", s)
 	}
 }

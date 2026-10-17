@@ -19,6 +19,7 @@ and automate their network.
 | VPN | WireGuard with client QR codes, Tailscale |
 | Visibility | Logs with drill-down, dashboards with widgets, a chart builder |
 | Management | Web UI (dark and light), REST API, CLI, first-boot setup wizard, console menu |
+| Plugins | Sandboxed plugins; Goblin Sentry turns IPS alerts into incidents with an approval queue, temporary blocks and a local decision model that learns your answers |
 | Install | Offline installer ISO: bare metal (BIOS/UEFI, Secure Boot), VMware ESXi, Proxmox, VirtualBox |
 
 ## Install
@@ -27,6 +28,9 @@ and automate their network.
 2. Boot it on a machine or VM with two network ports (WAN and LAN) and pick the disk.
 3. On the console menu, assign the ports (and change the LAN address if it clashes with your network).
 4. Open the web address the console shows from a computer on the LAN port and run the setup wizard.
+
+Goblin Sentry is a separate package from the same APT repository: `apt install goblin-gate-plugin-sentry` on
+the box, then enable it and approve what it asks for under System → Plugins.
 
 Details: [docs/README.md](docs/README.md) and the VMware ESXi guide in
 [packaging/README.md](packaging/README.md).

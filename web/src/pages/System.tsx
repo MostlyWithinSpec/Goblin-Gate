@@ -45,7 +45,7 @@ const System: React.FC = () => {
         {tab === 'Import' && <ImportTab />}
         {tab === 'About' && <AboutTab />}
       </div>
-      <div className="mt-4 flex gap-3">
+      <div className="mt-4 flex flex-wrap gap-3">
         <Link to="/system/revisions" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Revisions</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">View and manage configuration history</span>
@@ -53,6 +53,14 @@ const System: React.FC = () => {
         <Link to="/system/notifications" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Notifications</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channels and per-event routing</span>
+        </Link>
+        <Link to="/system/plugins" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+          <span className="font-semibold text-blue-700 dark:text-blue-300">Plugins</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-300">Installed plugins, capabilities and settings</span>
+        </Link>
+        <Link to="/system/updates" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+          <span className="font-semibold text-blue-700 dark:text-blue-300">Updates</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-300">Channel, available version and update history</span>
         </Link>
       </div>
     </div>

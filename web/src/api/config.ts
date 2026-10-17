@@ -9,11 +9,13 @@ export interface DiffResponse {
   }>
 }
 
+// One saved config (GET /api/v1/revisions lists them newest first; the
+// first entry is the running config).
 export interface RevisionInfo {
-  id: number
-  timestamp: string
+  revision: number
+  time: string // RFC 3339, UTC
   user: string
-  comment: string
+  comment?: string
 }
 
 export const getConfigDiff = async (): Promise<DiffResponse> => {

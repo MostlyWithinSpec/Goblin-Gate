@@ -366,3 +366,42 @@ func TestBeforeApplyHook(t *testing.T) {
 		t.Fatalf("running changed: %q", got)
 	}
 }
+
+// A commit must fit the installed plugins; a rollback to a config that
+// enabled a plugin since removed must still work.
+func TestCommitChecksInstalledPluginsRollbackDoesNot(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	installed := true
+	config.SetPluginCatalog(func(name string) (config.PluginSpec, bool) {
+		return config.PluginSpec{Capabilities: []string{"events:read"}}, installed && name == "hello"
+	})
+	t.Cleanup(func() { config.SetPluginCatalog(nil) })
+
+	cfg := mustCandidate(t, e)
+	cfg.System.Hostname = "gate1"
+	cfg.Plugins = []config.Plugin{{Name: "hello", Enabled: true}}
+	if err := e.store.SetCandidate(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.engine.Commit(ctx, "alice", "with plugin"); err != nil {
+		t.Fatal(err)
+	}
+	e.setHostname(t, "gate2")
+	if _, err := e.engine.Commit(ctx, "alice", "second"); err != nil {
+		t.Fatal(err)
+	}
+
+	installed = false
+	e.setHostname(t, "gate3")
+	var ve *ValidationError
+	if _, err := e.engine.Commit(ctx, "alice", "plugin gone"); !errors.As(err, &ve) || !strings.Contains(ve.Error(), "not installed") {
+		t.Fatalf("commit with a missing plugin: %v", err)
+	}
+	if _, err := e.engine.Rollback(ctx, 1, "bob"); err != nil {
+		t.Fatalf("rollback refused: %v", err)
+	}
+	if got := e.runningHostname(t); got != "gate1" {
+		t.Fatalf("running hostname = %q", got)
+	}
+}

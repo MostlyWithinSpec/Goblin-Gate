@@ -332,3 +332,17 @@ func TestAppControl(t *testing.T) {
 		t.Fatalf("block page %d: %s", w.Code, w.Body)
 	}
 }
+
+// The DoH canaries answer NXDOMAIN so browsers keep using this DNS.
+func TestDoHCanaries(t *testing.T) {
+	e := newEnv(t)
+	for _, name := range []string{"use-application-dns.net", "mask.icloud.com", "mask-h2.icloud.com"} {
+		resp := e.ask(t, name, typeA)
+		if forwarded(resp) || resp[3]&0x0f != 3 || binary.BigEndian.Uint16(resp[6:8]) != 0 || resp[0] != 0 || resp[1] != 7 {
+			t.Fatalf("%s: want NXDOMAIN, got %x", name, resp)
+		}
+	}
+	if !forwarded(e.ask(t, "www.use-application-dns.net", typeA)) {
+		t.Fatal("only the canary names themselves are answered")
+	}
+}

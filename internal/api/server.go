@@ -8,16 +8,19 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/netip"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
+	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/updates"
@@ -85,6 +88,16 @@ type Server struct {
 	WireGuardKeyDir string
 	WireGuardStats  func(ctx context.Context, dev string) (map[string]wireguard.PeerStat, error)
 
+	// Blocks keeps temporary blocks; nil = not available (dev).
+	Blocks *blocks.Manager
+	// LiveAddrs returns run-time addresses that must never be blocked
+	// (blocks.LiveAddrs); nil = config-based checks only.
+	LiveAddrs func() []netip.Addr
+
+	// Plugins runs the optional plugins and checks their tokens; nil = no
+	// plugin support (dev).
+	Plugins *plugins.Manager
+
 	started time.Time
 	setupMu sync.Mutex
 }
@@ -107,6 +120,25 @@ func (s *Server) Routes() http.Handler {
 		}
 		mux.Handle(pattern, handler)
 	}
+	s.register(handle)
+	mux.HandleFunc("POST /api/v1/auth/login", s.login)
+	// First-boot setup: open without authentication until an admin exists.
+	mux.HandleFunc("GET /api/v1/setup/state", s.setupState)
+	mux.HandleFunc("POST /api/v1/setup", s.setup)
+	mux.Handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
+	mux.HandleFunc("GET /plugin-ui/{name}/{path...}", s.pluginUI)
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotFound, "not_found", "no such API endpoint", nil)
+	})
+	if s.Static != nil {
+		mux.Handle("/", s.Static)
+	}
+	return s.middleware(mux)
+}
+
+// register adds every authenticated API route. Routes wraps each with the
+// admin authentication; PluginRoutes keeps the ones plugins may call.
+func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/config/running", s.getRunning)
 	handle("GET /api/v1/config/candidate", s.getCandidate)
 	handle("PUT /api/v1/config/candidate", s.putCandidate)
@@ -158,18 +190,14 @@ func (s *Server) Routes() http.Handler {
 	handle("GET /api/v1/auth/tokens", s.listTokens)
 	handle("POST /api/v1/auth/tokens", s.createToken)
 	handle("DELETE /api/v1/auth/tokens/{id}", s.deleteToken)
-	mux.HandleFunc("POST /api/v1/auth/login", s.login)
-	// First-boot setup: open without authentication until an admin exists.
-	mux.HandleFunc("GET /api/v1/setup/state", s.setupState)
-	mux.HandleFunc("POST /api/v1/setup", s.setup)
-	mux.Handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		writeError(w, http.StatusNotFound, "not_found", "no such API endpoint", nil)
-	})
-	if s.Static != nil {
-		mux.Handle("/", s.Static)
-	}
-	return s.middleware(mux)
+	handle("GET /api/v1/blocks", s.listBlocks)
+	handle("POST /api/v1/blocks", s.addBlock)
+	handle("DELETE /api/v1/blocks/{ip}", s.removeBlock)
+	handle("GET /api/v1/plugins", s.listPlugins)
+	handle("POST /api/v1/plugins/{name}/enable", s.enablePlugin)
+	handle("POST /api/v1/plugins/{name}/disable", s.disablePlugin)
+	handle("PUT /api/v1/plugins/{name}/settings", s.pluginSettings)
+	handle("/api/v1/plugins/{name}/api/{path...}", s.pluginAPI)
 }
 
 // middleware adds request logging (no bodies), body limits and content-type

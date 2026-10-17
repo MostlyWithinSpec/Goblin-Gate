@@ -43,6 +43,16 @@ func (r *ruleset) write() []byte {
 		p(0, "")
 	}
 
+	// temporary blocks (blocks.go), filled by goblind at run time
+	for _, s := range []struct{ name, typ string }{{BlockSet4, "ipv4_addr"}, {BlockSet6, "ipv6_addr"}} {
+		p(1, "set %s {", s.name)
+		p(2, "type %s", s.typ)
+		p(2, "flags timeout")
+		p(2, "comment %s", quote("temporary blocks"))
+		p(1, "}")
+		p(0, "")
+	}
+
 	for _, c := range r.counters {
 		p(1, "counter %s {", c.name)
 		if c.comment != "" {
@@ -56,6 +66,13 @@ func (r *ruleset) write() []byte {
 
 	// Feeds with block_wan drop their addresses on every WAN interface;
 	// per-policy feed drops sit next to the policy's own rules.
+	p(1, "chain %s {", blockChain)
+	for _, l := range blockRules() {
+		p(2, "%s", l)
+	}
+	p(1, "}")
+	p(0, "")
+
 	p(1, "chain threat_feeds {")
 	for _, l := range r.feedFwd {
 		p(2, "%s", l)
@@ -71,6 +88,7 @@ func (r *ruleset) write() []byte {
 
 	p(1, "chain input {")
 	p(2, "type filter hook input priority filter; policy drop;")
+	p(2, "jump %s", blockChain)
 	p(2, "ct state established,related accept")
 	p(2, "ct state invalid drop")
 	p(2, `iifname "lo" accept`)
@@ -86,6 +104,7 @@ func (r *ruleset) write() []byte {
 
 	p(1, "chain forward {")
 	p(2, "type filter hook forward priority filter; policy drop;")
+	p(2, "jump %s", blockChain)
 	for _, l := range r.ipsQueue {
 		p(2, "%s", l)
 	}

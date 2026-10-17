@@ -27,3 +27,6 @@ games.example A 192.168.1.1
 *.games.example A 192.168.1.1
 nsfw.example A 192.168.1.1
 *.nsfw.example A 192.168.1.1
+use-application-dns.net CNAME .
+mask.icloud.com CNAME .
+mask-h2.icloud.com CNAME .

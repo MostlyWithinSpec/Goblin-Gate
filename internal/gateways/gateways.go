@@ -296,7 +296,12 @@ func (m *Monitor) statusLocked(st *gwState) Status {
 func (m *Monitor) Report() Report {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	r := Report{Enabled: m.plan.Enabled, Gateways: []Status{}, Targets: append([]TargetStatus(nil), m.targets...), Default: m.def}
+	r := Report{Enabled: m.plan.Enabled, Gateways: []Status{}, Targets: append([]TargetStatus{}, m.targets...), Default: m.def}
+	// lists are [] not null in JSON, also before the first plan
+	for i := range r.Targets {
+		r.Targets[i].Active = append([]string{}, r.Targets[i].Active...)
+	}
+	r.Default.Active = append([]string{}, r.Default.Active...)
 	for _, n := range m.order {
 		r.Gateways = append(r.Gateways, m.statusLocked(m.gws[n]))
 	}

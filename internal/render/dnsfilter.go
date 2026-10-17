@@ -34,6 +34,24 @@ func DNSFilterAssignments(cfg *config.Config) []ProfileAssignment {
 	return assign(cfg, func(p config.Policy) string { return p.DNSFilterProfile }, names)
 }
 
+// DoHCanaries are the names browsers and operating systems look up to ask
+// whether the network filters DNS: an NXDOMAIN answer turns off Firefox's
+// automatic DNS-over-HTTPS and iCloud Private Relay, which would otherwise
+// send DNS past the box. The DNS and web filters answer them NXDOMAIN on
+// the subnets they filter.
+var DoHCanaries = []string{"use-application-dns.net", "mask.icloud.com", "mask-h2.icloud.com"}
+
+// IsDoHCanary reports whether name (lowercase, no trailing dot) is one of
+// DoHCanaries.
+func IsDoHCanary(name string) bool {
+	for _, c := range DoHCanaries {
+		if name == c {
+			return true
+		}
+	}
+	return false
+}
+
 // WebFilterAssignments is DNSFilterAssignments for webfilter_profile (the
 // web filter is enforced at DNS too, task 033).
 func WebFilterAssignments(cfg *config.Config) []ProfileAssignment {

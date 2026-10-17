@@ -83,3 +83,16 @@ func blockedAnswer(query []byte, q question, addr netip.Addr) []byte {
 	}
 	return out
 }
+
+// nxdomainAnswer answers query (whose question ends at q.end) with
+// NXDOMAIN and no records.
+func nxdomainAnswer(query []byte, q question) []byte {
+	out := append([]byte(nil), query[:q.end]...)
+	out[2] = 0x80 | query[2]&0x79 // QR, keep opcode and RD
+	out[3] = 0x80 | 3             // RA, RCODE NXDOMAIN
+	binary.BigEndian.PutUint16(out[4:6], 1)
+	binary.BigEndian.PutUint16(out[6:8], 0)
+	binary.BigEndian.PutUint16(out[8:10], 0)
+	binary.BigEndian.PutUint16(out[10:12], 0)
+	return out
+}

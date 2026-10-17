@@ -12,7 +12,15 @@ import Log from './pages/Log'
 import System from './pages/System'
 import { Revisions } from './pages/Revisions'
 import Notifications from './pages/system/Notifications'
+import Plugins from './pages/system/Plugins'
+import PluginPage from './pages/system/PluginPage'
 import Updates from './pages/system/Updates'
+import SentryQueue from './pages/plugins/sentry/Queue'
+import SentryIncidents from './pages/plugins/sentry/Incidents'
+import SentryIncidentDetail from './pages/plugins/sentry/IncidentDetail'
+import SentryRules from './pages/plugins/sentry/Rules'
+import SentryBlocks from './pages/plugins/sentry/Blocks'
+import Learning from './pages/plugins/sentry/Learning'
 import Interfaces from './pages/network/Interfaces'
 import Addresses from './pages/network/Addresses'
 import AddressGroups from './pages/network/AddressGroups'
@@ -79,7 +87,15 @@ function App() {
               <Route path="/system" element={<System />} />
               <Route path="/system/revisions" element={<Revisions />} />
               <Route path="/system/notifications" element={<Notifications />} />
+              <Route path="/system/plugins" element={<Plugins />} />
+              <Route path="/system/plugins/:name/*" element={<PluginPage />} />
               <Route path="/system/updates" element={<Updates />} />
+              <Route path="/plugins/sentry" element={<SentryQueue />} />
+              <Route path="/plugins/sentry/incidents" element={<SentryIncidents />} />
+              <Route path="/plugins/sentry/incidents/:id" element={<SentryIncidentDetail />} />
+              <Route path="/plugins/sentry/rules" element={<SentryRules />} />
+              <Route path="/plugins/sentry/blocks" element={<SentryBlocks />} />
+              <Route path="/plugins/sentry/learning" element={<Learning />} />
             </Route>
           </Routes>
         </div>

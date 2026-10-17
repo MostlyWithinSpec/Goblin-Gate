@@ -154,6 +154,9 @@ func TestDNSFilter(t *testing.T) {
 		"games.example A 192.168.1.1\n",
 		"allowed.example CNAME rpz-passthru.\n",
 		"www.google.com CNAME forcesafesearch.google.com.\n",
+		// DoH canaries: NXDOMAIN even though this profile uses the block page
+		"use-application-dns.net CNAME .\n",
+		"mask.icloud.com CNAME .\n",
 	} {
 		if !strings.Contains(kids, want) {
 			t.Errorf("kids zone missing %q", want)

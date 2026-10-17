@@ -137,6 +137,18 @@ table inet goblin {
 		elements = { tcp . 1-65535, udp . 53 }
 	}
 
+	set block_tmp {
+		type ipv4_addr
+		flags timeout
+		comment "temporary blocks"
+	}
+
+	set block_tmp6 {
+		type ipv6_addr
+		flags timeout
+		comment "temporary blocks"
+	}
+
 	counter feedhit_botnet_c2 {
 		comment "threat feed botnet-c2 drops"
 	}
@@ -174,6 +186,17 @@ table inet goblin {
 		comment "guest-out"
 	}
 
+	chain temp_blocks {
+		ip saddr @block_tmp limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip saddr @block_tmp drop
+		ip daddr @block_tmp limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip daddr @block_tmp drop
+		ip6 saddr @block_tmp6 limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip6 saddr @block_tmp6 drop
+		ip6 daddr @block_tmp6 limit rate 10/second burst 20 packets log group 1 prefix "GG:block:"
+		ip6 daddr @block_tmp6 drop
+	}
+
 	chain threat_feeds {
 		iifname { "eth0", "eth0.7" } ip saddr @feed_botnet_c2 counter name "feedhit_botnet_c2" drop comment "feed botnet-c2: all wan traffic"
 		oifname { "eth0", "eth0.7" } ip daddr @feed_botnet_c2 counter name "feedhit_botnet_c2" drop comment "feed botnet-c2: all wan traffic"
@@ -185,6 +208,7 @@ table inet goblin {
 
 	chain input {
 		type filter hook input priority filter; policy drop;
+		jump temp_blocks
 		ct state established,related accept
 		ct state invalid drop
 		iifname "lo" accept
@@ -218,6 +242,7 @@ table inet goblin {
 
 	chain forward {
 		type filter hook forward priority filter; policy drop;
+		jump temp_blocks
 		ct mark & 0x0000ff00 == 0x00000100 queue flags bypass,fanout to 16-19 comment "ips profile default"
 		ct state established,related accept
 		ct state invalid drop

@@ -232,6 +232,11 @@ func (e *Engine) commitCandidateLocked(ctx context.Context, user, comment string
 	if err != nil {
 		return 0, nil, fmt.Errorf("commit: read running: %w", err)
 	}
+	// Only a new candidate must fit the installed plugins; rollbacks skip
+	// this check (config.CheckInstalledPlugins).
+	if errs := config.CheckInstalledPlugins(candidate); len(errs) > 0 {
+		return 0, nil, &ValidationError{Errors: errs}
+	}
 	rev, err := e.applyAndSaveLocked(ctx, candidate, user, comment)
 	if err != nil {
 		return 0, nil, err

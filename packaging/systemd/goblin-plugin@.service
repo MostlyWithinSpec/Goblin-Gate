@@ -1,0 +1,61 @@
+[Unit]
+Description=Goblin Gate plugin %i
+Documentation=https://github.com/MostlyWithinSpec/Goblin-Gate/blob/main/docs/dev/plugins.md
+# goblind starts and stops plugin units (docs/dev/plugins.md) and knows a
+# plugin's API calls by this unit's cgroup; stopping or restarting goblind
+# stops or restarts them.
+PartOf=goblind.service
+After=goblind.service
+ConditionPathExists=/usr/lib/goblin-gate/plugins/%i/run
+
+[Service]
+Type=exec
+ExecStart=/usr/lib/goblin-gate/plugins/%i/run
+Restart=on-failure
+RestartSec=10
+Environment=GOBLIN_PLUGIN_NAME=%i
+Environment=GOBLIN_PLUGIN_SOCKET=/run/goblin-plugins/api.sock
+# where the plugin may serve its own API for the admin UI (goblind proxies
+# /api/v1/plugins/%i/api/ to it)
+Environment=GOBLIN_PLUGIN_API_SOCKET=/run/goblin-plugin-%i/api.sock
+RuntimeDirectory=goblin-plugin-%i
+RuntimeDirectoryMode=0750
+
+# Sandbox: a throwaway unprivileged user with no capabilities, a read-only
+# system and its own state directory ($STATE_DIRECTORY).
+DynamicUser=yes
+StateDirectory=goblin-plugin-%i
+WorkingDirectory=/var/lib/goblin-plugin-%i
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateIPC=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+# Resource caps: a plugin (and any model it runs, like Sentry's decision
+# model) gets at most one CPU core and 512 MB.
+CPUQuota=100%
+MemoryMax=512M
+TasksMax=64
+StandardOutput=journal
+StandardError=journal

@@ -20,12 +20,43 @@ import {
   Waypoints,
   ShieldAlert,
   Clock,
-  Server
+  Server,
+  History,
+  Bell,
+  Download,
+  Puzzle,
+  Inbox,
+  ScrollText,
+  ListOrdered,
+  Ban
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
+import { PageErrorBoundary } from './PageErrorBoundary'
 import { toggleTheme } from '../theme'
 import UserMenu from './UserMenu'
 import { getUpdates } from '../api/system'
+import { getSystemStatus } from '../api/config'
+import { getPlugins } from '../api/plugins'
+import { useQuery } from '@tanstack/react-query'
+
+// ConnectionBadge shows whether goblind answers (GET /api/v1/system/status
+// every 15 s).
+const ConnectionBadge: React.FC = () => {
+  const q = useQuery({ queryKey: ['system', 'status', 'badge'], queryFn: getSystemStatus, refetchInterval: 15000, retry: false })
+  const online = q.isSuccess
+  const label = q.isLoading ? 'Connecting' : online ? 'Online' : 'Offline'
+  return (
+    <div
+      className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1 text-sm font-medium"
+      title={online ? 'Goblin Gate is answering' : 'Goblin Gate is not answering'}
+    >
+      <span className="inline-flex items-center">
+        <span className={`w-2 h-2 rounded-full mr-2 ${q.isLoading ? 'bg-gray-400' : online ? 'bg-green-500' : 'bg-red-500'}`}></span>
+        <span>{label}</span>
+      </span>
+    </div>
+  )
+}
 
 const Layout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -54,6 +85,11 @@ const Layout: React.FC = () => {
     return () => { cancelled = true }
   }, [])
 
+  // Show the Goblin SOC group only when the Sentry plugin is installed.
+  const pluginsQ = useQuery({ queryKey: ['plugins'], queryFn: getPlugins, retry: false })
+  const sentryInstalled = (pluginsQ.data?.plugins ?? []).some(
+    (p) => p.name === 'sentry' && p.state !== 'not_installed'
+  )
 
   // Navigation items
   const navItems = [
@@ -101,8 +137,21 @@ const Layout: React.FC = () => {
       path: '/system',
       icon: Settings,
       group: 'System'
-    }
+    },
+    { name: 'Revisions', path: '/system/revisions', icon: History, group: 'System' },
+    { name: 'Notifications', path: '/system/notifications', icon: Bell, group: 'System' },
+    { name: 'Plugins', path: '/system/plugins', icon: Puzzle, group: 'System' },
+    { name: 'Updates', path: '/system/updates', icon: Download, group: 'System' }
   ]
+
+  if (sentryInstalled) {
+    navItems.push(
+      { name: 'Queue', path: '/plugins/sentry', icon: Inbox, group: 'Goblin SOC' },
+      { name: 'Incidents', path: '/plugins/sentry/incidents', icon: ScrollText, group: 'Goblin SOC' },
+      { name: 'Rules', path: '/plugins/sentry/rules', icon: ListOrdered, group: 'Goblin SOC' },
+      { name: 'Blocks', path: '/plugins/sentry/blocks', icon: Ban, group: 'Goblin SOC' }
+    )
+  }
 
   // Group navigation items
   const groups = Array.from(
@@ -168,7 +217,7 @@ const Layout: React.FC = () => {
                       >
                         <Icon size={18} className="mr-3" />
                         <span className="flex-1">{item.name}</span>
-                        {updateAvailable && item.path === '/system' && (
+                        {updateAvailable && (item.path === '/system' || item.path === '/system/updates') && (
                           <span className="ml-2 h-2 w-2 rounded-full bg-green-500" title="Update available" />
                         )}
                       </Link>
@@ -224,18 +273,16 @@ const Layout: React.FC = () => {
               <h1 className="text-lg font-semibold text-gray-800 dark:text-white">Goblin Gate</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1 text-sm font-medium">
-                  <span className="inline-flex items-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                    <span>Online</span>
-                  </span>
-                </div>
-              </div>
+              <ConnectionBadge />
               <CommitBar />
-              <button className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600">
+              <Link
+                to="/log"
+                title="Log & Report"
+                aria-label="Log & Report"
+                className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
                 <Activity size={20} />
-              </button>
+              </Link>
               <UserMenu />
             </div>
           </div>
@@ -245,7 +292,9 @@ const Layout: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-transparent">
           <div className="max-w-7xl mx-auto">
             <div className="bg-white dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-6">
-              <Outlet />
+              <PageErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </PageErrorBoundary>
             </div>
           </div>
         </main>

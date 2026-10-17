@@ -101,3 +101,14 @@ func TestParseSuricata(t *testing.T) {
 		t.Fatal("bad timestamp accepted")
 	}
 }
+
+func TestParseNftablesTemporaryBlock(t *testing.T) {
+	line := `{"oob.time.sec": 1791720001, "oob.prefix": "GG:block:", "oob.in": "eth0", "src_ip": "198.51.100.7", "dest_ip": "203.0.113.2", "ip.protocol": 6, "src_port": 4444, "dest_port": 22, "ip.totlen": 60}`
+	e, err := ParseNftables(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Action != "deny" || e.Category != "temporary block" || e.PolicyID != "" || e.SrcIP != "198.51.100.7" || e.Proto != "tcp" {
+		t.Fatalf("%+v", e)
+	}
+}

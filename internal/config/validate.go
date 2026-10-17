@@ -72,6 +72,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkAppCtrl()
 	v.checkNotifications()
 	v.checkDNS()
+	v.checkPlugins()
 	return v.errs
 }
 

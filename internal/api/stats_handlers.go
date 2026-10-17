@@ -74,6 +74,12 @@ func (s *Server) listLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if x := v.Get("after"); x != "" {
+		if f.After, err = strconv.ParseInt(x, 10, 64); err != nil || f.After < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_query", "after must be a non-negative number", nil)
+			return
+		}
+	}
 	if x := v.Get("limit"); x != "" {
 		if f.Limit, err = strconv.Atoi(x); err != nil || f.Limit < 1 || f.Limit > logs.MaxQueryRows {
 			writeError(w, http.StatusBadRequest, "invalid_query", "limit must be between 1 and 10000", nil)
