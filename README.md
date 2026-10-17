@@ -1,43 +1,132 @@
-# Goblin Gate
+<p align="center">
+  <img src="web/public/goblin-512.png" width="160" alt="Network Goblin">
+</p>
 
-An open-source firewall by **Network Goblin Labs**: as easy as a home router, as capable as an
-enterprise firewall. Debian, nftables, Suricata and Unbound underneath; a modern web UI, a REST API
-and a FortiOS-style CLI on top. Built for homelabbers, tinkerers and anyone who wants to understand
-and automate their network.
+<h1 align="center">Goblin Gate</h1>
 
-> **Status: early development.** The first builds install and run, and the core features pass automated
-> end-to-end tests on real VMs. Expect rough edges, and please report them.
+<p align="center"><b>A goblin guards your front door, and you can watch everything it does.</b><br>
+<i>An open-source firewall · Debian · nftables · Suricata · Unbound · Kea · WireGuard</i></p>
 
-## Features
+<p align="center">
+  <a href="../../releases"><b>💿 Download the ISO</b></a> ·
+  <a href="https://networkgoblin.dev/gate/"><b>🌐 Project page</b></a> ·
+  <a href="../../discussions"><b>💬 Discussions</b></a> ·
+  <a href="https://networkgoblin.dev/">🧌 Network Goblin Labs</a>
+</p>
 
-| Area | What you get |
-| --- | --- |
-| Firewall | Interfaces and VLANs, address and service objects, ordered policies, NAT, port forwards |
-| Config you can trust | Candidate config, diff, commit with auto-revert, revision history and rollback, backups |
-| Network services | DHCP (Kea), DNS resolver (Unbound) |
-| Threat protection | Threat feeds, DNS filter, web filter by category, application control, IPS (Suricata with ET Open) |
-| VPN | WireGuard with client QR codes, Tailscale |
-| Visibility | Logs with drill-down, dashboards with widgets, a chart builder |
-| Management | Web UI (dark and light), REST API, CLI, first-boot setup wizard, console menu |
-| Plugins | Sandboxed plugins; Goblin Sentry turns IPS alerts into incidents with an approval queue, temporary blocks and a local decision model that learns your answers |
-| Install | Offline installer ISO: bare metal (BIOS/UEFI, Secure Boot), VMware ESXi, Proxmox, VirtualBox |
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/img/light/policies.webp">
+    <img src="docs/img/dark/policies.webp" width="800" alt="Goblin Gate's firewall policy table">
+  </picture>
+</p>
 
-## Install
+---
+
+## What is this?
+
+Goblin Gate is a firewall for people who want to **understand and automate their network**: homelabbers,
+self-hosters, tinkerers, students learning networking, and small offices that want enterprise features without
+enterprise licensing.
+
+It's as easy as a home router (a setup wizard gets you online in minutes) and as capable as the expensive
+boxes: policies with security profiles, intrusion prevention, web and DNS filtering, threat feeds, multi-WAN,
+real dashboards, and a config you can diff, commit and roll back. All of it is open, all of it has an API, and
+nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware to buy.
+
+> 🧪 **Beta.** Everything planned for 0.1.0 is in, and the core features pass automated end-to-end tests on
+> real VMs. From here on it's about fixing what you find. Try it in a VM or on a spare box first, keep your old
+> firewall's config at hand while you switch, and [tell the goblin](../../issues/new/choose) about anything odd.
+
+## The goblin's powers
+
+| | |
+|---|---|
+| 🧱 **A proper firewall** | Interfaces and VLANs, address and service objects, ordered policies (first match wins, everything else is denied), NAT and port forwards. Schedules limit a policy to certain hours. IPv4 and IPv6 alike. |
+| 🧩 **Security profiles per policy** | Build an IPS, web filter, DNS filter or app control profile once, attach it to any policy. The kids' Wi-Fi and your lab VLAN can play by different rules. |
+| 📜 **Config you can trust** | Changes pile up in a candidate config. See the diff, commit, and if the change locks you out, it **reverts itself**. Every commit is a revision you can roll back to, and backups are one click. |
+| 🛡️ **Intrusion prevention** | Suricata inline with the ET Open rules: bad traffic gets blocked, not just written down. |
+| 🚦 **Web and DNS filtering** | Block by category, filter DNS, and decide which apps get through (application control). It also closes the usual DNS-over-HTTPS and private-relay side doors on filtered networks. |
+| 🗑️ **Threat feeds and temporary blocks** | Known-bad IP and domain lists, kept fresh automatically. Block any address for a minute or a week; the block lifts itself. |
+| 🌐 **IPv6 and multi-WAN** | DHCPv6 with prefix delegation, a /64 per LAN and VLAN. Several internet links with health checks, failover and load sharing, and a gateway per policy (send one VLAN through a VPN provider, with a kill switch). |
+| 🏠 **Network services** | DHCP (Kea) and a DNS resolver (Unbound), with local names for DHCP clients, split DNS, and UPnP if you want it (off by default). |
+| 🔐 **VPN** | WireGuard with a QR code per phone or laptop, and Tailscale. |
+| 📊 **Eyes everywhere** | Dashboards built from widgets, logs you can drill into, and a chart builder for the questions nobody thought of. |
+| 🔔 **It tells you things** | Email, webhooks, Discord, ntfy or Telegram when a WAN goes down, an update is ready, and more. |
+| 🔄 **Updates that undo themselves** | Signed packages in stable, beta and nightly channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. |
+| 🧳 **Moving in** | Import your old firewall's XML backup. A report lists every item as converted, approximated or skipped, and nothing goes live until you commit. |
+| 🖥️ **Three ways in, one config** | A web UI (light and dark), a REST API for everything, and a CLI. They all edit the same config, so whatever you can click, you can script. |
+| 💿 **Installs anywhere** | An offline installer ISO for bare metal (BIOS or UEFI, Secure Boot works), VMware ESXi, Proxmox and VirtualBox. A console menu handles the basics. |
+
+## New in beta 1: Goblin Sentry and G.O.B.L.I.N.
+
+**Plugins** install as packages (`goblin-gate-plugin-<name>`) and live in a goblin-sized box: each runs as its own
+throwaway unprivileged user on a read-only system, capped at one CPU core and 512 MB. A plugin can only make the
+API calls you approved under System → Plugins, and every call is audited.
+
+**Goblin Sentry** is the first one (`apt install goblin-gate-plugin-sentry`). It turns IPS alerts into incidents,
+adds what the box knows (which way, which of your hosts, seen before?) and answers with a small toolbox:
+temporary block, watch, notify, ignore, escalate. Never a shell. By default every block waits for your OK, your
+own hosts are never blocked, and each decision keeps a "why".
+
+**G.O.B.L.I.N.** is Sentry's local decision model. It learns from your own answers, runs on the box (no GPU, no
+cloud), comes with a report card for every version, is used only after you accept it, and rolls back in one
+click. It never blocks on its own.
+
+## A look around
+
+<table>
+<tr>
+<td><picture><source media="(prefers-color-scheme: light)" srcset="docs/img/light/dashboard.webp"><img src="docs/img/dark/dashboard.webp" width="400" alt="Dashboard"></picture><br><sub>Dashboards from widgets.</sub></td>
+<td><picture><source media="(prefers-color-scheme: light)" srcset="docs/img/light/ips.webp"><img src="docs/img/dark/ips.webp" width="400" alt="Intrusion prevention"></picture><br><sub>Intrusion prevention, one click to an exception.</sub></td>
+</tr>
+<tr>
+<td><picture><source media="(prefers-color-scheme: light)" srcset="docs/img/light/log.webp"><img src="docs/img/dark/log.webp" width="400" alt="Log and report"></picture><br><sub>Log &amp; Report: every connection, filterable.</sub></td>
+<td><picture><source media="(prefers-color-scheme: light)" srcset="docs/img/light/feeds.webp"><img src="docs/img/dark/feeds.webp" width="400" alt="Threat feeds"></picture><br><sub>Threat feeds, with a lookup box.</sub></td>
+</tr>
+</table>
+
+<sub>Screenshots follow your GitHub theme: switch to light or dark mode to see the other one. Demo data, not a real network.</sub>
+
+## Summoning a goblin
 
 1. Download the ISO from [Releases](../../releases) (or build it, below).
-2. Boot it on a machine or VM with two network ports (WAN and LAN) and pick the disk.
+2. Boot it on a machine or VM with **two network ports** (one for WAN, one for LAN) and pick the disk.
 3. On the console menu, assign the ports (and change the LAN address if it clashes with your network).
-4. Open the web address the console shows from a computer on the LAN port and run the setup wizard.
+4. From a computer on the LAN port, open `https://<LAN address>` and run the setup wizard: admin password, WAN,
+   LAN, security level, done.
 
-Goblin Sentry is a separate package from the same APT repository: `apt install goblin-gate-plugin-sentry` on
-the box, then enable it and approve what it asks for under System → Plugins.
+Already running an alpha? It updates itself from the beta channel: System → Updates.
+The VMware ESXi guide lives in [packaging/README.md](packaging/README.md).
 
-Details: [docs/README.md](docs/README.md) and the VMware ESXi guide in
-[packaging/README.md](packaging/README.md).
+## Talking to the goblin (CLI)
+
+The `goblin` shell edits the same candidate config as the web UI and the API. Over SSH or the console:
+
+```text
+config system interface
+  edit lan
+    set address 10.0.0.1/24
+  next
+end
+diff                  # what's about to change
+commit confirm 5      # apply it, and roll back in 5 minutes unless you confirm
+confirm               # still connected? keep it
+```
+
+Also there: `show`, `history`, `rollback N`, `discard`, `get system status`, `execute backup` and
+`execute restore`. Type `help` for the full list.
+
+## How it works
+
+Everything goes through **goblind**'s REST API, the web UI included. Changes land in a candidate config; a
+commit validates it, renders a config file for each engine (nftables, Suricata, Unbound, Kea and friends;
+pure functions with golden-file tests), applies them, and rolls back if anything fails. More in
+[docs/dev/conventions.md](docs/dev/conventions.md), and plugins in [docs/dev/plugins.md](docs/dev/plugins.md).
 
 ## Build from source
 
-Requires Windows with PowerShell, Go 1.26+, Node.js 24+ and Docker Desktop (for Linux builds and tests).
+Requires Windows with PowerShell, Go 1.26+, Node.js 24+ and Docker Desktop (for the Linux builds and tests).
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1      # all checks and tests
@@ -48,17 +137,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-iso.ps1   # th
 Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/vm-install-test.ps1`,
 `scripts/vm-net-test.ps1`.
 
-## How it works
+## What's next
 
-Everything the UI does goes through goblind's REST API. Changes go to a candidate config; a commit
-validates it, renders config files for each engine (pure functions, golden-file tested), applies them and
-rolls back if anything fails. More in [docs/dev/conventions.md](docs/dev/conventions.md).
+- **Now:** beta testing, daily use as a home firewall, more real hardware, then the first stable release, 0.1.0.
+- **The tinkerer's firewall:** packet capture in the browser, a policy simulator ("would this reach that?"),
+  git-backed config, Prometheus and Grafana, device inventory, more plugins.
+- **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
 
-## Contributing
+The full roadmap lives on the [project page](https://networkgoblin.dev/gate/).
 
-Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). A plugin
-system for add-ins is on the roadmap.
+## Join the hoard
+
+Bug reports, ideas and pull requests are all welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Questions and
+wild ideas go in [Discussions](../../discussions).
 
 ## License
 
-GPL-3.0-only. See [LICENSE](LICENSE).
+GPL-3.0-only. See [LICENSE](LICENSE). The core stays free; no feature that's free today gets moved behind a
+paywall later.
