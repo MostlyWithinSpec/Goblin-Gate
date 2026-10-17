@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Clock, GripVertical, MoreVertical, Plus } from 'lucide-react'
@@ -37,6 +37,16 @@ interface RowProps {
 
 type MenuAction = 'clone' | 'above' | 'below' | 'toggle' | 'delete'
 
+// menuPosition places the row menu under its button, right-aligned, or
+// above it when there is no room below.
+const MENU_HEIGHT = 140
+function menuPosition(button: HTMLElement | null): React.CSSProperties {
+  if (!button) return {}
+  const r = button.getBoundingClientRect()
+  const right = Math.max(window.innerWidth - r.right, 8)
+  return r.bottom + MENU_HEIGHT > window.innerHeight ? { bottom: window.innerHeight - r.top + 4, right } : { top: r.bottom + 4, right }
+}
+
 function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction }: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id, disabled: !draggable })
   const style: React.CSSProperties = {
@@ -44,6 +54,7 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
     transition,
     opacity: isDragging ? 0.5 : undefined,
   }
+  const menuButton = useRef<HTMLButtonElement>(null)
   const hit = hits && p.id in hits ? hits[p.id].toLocaleString() : '—'
   return (
     <tr
@@ -107,12 +118,24 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
       <td className="px-2 py-1">
         <input type="checkbox" aria-label={`Enable policy ${p.id}`} checked={p.enabled} onChange={onToggle} />
       </td>
-      <td className="relative px-1">
-        <button type="button" aria-label={`Actions for policy ${p.id}`} onClick={() => onMenu(!menuOpen)} className="text-gray-500">
+      {/* pinned to the right edge so the actions stay visible on a wide
+          table; the menu is fixed-positioned so the scroll box can't clip it */}
+      <td className="sticky right-0 bg-white px-1 dark:bg-gray-800">
+        <button
+          ref={menuButton}
+          type="button"
+          aria-label={`Actions for policy ${p.id}`}
+          onClick={() => onMenu(!menuOpen)}
+          className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
           <MoreVertical size={16} />
         </button>
         {menuOpen && (
-          <div role="menu" className="absolute right-0 z-10 mt-1 w-40 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          <div
+            role="menu"
+            style={menuPosition(menuButton.current)}
+            className="fixed z-20 w-40 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+          >
             {(
               [
                 ['clone', 'Clone'],
@@ -177,6 +200,14 @@ export default function Policies() {
       live = false
     }
   }, [])
+
+  // the row menu is fixed-positioned: close it when anything scrolls
+  useEffect(() => {
+    if (menuFor === null) return
+    const close = () => setMenuFor(null)
+    window.addEventListener('scroll', close, true)
+    return () => window.removeEventListener('scroll', close, true)
+  }, [menuFor])
 
   // save stores the new list in the candidate; on failure the old list is kept.
   const save = async (next: Policy[]) => {
@@ -278,7 +309,11 @@ export default function Policies() {
           <SortableContext items={policies.map((p) => p.id)} strategy={verticalListSortingStrategy}>
             <table className="min-w-full">
               <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-                <tr>{head.map((h, i) => <th key={i} className="px-2 py-2 font-medium">{h}</th>)}</tr>
+                <tr>
+                  {head.map((h, i) => (
+                    <th key={i} className={`px-2 py-2 font-medium ${i === head.length - 1 ? 'sticky right-0 bg-gray-50 dark:bg-gray-700' : ''}`}>{h}</th>
+                  ))}
+                </tr>
               </thead>
               {grouped ? (
                 groupByPair(policies).map((g) => (

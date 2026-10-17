@@ -35,22 +35,26 @@ func (v *validator) checkPolicies() {
 	idSeen := make(map[uint32]int, len(c.Policies))
 	for i, pol := range c.Policies {
 		p := fmt.Sprintf("policies[%d]", i)
+		// messages name the policy: the index in the path means little to
+		// someone looking at the policy table
+		who := fmt.Sprintf("policy %d %q: ", pol.ID, pol.Name)
+		add := func(path, format string, args ...any) { v.add(path, "%s"+format, append([]any{who}, args...)...) }
 		if j, dup := idSeen[pol.ID]; dup {
-			v.add(p+".id", "duplicate policy id %d (first used at policies[%d])", pol.ID, j)
+			add(p+".id", "duplicate policy id %d (first used at policies[%d])", pol.ID, j)
 		} else {
 			idSeen[pol.ID] = i
 		}
 		if !oneOf(pol.Action, "accept", "deny") {
-			v.add(p+".action", "unknown action %q: want accept or deny", pol.Action)
+			add(p+".action", "unknown action %q: want accept or deny", pol.Action)
 		}
 		if !oneOf(pol.Log, "", "off", "all", "deny") {
-			v.add(p+".log", "unknown log mode %q: want off, all or deny", pol.Log)
+			add(p+".log", "unknown log mode %q: want off, all or deny", pol.Log)
 		}
 		// Wildcards ("all"/"any") are accepted everywhere; Default() uses "all".
 		refs := func(field string, list []string, valid map[string]bool) {
 			for j, r := range list {
 				if !isWildcard(r) && !valid[r] {
-					v.add(fmt.Sprintf("%s.%s[%d]", p, field, j), "unknown %s reference %q", field, r)
+					add(fmt.Sprintf("%s.%s[%d]", p, field, j), "unknown %s reference %q (deleted or renamed?)", field, r)
 				}
 			}
 		}
@@ -61,7 +65,7 @@ func (v *validator) checkPolicies() {
 		refs("service", pol.Service, svcRef)
 		one := func(field, ref string, valid map[string]bool) {
 			if ref != "" && !valid[ref] {
-				v.add(p+"."+field, "unknown %s reference %q", field, ref)
+				add(p+"."+field, "unknown %s reference %q (deleted or renamed?)", field, ref)
 			}
 		}
 		one("ips_profile", pol.IPSProfile, ips)
@@ -70,7 +74,7 @@ func (v *validator) checkPolicies() {
 		one("appctrl_profile", pol.AppCtrlProfile, app)
 		for j, f := range pol.ThreatFeeds {
 			if !feeds[f] {
-				v.add(fmt.Sprintf("%s.threat_feeds[%d]", p, j), "unknown threat_feeds reference %q", f)
+				add(fmt.Sprintf("%s.threat_feeds[%d]", p, j), "unknown threat_feeds reference %q (deleted or renamed?)", f)
 			}
 		}
 	}

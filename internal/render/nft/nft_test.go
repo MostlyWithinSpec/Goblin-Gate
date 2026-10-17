@@ -10,10 +10,14 @@ import (
 	"testing"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
+
+// the golden files use 4 IPS queues per profile whatever this machine has
+func init() { render.IPSQueuesPerProfile = 4 }
 
 // fullConfig exercises every feature of the renderer.
 func fullConfig() *config.Config {

@@ -2,6 +2,7 @@ package render
 
 import (
 	"net/netip"
+	"runtime"
 	"sort"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
@@ -12,13 +13,17 @@ import (
 // them, one Suricata thread each). Profile i (by name order) uses queues
 // IPSQueueBase+IPSQueueStride*i ... +IPSQueuesPerProfile-1.
 const (
-	IPSQueueBase        = 16
-	IPSQueueStride      = 8
-	IPSQueuesPerProfile = 4
+	IPSQueueBase   = 16
+	IPSQueueStride = 8
 	// MaxIPSProfiles is how many profiles fit in the conntrack mark's
 	// profile byte (bits 8-15).
 	MaxIPSProfiles = 254
 )
+
+// IPSQueuesPerProfile is one queue (and Suricata thread) per CPU core, at
+// most 4 and never more than IPSQueueStride: more threads than cores only
+// slow Suricata down (it warns about it). Tests pin it for stable output.
+var IPSQueuesPerProfile = min(max(runtime.NumCPU(), 1), 4)
 
 // IPSUse is an IPS profile that at least one enabled accept policy uses.
 type IPSUse struct {

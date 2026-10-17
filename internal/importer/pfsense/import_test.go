@@ -1,6 +1,7 @@
 package pfsense
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -175,6 +176,31 @@ func TestMappings(t *testing.T) {
 }
 
 // TestDevices: a device assignment fills the interface's device.
+// TestTrackWithoutUplinkV6: LAN-side interfaces that track a WAN with no
+// IPv6 of its own get no prefix in pfSense, so IPv6 stays off (not turned on
+// for the WAN behind the user's back).
+func TestTrackWithoutUplinkV6(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "sample.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = bytes.Replace(data, []byte("<ipaddrv6>dhcp6</ipaddrv6>"), nil, 1)
+	res, err := Import(data, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Config
+	if v6 := c.Interfaces[0].IPv6; v6 != nil && v6.Mode != "none" && v6.Mode != "" {
+		t.Errorf("wan IPv6 turned on: %+v", v6)
+	}
+	if c.Interfaces[1].IPv6 != nil || c.VLANs[0].IPv6 != nil {
+		t.Errorf("trackers kept IPv6: lan %+v, vlan %+v", c.Interfaces[1].IPv6, c.VLANs[0].IPv6)
+	}
+	if !has(res, "lan", Approximated, "had no IPv6 in pfSense") {
+		t.Error("not reported")
+	}
+}
+
 func TestDevices(t *testing.T) {
 	res := importSample(t, map[string]string{"wan": "enp1s0", "opt2": "enp3s0"})
 	if res.Config.Interfaces[0].Device != "enp1s0" {

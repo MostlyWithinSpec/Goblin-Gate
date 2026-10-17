@@ -7,6 +7,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { getCandidate, patchSection, type Candidate } from '../api/objects'
 import type { ValidationError } from '../api/policy'
 import { EditDrawer } from './EditDrawer'
+import { usedBy } from './usage'
 
 export type Errors = Record<string, string>
 
@@ -87,6 +88,25 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
     setEditing(null)
   }
 
+  // remove refuses while the entry is still referenced (the commit would
+  // fail on the dangling reference), checked against a fresh candidate since
+  // another page may have just dropped the reference; otherwise it asks.
+  const remove = async (x: T, i: number) => {
+    setError(null)
+    let users: string[]
+    try {
+      users = usedBy(p.path, x.name, await getCandidate())
+    } catch (e) {
+      setError((e as Error).message)
+      return
+    }
+    if (users.length > 0) {
+      setError(`"${x.name}" is still used by ${users.join(', ')}. Remove it there first.`)
+      return
+    }
+    if (window.confirm(`Delete "${x.name}"?`)) save(items.filter((_, j) => j !== i))
+  }
+
   const open = (item: T, index: number | null) => {
     setErrors({})
     setEditing({ item: structuredClone(item), index })
@@ -132,7 +152,7 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
                 {p.columns.map((c) => <td key={c.label} className="px-3 py-1">{c.render(x)}</td>)}
                 <td className="whitespace-nowrap px-3 py-1 text-right">
                   {p.rowActions?.(x)}
-                  <button type="button" aria-label={`Delete ${x.name}`} onClick={() => save(items.filter((_, j) => j !== i))} className="ml-2 text-red-600">
+                  <button type="button" aria-label={`Delete ${x.name}`} onClick={() => remove(x, i)} className="ml-2 text-red-600">
                     <Trash2 size={16} />
                   </button>
                 </td>

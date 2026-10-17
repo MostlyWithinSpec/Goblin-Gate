@@ -369,6 +369,24 @@ func TestValidationErrorString(t *testing.T) {
 	}
 }
 
+// TestValidatePolicyMessagesNameThePolicy: a dangling reference (an address
+// deleted while a policy still uses it) names the policy by id and name, not
+// only by its index in the list; a "%" in the name is kept as is.
+func TestValidatePolicyMessagesNameThePolicy(t *testing.T) {
+	cfg := Default()
+	cfg.Policies[0].ID = 14
+	cfg.Policies[0].Name = "kids-night 100%"
+	cfg.Policies[0].SrcAddr = []string{"Noahs_Devices"}
+	want := ValidationError{Path: "policies[0].src_addr[0]",
+		Message: `policy 14 "kids-night 100%": unknown src_addr reference "Noahs_Devices" (deleted or renamed?)`}
+	for _, e := range Validate(cfg) {
+		if e == want {
+			return
+		}
+	}
+	t.Fatalf("want %v in %v", want, Validate(cfg))
+}
+
 // TestValidateCollectsAllErrors ensures validation keeps going after the first
 // problem instead of stopping.
 func TestValidateCollectsAllErrors(t *testing.T) {

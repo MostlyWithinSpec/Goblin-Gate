@@ -321,6 +321,13 @@ func (m *Manager) fetch(ctx context.Context, cfg config.Feed, meta Meta, lastCou
 	if err != nil {
 		return nil, out, false, err
 	}
+	if len(entries) == 0 && cfg.Type == "ip" {
+		// a hosts file or domain list set up as an IP feed (common in
+		// pfBlockerNG imports) has no addresses but plenty of names
+		if names, _ := Parse(body, cfg.Format, "domain"); len(names) > 0 {
+			return nil, out, false, fmt.Errorf("rejected: no IP addresses, but %d domain names: this is a domain list, set the feed type to domain and use it in a DNS filter profile", len(names))
+		}
+	}
 	if err := checkSize(len(entries), lastCount); err != nil {
 		return nil, out, false, err
 	}

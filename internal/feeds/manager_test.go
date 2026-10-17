@@ -141,6 +141,7 @@ func TestSafetyGuardsKeepLastGood(t *testing.T) {
 		want       string
 	}{
 		{"empty", "# nothing here\nnot-an-ip\n", 200, "no valid entries"},
+		{"hosts file", "# ads\n0.0.0.0 ads.example.com\n127.0.0.1 tracker.example.net\n", 200, "2 domain names: this is a domain list"},
 		{"shrinks", ips(9), 200, "more than 90% fewer"},
 		{"grows", ips(1001), 200, "more than 10x"},
 		{"http error", "", 503, "HTTP 503"},

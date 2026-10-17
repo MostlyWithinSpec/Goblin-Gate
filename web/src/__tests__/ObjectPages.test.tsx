@@ -112,12 +112,37 @@ describe('Addresses', () => {
   })
 
   test('shows server validation errors for its list', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ ...structuredClone(cfg), address_groups: [] })
     vi.mocked(api.patchSection).mockResolvedValue({ status: 'ok', validation_errors: [{ path: 'addresses[0].name', message: 'in use by policy x' }, { path: 'policies[0]', message: 'other' }] })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     wrap(<Addresses />)
     fireEvent.click(await screen.findByRole('button', { name: 'Delete nas' }))
     expect(await screen.findByText(/in use by policy x/)).toBeInTheDocument()
     expect(screen.queryByText('other')).not.toBeInTheDocument()
     expect(lastPatch()).toEqual(['addresses', []])
+  })
+
+  test('refuses to delete an address that is still used', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({
+      ...structuredClone(cfg),
+      policies: [{ id: 14, name: 'kids-night', enabled: true, src_addr: ['nas'], action: 'deny' }],
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    wrap(<Addresses />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete nas' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('"nas" is still used by policy 14 "kids-night", address group "servers". Remove it there first.')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(api.patchSection).not.toHaveBeenCalled()
+  })
+
+  test('asks before deleting and keeps the entry on cancel', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ ...structuredClone(cfg), address_groups: [] })
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    wrap(<Addresses />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete nas' }))
+    await waitFor(() => expect(window.confirm).toHaveBeenCalledWith('Delete "nas"?'))
+    expect(api.patchSection).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'nas' })).toBeInTheDocument()
   })
 
   test('accepts IPv6 values for subnet, host and range', async () => {

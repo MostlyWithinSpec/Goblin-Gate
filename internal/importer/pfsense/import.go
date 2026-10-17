@@ -356,27 +356,29 @@ func (im *importer) interfaces() {
 	im.track6Uplinks()
 }
 
-// track6Uplinks gives an interface that LAN-side interfaces track (track6)
-// but that has no IPv6 setting itself DHCPv6 with prefix delegation:
-// tracking needs a delegated prefix to take from.
+// track6Uplinks turns IPv6 off on interfaces that track (track6) an uplink
+// with no IPv6 of its own: in pfSense they get no prefix, so IPv6 was off
+// there in effect. Turning DHCPv6 on for the uplink instead would change
+// what the network does, and with an ISP that offers no IPv6 the tracking
+// interface would wait for a prefix forever.
 func (im *importer) track6Uplinks() {
-	need := map[string]bool{}
+	hasV6 := map[string]bool{}
 	for _, i := range im.cfg.Interfaces {
-		if i.IPv6 != nil && i.IPv6.Mode == "delegated" && i.IPv6.Uplink != "" {
-			need[i.IPv6.Uplink] = true
-		}
+		hasV6[i.Name] = i.IPv6 != nil && i.IPv6.Mode != "none" && i.IPv6.Mode != ""
 	}
-	for _, v := range im.cfg.VLANs {
-		if v.IPv6 != nil && v.IPv6.Mode == "delegated" && v.IPv6.Uplink != "" {
-			need[v.IPv6.Uplink] = true
+	untrack := func(name string, v6 **config.IPv6) {
+		if *v6 == nil || (*v6).Mode != "delegated" || (*v6).Uplink == "" || hasV6[(*v6).Uplink] {
+			return
 		}
+		im.add("interfaces", name, Approximated, "IPv6 tracks %q, which had no IPv6 in pfSense, so IPv6 was off here in effect: left off (turn on DHCPv6 on %s and delegated IPv6 here under Interfaces to use it)",
+			(*v6).Uplink, (*v6).Uplink)
+		*v6 = nil
 	}
 	for i := range im.cfg.Interfaces {
-		ifc := &im.cfg.Interfaces[i]
-		if need[ifc.Name] && (ifc.IPv6 == nil || ifc.IPv6.Mode == "none" || ifc.IPv6.Mode == "") {
-			ifc.IPv6 = &config.IPv6{Mode: "dhcp6"}
-			im.add("interfaces", ifc.Name, Approximated, "LAN interfaces track %q for IPv6 but it had no IPv6 setting: set to DHCPv6 with prefix delegation (/%d)", ifc.Name, config.DefaultPDSize)
-		}
+		untrack(im.cfg.Interfaces[i].Name, &im.cfg.Interfaces[i].IPv6)
+	}
+	for i := range im.cfg.VLANs {
+		untrack(im.cfg.VLANs[i].Name, &im.cfg.VLANs[i].IPv6)
 	}
 }
 

@@ -99,6 +99,9 @@ click. It never blocks on its own.
 Already running an alpha? It updates itself from the beta channel: System → Updates.
 The VMware ESXi guide lives in [packaging/README.md](packaging/README.md).
 
+**The user guide is the [wiki](../../wiki)**: every page of the web UI, recipes (isolating a Wi-Fi VLAN,
+blocklists that work), moving from pfSense, and troubleshooting.
+
 ## Talking to the goblin (CLI)
 
 The `goblin` shell edits the same candidate config as the web UI and the API. Over SSH or the console:
