@@ -95,7 +95,7 @@ jobs:
         run: |
           git fetch origin gh-pages:gh-pages
           git worktree add pages gh-pages
-          DEBS=$(ls dist/*.deb)
+          DEBS=$(echo dist/*.deb) # one line: it goes into a bash -c string
           run() { docker run --rm -v "$PWD:/w" -w /w -e APT_SIGNING_KEY debian:12 bash -c \
             "apt-get update -qq >/dev/null && apt-get install -y -qq apt-utils gnupg >/dev/null 2>&1 && bash scripts/apt-repo.sh pages/apt $1 $DEBS"; }
           run "$CHANNEL"
