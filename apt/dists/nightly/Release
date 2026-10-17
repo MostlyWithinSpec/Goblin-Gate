@@ -1,20 +1,20 @@
 Architectures: amd64
 Codename: nightly
 Components: main
-Date: Sat, 17 Oct 2026 02:34:08 +0000
+Date: Sat, 17 Oct 2026 16:51:39 +0000
 Description: Goblin Gate packages (nightly channel)
 Label: Goblin Gate
 Origin: Goblin Gate
 Suite: nightly
 MD5Sum:
- 595d3d6978dc26b2754489703bedaef9             8453 main/binary-amd64/Packages
- d19d8acca28992b0ddbee9cb340415ad             2296 main/binary-amd64/Packages.gz
+ c239c81efddb7d658ba5e14eafc97694            10408 main/binary-amd64/Packages
+ 0f2d36250e06cd0cdfd54b04d7a5b7e4             2688 main/binary-amd64/Packages.gz
 SHA1:
- 34e3aeb588d612053475ba33ae429fe0b53fdb0a             8453 main/binary-amd64/Packages
- 09dd3637b00a59705ee5115e5bdc3811f3f0dc5b             2296 main/binary-amd64/Packages.gz
+ 67f55c8d23fb01870cb0523c0fe97ceee3d020fc            10408 main/binary-amd64/Packages
+ 5aa8ae1824ca9856052440a4c884d73d98cce387             2688 main/binary-amd64/Packages.gz
 SHA256:
- 792d6e9bb58556e2594a081859a0804598324da55d64682cae9bea3d990e0029             8453 main/binary-amd64/Packages
- f6f2e7fa20bca1de625913808e0d03e2d51b854facad3d0060968e08fbf0663f             2296 main/binary-amd64/Packages.gz
+ 561c6ad7d0b067b46efdc280bb985c5e8e46ea933a46e19a38558da17a71ef0d            10408 main/binary-amd64/Packages
+ e8c0670617be96f7aa0e175031b8c02001e7b297af5b9da5c4fb374a61f17973             2688 main/binary-amd64/Packages.gz
 SHA512:
- 6178fb1f274104fc7420b7ae704a1517d57b673ef0aefc0ccdefe4c77d39a4553f8ab19218266e724eedde9699bea4d2319698b2fd30125f607f53fa3f6e9a6f             8453 main/binary-amd64/Packages
- f4e95b5ffb661fe62579f6a95273e57942faf3f467cd29e049c29622ff20d528da7675596e766357371083cb6d1a88bb4ca80cd98f1ff6c189583232f28f363d             2296 main/binary-amd64/Packages.gz
+ 10422928423f9b07b2452bc4cf34456a1057c71792e40a8acdcd982fe7a6410fb7ae0f75d1351c1d9488b1919b3086df46e5333c6407c5bd5d5c30572dc34c30            10408 main/binary-amd64/Packages
+ 2b65283d6ff3c19be8e473f6ae16412a58b65574cff6b343c10b3613227d72e16ccf56380b74ee07c1880b3e6bf8e0823cd8d504853e436102c7489159a38f72             2688 main/binary-amd64/Packages.gz
