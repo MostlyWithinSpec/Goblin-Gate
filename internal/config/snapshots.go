@@ -59,7 +59,7 @@ func (s *Store) SaveSnapshot(name, comment, user string, revision int, cfg *Conf
 		return fmt.Errorf("invalid snapshot name %q", name)
 	}
 	dir := s.snapshotsDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("config store: create snapshots dir: %w", err)
 	}
 	path := s.snapshotPath(name)

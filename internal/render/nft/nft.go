@@ -101,6 +101,7 @@ type ruleset struct {
 	ips      map[string]render.IPSUse
 	ipsQueue []string // top of forward: keep queueing IPS connections
 	spoof    []string // input and forward: anti-spoofing drops
+	rpf      []string // input and forward: reverse-path drops (fib; not simulated)
 	dnsFwd   []string // forward: no DNS-over-TLS around the filter
 	pre      []string // goblin_nat prerouting
 	route    render.RoutingPlan
@@ -135,6 +136,7 @@ func prepare(cfg *config.Config) (*ruleset, error) {
 	r.dnsFilter()
 	r.ipsQueues()
 	r.tailscale()
+	r.antiSpoof()
 	r.wireguard()
 	r.upnpInput()
 	r.inputRules()

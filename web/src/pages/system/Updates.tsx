@@ -16,6 +16,7 @@ const Updates: React.FC = () => {
   const [checking, setChecking] = useState(false)
   const [channel, setChannel] = useState<Channel>('stable')
   const [channelSaved, setChannelSaved] = useState(false)
+  const [autoSecurity, setAutoSecurity] = useState(true)
   const [includeOs, setIncludeOs] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -43,6 +44,7 @@ const Updates: React.FC = () => {
       .then((c) => {
         const ch = c.system?.update_channel
         if (ch && CHANNELS.includes(ch)) setChannel(ch)
+        setAutoSecurity(c.system?.security_updates !== 'manual')
       })
       .catch(() => { /* channel stays at default */ })
   }, [load])
@@ -54,7 +56,9 @@ const Updates: React.FC = () => {
     setChannelSaved(false)
     try {
       const keep: Partial<SystemSettings> = { ...(await getCandidate()).system }
-      await patchSection('system', { ...keep, update_channel: channel })
+      const next: Partial<SystemSettings> = { ...keep, update_channel: channel, security_updates: autoSecurity ? undefined : 'manual' }
+      if (!next.security_updates) delete next.security_updates
+      await patchSection('system', next)
       setChannelSaved(true)
       setError(null)
     } catch (e) {
@@ -147,15 +151,24 @@ const Updates: React.FC = () => {
 
       {/* Channel */}
       <form onSubmit={saveChannel} className="space-y-2">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Update channel</h2>
-        {channelSaved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">Channel saved. Use the commit bar to apply.</div>}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Update settings</h2>
+        {channelSaved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">Settings saved. Use the commit bar to apply.</div>}
         <label className="block text-sm">
           Channel
           <select aria-label="Update channel" className={inputClass} value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
             {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
-        <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save channel</button>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={autoSecurity} onChange={(e) => setAutoSecurity(e.target.checked)} />
+          <span>
+            Install Debian security updates automatically (recommended)
+            <span className="block text-xs text-gray-500">
+              Every night, from Debian&apos;s security archive only. Goblin Gate itself updates only when you choose. A kernel update shows &quot;Restart needed&quot; and waits for you to restart.
+            </span>
+          </span>
+        </label>
+        <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save settings</button>
       </form>
 
       {/* Update now */}

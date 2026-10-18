@@ -32,7 +32,7 @@ nat | converted | Console | tcp+udp 3074-3079 → 192.168.10.40
 nat | converted | NAS ssh | tcp 2222 → 192.168.10.5:22
 nat | converted | DMZ host | tcp+udp 1-65535 → 192.168.10.99: EVERY port of the WAN goes to 192.168.10.99; that host is fully exposed to the internet. Consider forwarding only the ports it needs, or UPnP [risk]
 nat | skipped | Shifted range | moving the port range 4000-4010 to start at 5000 is not supported: forward it unchanged or port by port
-nat | approximated | Office only | tcp 8443 → 192.168.10.5:443; its source restriction is not supported: anyone may connect [risk]
+nat | converted | Office only | tcp 8443 → 192.168.10.5:443, only from 203.0.113.7
 rules | converted | port forward rules | 1 rule(s) pfSense created for port forwards: the forwards let their traffic in
 rules | approximated | Block bad nets | policy 1 "block-bad-nets": floating rule: matched on the interfaces it lists, as traffic arriving there; direction "out" is matched as incoming traffic instead
 rules | skipped | Anti-Lockout Rule | traffic to the firewall itself: Goblin Gate opens its own services per interface (Interfaces → allowed access: ping, https, ssh), DNS and DHCP automatically

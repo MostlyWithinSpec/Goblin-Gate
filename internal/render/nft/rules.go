@@ -2,6 +2,7 @@ package nft
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 
@@ -134,13 +135,27 @@ func (r *ruleset) portForward(pf config.PortForward) error {
 			return fmt.Errorf("to_port %q: a port range must equal ext_port", pf.ToPort)
 		}
 	}
+	// The source limit sits on the forward accept: the NAT table cannot see
+	// the filter table's sets, so other sources are translated but dropped.
+	src, err := r.addrMatch("saddr", pf.Source, "portfwd_"+pf.Name+"_src")
+	if err != nil {
+		return fmt.Errorf("source: %w", err)
+	}
+	if !src.all && src.m4 == "" {
+		r.forward = append(r.forward, fmt.Sprintf("# port forward %s: its source has no IPv4 addresses", quote(pf.Name)))
+		return nil
+	}
+	srcMatch := ""
+	if src.m4 != "" {
+		srcMatch = src.m4 + " "
+	}
 	counter := r.names.get("portfwd_", pf.Name)
 	r.counters = append(r.counters, counterDecl{counter, "port forward " + pf.Name})
 	comment := quote("port forward " + pf.Name)
 	r.pre = append(r.pre, fmt.Sprintf("iifname %s %s dport %s dnat to %s comment %s",
 		quote(dev), proto, formatPortSpan(ext), target, comment))
-	r.forward = append(r.forward, fmt.Sprintf("iifname %s ip daddr %s %s dport %s ct status dnat counter name %s accept comment %s",
-		quote(dev), to, proto, formatPortSpan(dst), quote(counter), comment))
+	r.forward = append(r.forward, fmt.Sprintf("iifname %s %sip daddr %s %s dport %s ct status dnat counter name %s accept comment %s",
+		quote(dev), srcMatch, to, proto, formatPortSpan(dst), quote(counter), comment))
 	return nil
 }
 
@@ -346,6 +361,11 @@ func (r *ruleset) addrMatch(dir string, refs []string, polSet string) (addrRef, 
 			u.spans = append(u.spans, o.spans...)
 			u.spans6 = append(u.spans6, o.spans6...)
 			u.fqdns = append(u.fqdns, o.fqdns...)
+			for _, c := range o.countries {
+				if !slices.Contains(u.countries, c) {
+					u.countries = append(u.countries, c)
+				}
+			}
 		}
 		comment := "union of " + strings.Join(refs, " ")
 		set, set6 = "", ""
@@ -357,6 +377,8 @@ func (r *ruleset) addrMatch(dir string, refs []string, polSet string) (addrRef, 
 			set6 = r.names.get("", polSet+"6")
 			r.sets = append(r.sets, addrSetDecl6(set6, u.spans6, comment))
 		}
+		u.set, u.set6 = set, set6
+		r.objs.noteCountries(u)
 	}
 	var a addrRef
 	if set != "" {
@@ -587,6 +609,77 @@ func (r *ruleset) tailscale() {
 	}
 	r.spoof = append(r.spoof, fmt.Sprintf("iifname != { %s } ip saddr %s drop comment %s",
 		strings.Join(skip, ", "), tailnetRange, quote("tailscale: no tailnet addresses from local networks")))
+}
+
+// antiSpoof drops new connections whose source address cannot be genuine.
+// On LAN-side interfaces with an address: a source the box would not route
+// back out of the same interface (reverse-path check). On WANs: the box's
+// own LAN-side subnets and loopback. WANs get no reverse-path check, since
+// with several WANs and policy routing a reply may arrive on a WAN the main
+// table would not pick. DHCP discovers (0.0.0.0) and IPv6 duplicate address
+// detection (::) have no source yet and pass. WireGuard and Tailscale
+// interfaces are left to their own allowed-IPs checks.
+func (r *ruleset) antiSpoof() {
+	wanParent := map[string]bool{}
+	for _, i := range r.cfg.Interfaces {
+		wanParent[i.Name] = i.Role == "wan"
+	}
+	var lan []string
+	var nets []netip.Prefix
+	add := func(name string, enabled, wan bool, addr *netip.Prefix) {
+		if wan || !enabled || addr == nil || !addr.IsValid() {
+			return
+		}
+		if d, ok := r.devs[name]; ok {
+			lan = append(lan, quote(d))
+			if addr.Addr().Is4() {
+				nets = append(nets, addr.Masked())
+			}
+		}
+	}
+	for _, i := range r.cfg.Interfaces {
+		add(i.Name, i.Enabled, i.Role == "wan", i.Address)
+	}
+	for _, v := range r.cfg.VLANs {
+		add(v.Name, v.Enabled, wanParent[v.Parent], v.Address)
+	}
+	if len(lan) > 0 {
+		slices.Sort(lan)
+		set := lan[0]
+		if len(lan) > 1 {
+			set = "{ " + strings.Join(slices.Compact(lan), ", ") + " }"
+		}
+		c := quote("anti-spoofing: source not reachable through this interface")
+		r.rpf = append(r.rpf,
+			fmt.Sprintf("iifname %s meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment %s", set, c),
+			fmt.Sprintf("iifname %s meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment %s", set, c))
+	}
+	if wan := r.wanMatch(); wan != "" {
+		nets = append(nets, netip.MustParsePrefix("127.0.0.0/8"))
+		r.spoof = append(r.spoof, fmt.Sprintf("iifname %s ip saddr { %s } drop comment %s",
+			wan, strings.Join(disjoint(nets), ", "), quote("anti-spoofing: local addresses arriving on a WAN")))
+	}
+}
+
+// disjoint sorts prefixes and drops the ones inside another (nft refuses
+// overlapping intervals in a set).
+func disjoint(ps []netip.Prefix) []string {
+	slices.SortFunc(ps, func(a, b netip.Prefix) int {
+		if c := a.Addr().Compare(b.Addr()); c != 0 {
+			return c
+		}
+		return a.Bits() - b.Bits()
+	})
+	var out []string
+	var last netip.Prefix
+	for _, p := range ps {
+		if last.IsValid() && last.Contains(p.Addr()) {
+			continue
+		}
+		last = p
+		out = append(out, p.String())
+	}
+	return out
 }
 
 // wireguard opens each enabled WireGuard server's port on WAN and lets its

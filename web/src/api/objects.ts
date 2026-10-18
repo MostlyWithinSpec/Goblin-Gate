@@ -54,7 +54,7 @@ export interface VLAN {
 
 export interface Address {
   name: string
-  type: 'subnet' | 'host' | 'range' | 'fqdn'
+  type: 'subnet' | 'host' | 'range' | 'fqdn' | 'country'
   value: string
   comment?: string
 }
@@ -177,6 +177,7 @@ export interface SystemSettings {
   ssh_keys?: SSHKey[]
   update_channel?: 'stable' | 'beta' | 'nightly'
   update_url?: string
+  security_updates?: 'auto' | 'manual'
   metrics?: MetricsSettings
 }
 
@@ -259,6 +260,8 @@ export interface Candidate {
   default_gateway?: string
   vpn?: { wireguard_clients?: WireGuardClient[] }
   ddns?: DDNS[]
+  log_export?: LogExport[]
+  nat?: { port_forwards?: { name: string; source?: string[] }[] }
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -330,6 +333,34 @@ export const getDDNSStatus = () => apiClient<{ entries: DDNSStatus[] }>('/api/v1
 export const updateDDNSNow = (name: string) =>
   apiClient<DDNSStatus>(`/api/v1/ddns/${encodeURIComponent(name)}/update`, { method: 'POST' })
 
+// Log export (task 096/097): forward firewall logs to a remote syslog server
+// or a Loki instance. Types mirror internal/config/logexport.go by JSON name.
+// Password and Token are redacted in candidate responses for non-secret-seers.
+export interface LogExport {
+  name: string
+  enabled: boolean
+  type: 'syslog' | 'loki'
+  kinds?: string[] // traffic | ips | dns | webfilter | system; empty = all
+  address?: string // syslog: host:port, e.g. 10.0.0.2:514
+  protocol?: 'udp' | 'tcp' | 'tls' // syslog; default udp
+  url?: string // loki: must end in /loki/api/v1/push
+  username?: string // loki basic auth
+  password?: string // loki basic auth (secret)
+  token?: string // loki bearer token (secret)
+}
+
+// LogExportStatus is the per-entry view from GET /api/v1/log-export.
+export interface LogExportStatus {
+  name: string
+  sent: number
+  dropped: number
+  last_error?: string
+  last_sent?: string
+}
+
+export const getLogExportStatus = () =>
+  apiClient<{ entries: LogExportStatus[] }>('/api/v1/log-export').then((r) => r.entries ?? [])
+
 export const lookupFeeds = (q: string) =>
   apiClient<{ query: string; feeds: string[] }>(`/api/v1/feeds/lookup?q=${encodeURIComponent(q)}`)
 
@@ -392,3 +423,34 @@ export function profileInterfaces(cfg: Candidate, field: 'webfilter_profile' | '
   }
   return out
 }
+
+// GeoIP (task 094/095): the country database status and lookups. Types
+// mirror internal/geoip/manager.go by JSON name.
+export interface GeoIPStatus {
+  loaded: boolean
+  month?: string
+  rows?: number
+  fetched?: string
+  source?: string
+  last_error?: string
+  last_check?: string
+  used: string[]
+  attribution: string
+}
+
+export interface GeoIPCountry {
+  code: string
+  name: string
+}
+
+export const getGeoIP = () =>
+  apiClient<{ status: GeoIPStatus; countries: GeoIPCountry[] }>('/api/v1/geoip')
+
+// refreshGeoIP downloads the database now; throws with the server's reason
+// (refresh_failed) when it fails.
+export const refreshGeoIP = () =>
+  apiClient<GeoIPStatus>('/api/v1/geoip/refresh', { method: 'POST' })
+
+// geoipLookup resolves an IP to a country; country "" means private or unknown.
+export const geoipLookup = (ip: string) =>
+  apiClient<{ ip: string; country: string; name: string }>(`/api/v1/geoip/lookup?ip=${encodeURIComponent(ip)}`)

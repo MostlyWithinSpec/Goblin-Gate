@@ -2,6 +2,7 @@ package nft
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -25,12 +26,15 @@ type addrObj struct {
 	spans  []span
 	spans6 []span6
 	fqdns  []string // fqdn members; resolved at runtime by a later task
+	// countries (ISO codes) whose ranges the GeoIP syncer adds to the sets
+	// at runtime (see CountrySets); the spans stay as the static part
+	countries []string
 }
 
 // has4 and has6 report whether the object can match that family; fqdn
-// members may resolve to either.
-func (o *addrObj) has4() bool { return len(o.spans) > 0 || len(o.fqdns) > 0 }
-func (o *addrObj) has6() bool { return len(o.spans6) > 0 || len(o.fqdns) > 0 }
+// members may resolve to either, and countries have both.
+func (o *addrObj) has4() bool { return len(o.spans) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 }
+func (o *addrObj) has6() bool { return len(o.spans6) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 }
 
 // declare names and declares the object's sets: the IPv4 set unless the
 // object is IPv6-only (an empty object keeps an empty IPv4 set, as before
@@ -43,6 +47,21 @@ func (o *objects) declare(obj *addrObj, prefix, name, comment string) {
 	if obj.has6() {
 		obj.set6 = o.names.get(strings.Replace(prefix, "addr", "addr6", 1), name)
 		o.sets = append(o.sets, addrSetDecl6(obj.set6, obj.spans6, comment))
+	}
+	o.noteCountries(obj)
+}
+
+// noteCountries records the object's sets for the GeoIP syncer when it has
+// country members (call after its set names are known).
+func (o *objects) noteCountries(obj *addrObj) {
+	if len(obj.countries) == 0 {
+		return
+	}
+	if obj.set != "" {
+		o.countrySets = append(o.countrySets, CountrySet{Name: obj.set, Countries: obj.countries, spans: obj.spans})
+	}
+	if obj.set6 != "" {
+		o.countrySets = append(o.countrySets, CountrySet{Name: obj.set6, IPv6: true, Countries: obj.countries, spans6: obj.spans6})
 	}
 }
 
@@ -60,6 +79,8 @@ type objects struct {
 	svcs  map[string]*svcObj
 	sets  []setDecl
 	names *namer
+	// countrySets are the sets the GeoIP syncer fills (CountrySets)
+	countrySets []CountrySet
 }
 
 // isAll reports whether a reference means "match everything".
@@ -117,6 +138,9 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 		if a.Type == "fqdn" {
 			obj.fqdns = []string{a.Value}
 			comment = "fqdn " + a.Value + " (resolved at runtime)"
+		} else if a.Type == "country" {
+			obj.countries = config.CountryCodes(a.Value)
+			comment = "country " + strings.Join(obj.countries, " ") + " (filled at runtime)"
 		} else {
 			v4, v6, err := addrValue(a.Type, a.Value)
 			if err != nil {
@@ -161,6 +185,11 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 			obj.spans = append(obj.spans, mo.spans...)
 			obj.spans6 = append(obj.spans6, mo.spans6...)
 			obj.fqdns = append(obj.fqdns, mo.fqdns...)
+			for _, c := range mo.countries {
+				if !slices.Contains(obj.countries, c) {
+					obj.countries = append(obj.countries, c)
+				}
+			}
 		}
 		obj.spans = mergeSpans(obj.spans)
 		obj.spans6 = mergeSpans6(obj.spans6)
@@ -175,6 +204,9 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 		comment := "group"
 		if len(obj.fqdns) > 0 {
 			comment += "; fqdn members resolved at runtime: " + strings.Join(obj.fqdns, " ")
+		}
+		if len(obj.countries) > 0 {
+			comment += "; countries filled at runtime: " + strings.Join(obj.countries, " ")
 		}
 		o.declare(obj, "addrgrp_", name, comment)
 	}

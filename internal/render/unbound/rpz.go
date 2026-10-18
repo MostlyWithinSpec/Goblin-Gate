@@ -13,8 +13,9 @@ import (
 const RPZDir = "/var/lib/unbound/rpz/"
 
 // ControlSocket is unbound-control's unix socket (remote-control clause);
-// the feed syncer reloads zones through it.
-const ControlSocket = "/run/unbound.ctl"
+// the feed syncer reloads zones through it. /run/unbound is the unit's
+// RuntimeDirectory: the sandbox leaves the rest of /run read-only.
+const ControlSocket = "/run/unbound/unbound.ctl"
 
 // FeedSource returns a feed's last good entries (feeds.Manager.Entries).
 type FeedSource interface {

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle, LogOut } from 'lucide-react'
+import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle, LogOut, GitBranch, Copy, Check, RefreshCw, Info } from 'lucide-react'
 import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device, type MetricsSettings } from '../api/objects'
 import { inputClass, NAME_RE, omitEmpty } from '../components/ConfigList'
 import { getConfigDiff, type DiffResponse } from '../api/config'
 import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, getSessionList, deleteSession, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry, type SessionInfo } from '../api/system'
 import { getMe, setup2FA, enable2FA, disable2FA, type Me, type TwoFactorSetup } from '../api/auth'
+import { getGitBackupStatus, pushGitBackup, forgetGitBackupHostKey, type GitBackupStatus } from '../api/gitbackup'
 import { Badge } from '../components/Badge'
 
 const TABS = ['General', 'Admins', 'API Tokens', 'Backup', 'Import', 'About'] as const
@@ -700,7 +701,203 @@ const BackupTab: React.FC = () => {
           )}
         </div>
       )}
+
+      <GitBackupCard />
     </div>
+  )
+}
+
+// --- Git config history card ----------------------------------------------------
+
+const formatPushTime = (ts: string) => {
+  const d = new Date(ts)
+  return isNaN(d.getTime())
+    ? ts
+    : d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+const GitBackupCard: React.FC = () => {
+  const [status, setStatus] = useState<GitBackupStatus | null>(null)
+  const [enabled, setEnabled] = useState(false)
+  const [remote, setRemote] = useState('')
+  const [branch, setBranch] = useState('main')
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [pushing, setPushing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    getGitBackupStatus()
+      .then((s) => {
+        setStatus(s)
+        setEnabled(s.enabled)
+        setRemote(s.remote ?? '')
+        setBranch(s.branch || 'main')
+      })
+      .catch(() => {})
+  }, [])
+
+  const copyKey = async () => {
+    if (!status?.public_key) return
+    try {
+      await navigator.clipboard.writeText(status.public_key)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard unavailable */ }
+  }
+
+  const doSave = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    setSaving(true); setError(null); setMessage(null)
+    try {
+      const body: Record<string, unknown> = { enabled }
+      if (remote.trim()) body.remote = remote.trim()
+      if (branch.trim()) body.branch = branch.trim()
+      await patchSection('git_backup', body)
+      setMessage('Git backup settings saved. Use the commit bar to apply.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setSaving(false) }
+  }
+
+  const doPush = async () => {
+    setPushing(true); setError(null); setMessage(null)
+    try {
+      await pushGitBackup()
+      const s = await getGitBackupStatus()
+      setStatus(s)
+      setMessage('Pushed to remote.')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally { setPushing(false) }
+  }
+
+  const doForgetHostKey = async () => {
+    setError(null); setMessage(null)
+    try {
+      await forgetGitBackupHostKey()
+      const s = await getGitBackupStatus()
+      setStatus(s)
+      setMessage('Host key forgotten. Push again to re-pin.')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  if (!status) return null
+
+  return (
+    <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+      <h2 className="flex items-center gap-2 text-base font-semibold text-gray-800 dark:text-white">
+        <GitBranch size={18} /> Config history in git
+      </h2>
+
+      {/* Wiki / help section */}
+      <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm dark:border-blue-900/40 dark:bg-blue-900/10">
+        <p className="flex items-start gap-2 text-blue-800 dark:text-blue-200">
+          <Info size={16} className="mt-0.5 shrink-0" />
+          <span>
+            Every committed config is saved as a git revision and pushed to your remote over SSH.
+            Secrets (password hashes, 2FA secrets, tokens) are left out of the history — only the
+            non-secret parts of the config are stored.
+          </span>
+        </p>
+        <div className="mt-2 space-y-1 pl-6 text-xs text-blue-700 dark:text-blue-300">
+          <p className="font-medium">Add the deploy key to your repository:</p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            <li><strong>GitHub:</strong> repository Settings → Deploy keys → Add deploy key, paste the key below and tick "Allow write access"</li>
+            <li><strong>Gitea:</strong> repository Settings → Deploy Keys, paste the key</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={doSave} className="space-y-3">
+        {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+        {message && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">{message}</div>}
+
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Enable git config history
+        </label>
+
+        <label className="block text-sm">
+          Remote URL
+          <input
+            type="text"
+            className={inputClass}
+            placeholder="git@github.com:user/repo.git"
+            value={remote}
+            onChange={(e) => setRemote(e.target.value)}
+            disabled={!enabled}
+          />
+        </label>
+
+        <label className="block text-sm">
+          Branch
+          <input type="text" className={inputClass} value={branch} onChange={(e) => setBranch(e.target.value)} disabled={!enabled} />
+        </label>
+
+        {enabled && status.public_key && (
+          <div className="space-y-1">
+            <span className="block text-xs font-medium text-gray-600 dark:text-gray-400">Deploy key (public)</span>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 overflow-x-auto rounded bg-gray-50 px-3 py-2 font-mono text-xs dark:bg-gray-700/40">{status.public_key}</code>
+              <button type="button" onClick={copyKey} aria-label="Copy deploy key" className="rounded border border-gray-300 p-2 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700">
+                {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button type="submit" disabled={saving} className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+            Save
+          </button>
+          {enabled && (
+            <button type="button" onClick={doPush} disabled={pushing || !remote.trim()} className="flex items-center gap-1 rounded border border-gray-300 px-4 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50">
+              <RefreshCw size={14} className={pushing ? 'animate-spin' : ''} /> {pushing ? 'Pushing…' : 'Test push'}
+            </button>
+          )}
+        </div>
+      </form>
+
+      {/* Status */}
+      {enabled && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          {status.last_push && (
+            <>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">Last push</dt>
+              <dd>{formatPushTime(status.last_push)}</dd>
+            </>
+          )}
+          {status.pushed_revision && (
+            <>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">Pushed revision</dt>
+              <dd className="font-mono text-xs">{status.pushed_revision}</dd>
+            </>
+          )}
+          {status.pending && (
+            <>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">Pending</dt>
+              <dd>revisions up to {status.last_revision} not pushed yet</dd>
+            </>
+          )}
+        </dl>
+      )}
+
+      {status.last_error && (
+        <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">
+          Last error: {status.last_error}
+          {status.host_key && (
+            <button type="button" onClick={doForgetHostKey} className="ml-3 text-xs underline hover:no-underline">
+              Forget host key and retry
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   )
 }
 

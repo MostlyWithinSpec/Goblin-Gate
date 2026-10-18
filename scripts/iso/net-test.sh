@@ -35,7 +35,7 @@ retry() { # retry <seconds> <command...>
 
 log "installing tools"
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps radvd kea-dhcp6-server iputils-ping >/dev/null 2>&1
+apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps radvd kea-dhcp6-server iputils-ping tcpdump openssh-client openssh-server git >/dev/null 2>&1
 modprobe kvm_amd 2>/dev/null || modprobe kvm_intel 2>/dev/null || true
 [ -e /dev/kvm ] || mknod /dev/kvm c 10 232
 ACCEL=kvm; qemu-system-x86_64 -accel kvm -M none -display none -S -daemonize -pidfile /tmp/k.pid 2>/dev/null && kill "$(cat /tmp/k.pid)" || ACCEL=tcg
@@ -75,7 +75,7 @@ iptables -P FORWARD ACCEPT
 IN="ip netns exec inet"
 $IN ip link set lo up
 $IN ip addr add 203.0.113.1/24 dev inet0
-for a in 80 81 82; do $IN ip addr add 203.0.113.$a/24 dev inet0; done
+for a in 80 81 82 83; do $IN ip addr add 203.0.113.$a/24 dev inet0; done
 $IN ip link set inet0 up
 $IN ip addr add 10.99.0.2/30 dev up-inet; $IN ip link set up-inet up
 $IN ip route add default via 10.99.0.1
@@ -86,7 +86,7 @@ $IN dnsmasq --interface=inet0 --bind-interfaces --except-interface=lo \
 	--address=/www.test.example/203.0.113.80 --address=/bad.test.example/203.0.113.80 --address=/blocked.test.example/203.0.113.81 \
 	--no-resolv --server="${UPSTREAM:-8.8.8.8}" --log-queries --log-dhcp --log-facility="$A/dnsmasq.log" \
 	--dhcp-leasefile=/tmp/inet.leases --pid-file=/tmp/dnsmasq.pid
-for a in 80 81 82; do $IN python3 /s/net-web.py 203.0.113.$a 80 internet-$a 2>>"$A/inet-web.log" & done
+for a in 80 81 82 83; do $IN python3 /s/net-web.py 203.0.113.$a 80 internet-$a 2>>"$A/inet-web.log" & done
 
 # IPv6 (task 045): the "internet" is also 2001:db8:0:1::/64 - radvd announces
 # it (SLAAC + default route), Kea hands out /56 prefixes from
@@ -176,6 +176,7 @@ TOKEN=$($CL curl -sk -m 30 -b /tmp/jar -H "X-CSRF-Token: $CSRF" -H 'Content-Type
 api() { # api <METHOD> <path> [json body]
 	$CL curl -sk -m 120 -X "$1" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' ${3:+-d "$3"} "$BOX$2"
 }
+cand() { api GET /api/v1/config/candidate; }
 
 # --- DHCP from the box
 $CL ip addr flush dev lan0
@@ -213,9 +214,53 @@ check nat-out retry 60 sh -c "$CL curl -s -m 5 http://203.0.113.80/whoami | grep
 check port-forward retry 60 sh -c "$IN curl -s -m 5 http://${FW_WAN:-x}:8080/ | grep -q 'hello from lan-client'"
 check deny-policy sh -c "! $CL curl -s -m 5 http://203.0.113.81/"
 check deny-logged retry 90 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=traffic&action=deny&dst_ip=203.0.113.81' | jq -e '.events | length > 0'"
+
+# --- anti-spoofing. Both would get through without it: the box would NAT the
+# LAN host's foreign source out, and forward the forged SYN to the client.
+$CL ip addr add 10.77.0.5/32 dev lo
+check spoof-lan-dropped sh -c "! $CL curl -s -m 5 --interface 10.77.0.5 http://203.0.113.80/whoami"
+$CL ip addr del 10.77.0.5/32 dev lo
+$IN ip addr add 192.168.1.250/32 dev lo
+check spoof-wan-dropped bash -c "$CL timeout 12 tcpdump -n -i lan0 -c 1 src host 192.168.1.250 >/dev/null 2>&1 & sleep 3; $IN curl -s -m 5 --interface 192.168.1.250 http://${FW_WAN:-x}:8080/; wait \$!; test \$? = 124"
+$IN ip addr del 192.168.1.250/32 dev lo
 check dnsfilter-block retry 60 sh -c "$D bad.test.example | grep -q 'status: NXDOMAIN'"
 check feed-loaded retry 180 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/feeds | jq -e '.feeds[] | select(.name == \"testfeed\") | .count >= 1'"
 check feed-block sh -c "sleep 5; ! $CL curl -s -m 5 http://203.0.113.82/"
+
+# --- GeoIP: a country object (NZ) as a deny destination and as the only
+# source allowed through the port forward. The commit fetches the database
+# from the test internet (geoip.source_url) before it applies.
+GEO="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/geoip"
+check geoip-reachable-before retry 30 sh -c "$CL curl -s -m 5 http://203.0.113.83/ | grep -q internet-83"
+patch geoip '{"source_url":"http://203.0.113.80/geoip.csv.gz"}'
+patch addresses "$(cand | jq -c '.addresses + [{"name":"nz","type":"country","value":"NZ"}]')"
+patch policies "$(cand | jq -c '[{"id":3,"name":"deny-nz","enabled":true,"src_intf":["lan"],"dst_intf":["wan1"],"src_addr":["all"],"dst_addr":["nz"],"service":["all"],"action":"deny","log":"all"}] + .policies')"
+patch nat.port_forwards "$(cand | jq -c '.nat.port_forwards | map(.source = ["nz"])')"
+api POST /api/v1/commit '{"comment":"geoip"}' | tee "$A/commit-geoip.json"; echo
+check geoip-loaded sh -c "$GEO | jq -e '.status.loaded and .status.used == [\"NZ\"]'"
+check geoip-lookup sh -c "$GEO/lookup?ip=203.0.113.83 | jq -e '.country == \"NZ\"'"
+check geoip-block retry 30 sh -c "! $CL curl -s -m 5 http://203.0.113.83/"
+check geoip-others-pass sh -c "$CL curl -s -m 5 http://203.0.113.80/whoami | grep -q sees"
+check geoip-forward-nz sh -c "$IN curl -s -m 5 --interface 203.0.113.83 http://${FW_WAN:-x}:8080/ | grep -q 'hello from lan-client'"
+check geoip-forward-others-dropped sh -c "! $IN curl -s -m 5 --interface 203.0.113.80 http://${FW_WAN:-x}:8080/"
+
+# --- git history: an SSH git server on the test internet; the box's deploy
+# key (from the API) is its only authorized key
+id git >/dev/null 2>&1 || useradd -m -s /usr/bin/git-shell git
+su git -s /bin/sh -c "git init -q --bare /home/git/gate.git"
+ssh-keygen -A >/dev/null 2>&1; mkdir -p /run/sshd
+api GET /api/v1/git-backup | jq -r .public_key >/tmp/git_authorized_keys
+chmod 644 /tmp/git_authorized_keys
+$IN /usr/sbin/sshd -o ListenAddress=203.0.113.80 -o PidFile=/tmp/sshd-git.pid -o PasswordAuthentication=no \
+	-o AuthorizedKeysFile=/tmp/git_authorized_keys -o StrictModes=no -o AllowUsers=git 2>>"$A/sshd-git.log"
+patch git_backup '{"enabled":true,"remote":"ssh://git@203.0.113.80/home/git/gate.git"}'
+api POST /api/v1/commit '{"comment":"git history on"}' | tee "$A/commit-git.json"; echo
+GITLOG="git -c safe.directory=* -C /home/git/gate.git log --format=%s main"
+check git-pushed retry 60 sh -c "$GITLOG | grep -q 'git history on'"
+check git-no-secrets sh -c "! git -c safe.directory=* -C /home/git/gate.git log -p main | grep -q argon2id"
+GB="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/git-backup"
+check git-host-key-pinned sh -c "$GB | jq -e '(.host_key | test(\"203.0.113.80\")) and (.pending == false)'"
+api GET /api/v1/git-backup >"$A/git-backup.json" 2>&1
 
 # --- IPv6 (task 045): the WAN gets a /56 by prefix delegation, the LAN its
 # first /64 (box = ::1), the client an address by SLAAC; traffic leaves
@@ -246,11 +291,31 @@ check v6-no-inbound sh -c "! $IN curl -6 -s -m 5 'http://[${CLIENT6:-::1}]:8081/
 # keep fetching the test page until an alert is logged.
 check ips-alert retry 900 sh -c "$CL curl -s -m 5 -o /dev/null http://203.0.113.80/id.txt; $CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=ips' | jq -e '[.events[] | select(.signature // \"\" | test(\"id check returned root\"))] | length > 0'"
 
+# --- the Linux layer, over SSH with a key added through the API (also proves
+# the box's sshd settings accept a normal client)
+ssh-keygen -q -t ed25519 -N '' -f "$W/id_test"
+patch system.ssh_keys "$(jq -cn --arg k "$(cat "$W/id_test.pub")" '[{name:"net-test",key:$k}]')"
+api POST /api/v1/commit '{"comment":"ssh key"}' >"$A/commit-ssh.json"
+SSH="$CL ssh -i $W/id_test -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@192.168.1.1"
+check ssh-key-login retry 60 sh -c "$SSH true"
+check suricata-not-root sh -c "$SSH 'p=\$(pgrep -f \"suricata -c\" | head -1); test -n \"\$p\" && grep -q \"^Uid:[[:space:]]*\$(id -u suricata)[[:space:]]\" /proc/\$p/status'"
+check sysctl-hardened sh -c "$SSH 'test \$(sysctl -n net.ipv4.conf.all.send_redirects) = 0 && test \$(sysctl -n kernel.kptr_restrict) = 1'"
+check config-root-only sh -c "$SSH 'test \$(stat -c %a /etc/goblingate/running.json) = 600'"
+$SSH 'systemd-analyze security --no-pager goblind goblin-suricata@test unbound kea-dhcp4-server 2>/dev/null | grep -i overall' >"$A/systemd-exposure.txt" 2>&1
+# unbound and kea run in their sandbox drop-ins (exposure score below 5
+# of 10) and still work: answers, unbound-control, the client's DHCP lease
+sandboxed() { $SSH "systemctl is-active -q $1 && systemd-analyze security --no-pager $1 | awk '/Overall exposure/ { ok = (\$(NF-2) < 5) } END { exit !ok }'"; }
+check dns-sandboxed sh -c "$SSH 'unbound-control -c /etc/unbound/unbound.conf status >/dev/null' && $D +short www.test.example | grep -qx 203.0.113.80"
+check unbound-exposure sandboxed unbound
+check kea-exposure sandboxed kea-dhcp4-server
+$SSH 'journalctl -u "goblin-suricata@*" -n 100 --no-pager; ls -la /var/lib/suricata/goblin /var/log/suricata; tail -n 60 /var/log/suricata/goblin-*.log' >"$A/suricata.txt" 2>&1
+# nightly security updates: on, and only the security archive may install
+check security-updates-auto sh -c "$SSH 'eval \$(apt-config shell U APT::Periodic::Unattended-Upgrade); test \"\$U\" = 1 && test \$(apt-config dump Unattended-Upgrade::Origins-Pattern | grep -c origin=) = 1 && apt-config dump Unattended-Upgrade::Origins-Pattern | grep -q Debian-Security && command -v unattended-upgrade'"
+
 # --- multi-WAN (task 049): wan2 on eth2, failover group wan1 -> wan2 as the
 # default route, 192.0.2.81 pinned to wan2 by a policy; then WAN 1's cable is
 # pulled (its monitor stops answering) and plugged back in.
 log "multi-WAN: second WAN, failover, a policy pinned to WAN 2"
-cand() { api GET /api/v1/config/candidate; }
 patch interfaces "$(cand | jq -c '.interfaces + [{"name":"wan2","device":"eth2","role":"wan","mode":"static","address":"198.51.100.2/24","enabled":true}]')"
 patch gateways '[{"name":"wan1","interface":"wan1","address":"dhcp","monitor":{"ip":"203.0.113.1","interval_seconds":1}},{"name":"wan2","interface":"wan2","address":"198.51.100.1","monitor":{"ip":"198.51.100.1","interval_seconds":1}}]'
 patch gateway_groups '[{"name":"failover","members":[{"gateway":"wan1","tier":1},{"gateway":"wan2","tier":2}]}]'

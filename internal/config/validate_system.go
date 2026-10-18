@@ -37,6 +37,9 @@ func (v *validator) checkSystemSettings() {
 	if s.UpdateChannel != "" && !oneOf(s.UpdateChannel, "stable", "beta", "nightly") {
 		v.add("system.update_channel", "unknown update channel %q: want stable, beta or nightly", s.UpdateChannel)
 	}
+	if s.SecurityUpdates != "" && !oneOf(s.SecurityUpdates, "auto", "manual") {
+		v.add("system.security_updates", "want auto or manual, not %q", s.SecurityUpdates)
+	}
 	if u := s.UpdateURL; u != "" && ((!strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://")) || strings.IndexFunc(u, unicode.IsSpace) >= 0) {
 		v.add("system.update_url", "want an http:// or https:// URL")
 	}

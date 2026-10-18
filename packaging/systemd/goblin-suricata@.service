@@ -10,14 +10,45 @@ ConditionPathExists=/etc/suricata/goblin/%i.yaml
 Type=simple
 EnvironmentFile=/etc/suricata/goblin/%i.env
 # Build this profile's rules from the ET Open download before every start.
-ExecStartPre=/usr/sbin/goblind ips-rules %i
-ExecStart=/usr/bin/suricata -c /etc/suricata/goblin/%i.yaml --pidfile /run/suricata-goblin-%i.pid $QUEUES
+# "+": these (and the reloads) run with full privileges, outside the sandbox
+# below; the kill must, since Suricata runs as another user by then.
+ExecStartPre=+/usr/sbin/goblind ips-rules %i
+ExecStartPre=+/bin/chown suricata:suricata /run/suricata-goblin-%i
+# Suricata parses everything that crosses the box, so it gets as little as
+# possible: it opens its queues, then drops to the suricata user keeping only
+# CAP_NET_ADMIN (the NFQUEUE verdicts) and CAP_SYS_NICE.
+ExecStart=/usr/bin/suricata -c /etc/suricata/goblin/%i.yaml --pidfile /run/suricata-goblin-%i/suricata.pid --user suricata --group suricata $QUEUES
 # Reload rules without dropping the queue (goblind's daily update).
-ExecReload=/usr/sbin/goblind ips-rules %i
-ExecReload=/bin/kill -USR2 $MAINPID
+ExecReload=+/usr/sbin/goblind ips-rules %i
+ExecReload=+/bin/kill -USR2 $MAINPID
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
+RuntimeDirectory=suricata-goblin-%i
+
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_NICE CAP_IPC_LOCK CAP_SETUID CAP_SETGID CAP_SETPCAP CAP_CHOWN CAP_DAC_OVERRIDE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/log/suricata
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# No UMask here: it would apply to the rule build too, and Suricata loads
+# its signatures after dropping to its user, so the rules must stay
+# world-readable. The logs are kept private by their 0750 directory.
 
 [Install]
 WantedBy=multi-user.target

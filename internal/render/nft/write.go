@@ -95,6 +95,9 @@ func (r *ruleset) write() []byte {
 	for _, l := range r.spoof {
 		p(2, "%s", l)
 	}
+	for _, l := range r.rpf {
+		p(2, "%s", l)
+	}
 	p(2, "jump threat_feeds_input")
 	for _, l := range r.input {
 		p(2, "%s", l)
@@ -111,6 +114,9 @@ func (r *ruleset) write() []byte {
 	p(2, "ct state established,related accept")
 	p(2, "ct state invalid drop")
 	for _, l := range r.spoof {
+		p(2, "%s", l)
+	}
+	for _, l := range r.rpf {
 		p(2, "%s", l)
 	}
 	p(2, "jump threat_feeds")

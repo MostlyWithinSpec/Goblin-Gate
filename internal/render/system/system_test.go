@@ -37,6 +37,8 @@ func TestRender(t *testing.T) {
 		// no channel set = beta (pre-1.0); Debian security updates are on
 		GoblinSourcesPath: "Suites: beta\nComponents: main\nSigned-By: " + GoblinKeyring,
 		DebianSourcesPath: "Suites: bookworm-security",
+		// security updates install by themselves unless set to manual
+		SecurityUpdatesPath: "APT::Periodic::Unattended-Upgrade \"1\";",
 	}
 	for path, frag := range want {
 		if !strings.Contains(string(out[path]), frag) {
@@ -48,6 +50,25 @@ func TestRender(t *testing.T) {
 	}
 	if !strings.Contains(string(out[SSHDPath]), "PasswordAuthentication no") {
 		t.Error("password login must be off")
+	}
+}
+
+func TestSecurityUpdates(t *testing.T) {
+	cfg := config.Default()
+	out, _ := Renderer{}.Render(cfg)
+	auto := string(out[SecurityUpdatesPath])
+	for _, frag := range []string{"#clear Unattended-Upgrade::Origins-Pattern;", "codename=${distro_codename}-security,label=Debian-Security", "\"goblin-gate\";", "Automatic-Reboot \"false\""} {
+		if !strings.Contains(auto, frag) {
+			t.Errorf("auto: missing %q in:\n%s", frag, auto)
+		}
+	}
+	if strings.Contains(auto, "label=Debian\"") {
+		t.Error("only the security archive may install by itself")
+	}
+	cfg.System.SecurityUpdates = "manual"
+	out, _ = Renderer{}.Render(cfg)
+	if m := string(out[SecurityUpdatesPath]); !strings.Contains(m, "Unattended-Upgrade \"0\";") {
+		t.Errorf("manual:\n%s", m)
 	}
 }
 

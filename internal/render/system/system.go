@@ -25,6 +25,9 @@ const (
 	// own signed repository on the chosen channel.
 	DebianSourcesPath = "/etc/apt/sources.list.d/goblin-debian.sources"
 	GoblinSourcesPath = "/etc/apt/sources.list.d/goblin-gate.sources"
+	// SecurityUpdatesPath configures unattended-upgrades (apt-daily-upgrade
+	// timer): Debian security updates only, never Goblin Gate's packages.
+	SecurityUpdatesPath = "/etc/apt/apt.conf.d/52goblin-security-updates"
 	// RepoURL is Goblin Gate's APT repository (GitHub Pages of the public repo).
 	RepoURL = "https://mostlywithinspec.github.io/Goblin-Gate/apt"
 	// GoblinKeyring and TailscaleKeyring ship in the goblin-gate package.
@@ -54,14 +57,48 @@ Components: main
 Signed-By: ` + TailscaleKeyring + `
 `
 
+// securityUpdates renders the unattended-upgrades settings. "#clear" drops
+// Debian's default origins (which add the main archive's point releases):
+// only the security archive installs by itself. Goblin Gate's packages move
+// only through the updater (snapshot and rollback). No automatic reboot: a
+// kernel update shows "restart needed" on the dashboard.
+func securityUpdates(mode string) string {
+	on := "1"
+	if mode == "manual" {
+		on = "0"
+	}
+	return header + `APT::Periodic::Update-Package-Lists "` + on + `";
+APT::Periodic::Unattended-Upgrade "` + on + `";
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+	"origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+Unattended-Upgrade::Package-Blacklist {
+	"goblin-gate";
+};
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::OnlyOnACPower "false";
+Dpkg::Options {
+	"--force-confdef";
+	"--force-confold";
+};
+`
+}
+
 const header = "# Managed by Goblin Gate (goblind): changes here are overwritten on the next commit.\n"
 
 // sshdConfig: key-only logins; root may log in with a listed key. Debian's
-// sshd_config includes sshd_config.d first, so these values win.
+// sshd_config includes sshd_config.d first, so these values win. TCP
+// forwarding stays on (ssh -L to the web UI); MaxAuthTries stays at the
+// default, since a lower one locks out agents holding many keys. No SHA-1
+// or 64-bit-tag MACs.
 const sshdConfig = header + `PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 X11Forwarding no
+AllowAgentForwarding no
+LoginGraceTime 30
+MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256,hmac-sha2-512,umac-128@openssh.com
 AuthorizedKeysFile .ssh/authorized_keys ` + AuthorizedKeyDir + `%u
 `
 
@@ -100,6 +137,7 @@ func (Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 		channel = DefaultChannel
 	}
 	out[DebianSourcesPath] = []byte(debianSources)
+	out[SecurityUpdatesPath] = []byte(securityUpdates(s.SecurityUpdates))
 	repo := RepoURL
 	if s.UpdateURL != "" {
 		repo = strings.TrimSuffix(s.UpdateURL, "/")

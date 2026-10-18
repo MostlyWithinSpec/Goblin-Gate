@@ -82,10 +82,19 @@ func (v *validator) checkPolicies() {
 
 // checkPortForwards: wan-role interface (a VLAN inherits its parent's role),
 // one external port or range, an IPv4 target, and an optional internal port
-// that is either a single port or exactly the external range.
+// that is either a single port or exactly the external range. Source names
+// addresses or address groups.
 func (v *validator) checkPortForwards() {
+	c := v.cfg
+	addrRef := toSet(nameList(c.Addresses, func(x Address) string { return x.Name }),
+		nameList(c.AddressGroups, func(x AddressGroup) string { return x.Name }))
 	for i, pf := range v.cfg.NAT.PortForwards {
 		p := fmt.Sprintf("nat.port_forwards[%d]", i)
+		for j, r := range pf.Source {
+			if !isWildcard(r) && !addrRef[r] {
+				v.add(fmt.Sprintf("%s.source[%d]", p, j), "port forward %q: unknown source reference %q (deleted or renamed?)", pf.Name, r)
+			}
+		}
 		if role, ok := v.netifRole(pf.InIntf); !ok {
 			v.add(p+".in_intf", "unknown interface %q", pf.InIntf)
 		} else if role != "wan" {

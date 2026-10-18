@@ -36,8 +36,14 @@ type Config struct {
 	// or group); "" = every gateway, failing over in list order.
 	DefaultGateway string `json:"default_gateway,omitempty"`
 	// Plugins are the optional plugins the admin enabled (docs/dev/plugins.md).
-	Plugins []Plugin `json:"plugins,omitempty"`
-	DDNS    []DDNS   `json:"ddns,omitempty"`
+	Plugins   []Plugin    `json:"plugins,omitempty"`
+	DDNS      []DDNS      `json:"ddns,omitempty"`
+	LogExport []LogExport `json:"log_export,omitempty"`
+	// GeoIP: where the country database comes from (country address objects).
+	GeoIP GeoIP `json:"geoip,omitzero"`
+	// GitBackup records every revision in a git repository on the box and
+	// pushes it to a remote (task 098).
+	GitBackup GitBackup `json:"git_backup,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not
@@ -62,6 +68,10 @@ type System struct {
 	// UpdateURL replaces the Goblin Gate APT repository (a mirror, an
 	// air-gapped network, tests); "" = the official repository.
 	UpdateURL string `json:"update_url,omitempty"`
+	// SecurityUpdates: "auto" (also "") installs Debian security updates
+	// every night; "manual" leaves them to the admin (System → Updates).
+	// Goblin Gate's own packages always update through the updater.
+	SecurityUpdates string `json:"security_updates,omitempty"`
 	// Metrics exposes Prometheus metrics at /metrics on the admin port.
 	// Off by default; scrapers must come from an allow-listed CIDR or carry
 	// a valid API token (task 080).

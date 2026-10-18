@@ -4,7 +4,7 @@ package config
 // an FQDN.
 type Address struct {
 	Name    string `json:"name"`
-	Type    string `json:"type"` // subnet | host | range | fqdn
+	Type    string `json:"type"` // subnet | host | range | fqdn | country ("US,CA")
 	Value   string `json:"value"`
 	Comment string `json:"comment,omitempty"`
 }

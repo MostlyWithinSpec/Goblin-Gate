@@ -38,4 +38,7 @@ type PortForward struct {
 	Protocol string `json:"protocol"` // tcp | udp
 	ToAddr   string `json:"to_addr"`
 	ToPort   string `json:"to_port"`
+	// Source limits who may use the forward: address or address group names
+	// (country objects included). Empty or "all" lets anyone in.
+	Source []string `json:"source,omitempty"`
 }

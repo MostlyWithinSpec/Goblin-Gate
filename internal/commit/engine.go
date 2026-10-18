@@ -57,6 +57,17 @@ type Engine struct {
 	// (networkd reads them when it loads the rendered files).
 	BeforeApply func(cfg *config.Config) error
 
+	// CheckCandidate, if set, checks a new candidate against what only the
+	// running box knows (the GeoIP database is there for the countries its
+	// policies use); errors are reported like validation errors. It is not
+	// run for rollbacks or when the running config is applied at boot.
+	CheckCandidate func(ctx context.Context, cfg *config.Config) []config.ValidationError
+
+	// AfterSave, if set, is called in its own goroutine once a commit or
+	// rollback is saved as revision rev (AfterApply runs before that). The
+	// git history records revisions here.
+	AfterSave func(live *config.Config, rev int)
+
 	clock clock
 	mu    sync.Mutex // serializes commits, confirms and rollbacks
 
@@ -237,6 +248,11 @@ func (e *Engine) commitCandidateLocked(ctx context.Context, user, comment string
 	if errs := config.CheckInstalledPlugins(candidate); len(errs) > 0 {
 		return 0, nil, &ValidationError{Errors: errs}
 	}
+	if e.CheckCandidate != nil && len(config.Validate(candidate)) == 0 {
+		if errs := e.CheckCandidate(ctx, candidate); len(errs) > 0 {
+			return 0, nil, &ValidationError{Errors: errs}
+		}
+	}
 	rev, err := e.applyAndSaveLocked(ctx, candidate, user, comment)
 	if err != nil {
 		return 0, nil, err
@@ -279,6 +295,9 @@ func (e *Engine) applyAndSaveLocked(ctx context.Context, cfg *config.Config, use
 		return 0, fmt.Errorf("commit: save revision: %w", err)
 	}
 	e.Logger.Info("commit applied", "revision", rev, "user", user, "files", len(files))
+	if e.AfterSave != nil {
+		go e.AfterSave(cfg, rev)
+	}
 	return rev, nil
 }
 

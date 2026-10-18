@@ -60,3 +60,27 @@ back automatically.
 
 **Time limits for a device**: create a schedule, then a DENY policy with that schedule above the allow
 policy.
+
+## GeoIP country policies
+
+Country address objects match traffic by country. Create an **Address** of type *Country* (Network →
+Addresses), pick one or more countries, and use it like any other address: in policies, address groups and
+a port forward's allowed sources.
+
+The country database ([DB-IP](https://db-ip.com) Lite, CC BY 4.0) is downloaded the first time a commit uses
+a country, then refreshed monthly. Its status shows above the address list. If it cannot be downloaded, the
+commit is refused rather than leaving country rules empty.
+
+**Only some countries may reach a port forward** (e.g. your Plex server from the US and Canada):
+
+1. Create a country address `home-countries` with United States and Canada.
+2. Edit the port forward (Network → Port Forwards) and tick `home-countries` under **Allowed sources**.
+
+Connections from anywhere else are dropped.
+
+**Block a country from the LAN** (outbound): a DENY policy `lan → wan, destination <country object>` above
+your internet policy.
+
+**Caveat**: country detection is based on the IP's registered allocation. A VPN or mobile-phone carrier
+can make a connection appear to come from a different country than the user's physical location. Treat
+country rules as a coarse filter, not a precise geolocation check.

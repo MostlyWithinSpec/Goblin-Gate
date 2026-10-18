@@ -10,6 +10,8 @@ const empty = (wan: string[]): PortForward => ({ name: '', in_intf: wan[0] ?? ''
 export default function PortForwards() {
   const [items, setItems] = useState<PortForward[]>([])
   const [wan, setWan] = useState<string[]>([])
+  // address objects and groups a forward's source may name (countries too)
+  const [sources, setSources] = useState<{ name: string; kind: string }[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [serverErrors, setServerErrors] = useState<ValidationError[]>([])
@@ -21,6 +23,10 @@ export default function PortForwards() {
       .then((cfg) => {
         setItems(cfg.nat?.port_forwards ?? [])
         setWan(wanInterfaces(cfg))
+        setSources([
+          ...(cfg.addresses ?? []).map((a) => ({ name: a.name, kind: a.type })),
+          ...(cfg.address_groups ?? []).map((g) => ({ name: g.name, kind: 'group' })),
+        ])
         setLoaded(true)
       })
       .catch((e: Error) => setError(e.message))
@@ -46,7 +52,8 @@ export default function PortForwards() {
     const errs = validatePortForward(editing.pf, wan, others)
     setErrors(errs)
     if (Object.keys(errs).length) return
-    const pf = { ...editing.pf, ext_port: editing.pf.ext_port.trim(), to_port: editing.pf.to_port.trim(), to_addr: editing.pf.to_addr.trim() }
+    const pf: PortForward = { ...editing.pf, ext_port: editing.pf.ext_port.trim(), to_port: editing.pf.to_port.trim(), to_addr: editing.pf.to_addr.trim() }
+    if (!pf.source?.length) delete pf.source
     save(editing.index === null ? [...items, pf] : items.map((x, i) => (i === editing.index ? pf : x)))
     setEditing(null)
   }
@@ -82,7 +89,7 @@ export default function PortForwards() {
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
           <tr>
             <th className="px-3 py-2">Name</th><th className="px-3 py-2">Interface</th><th className="px-3 py-2">External</th>
-            <th className="px-3 py-2">Protocol</th><th className="px-3 py-2">Internal</th><th className="px-3 py-2"></th>
+            <th className="px-3 py-2">Protocol</th><th className="px-3 py-2">Internal</th><th className="px-3 py-2">From</th><th className="px-3 py-2"></th>
           </tr>
         </thead>
         <tbody>
@@ -97,6 +104,7 @@ export default function PortForwards() {
               <td className="px-3 py-1">{pf.ext_port}</td>
               <td className="px-3 py-1 uppercase">{pf.protocol}</td>
               <td className="px-3 py-1">{pf.to_addr}:{pf.to_port || pf.ext_port}</td>
+              <td className="px-3 py-1">{pf.source?.length ? pf.source.join(', ') : <span className="text-gray-500">anyone</span>}</td>
               <td className="px-3 py-1 text-right">
                 <button type="button" aria-label={`Delete ${pf.name}`} onClick={() => save(items.filter((_, j) => j !== i))} className="text-red-600">
                   <Trash2 size={16} />
@@ -105,7 +113,7 @@ export default function PortForwards() {
             </tr>
           ))}
           {loaded && items.length === 0 && (
-            <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No port forwards.</td></tr>
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No port forwards.</td></tr>
           )}
         </tbody>
       </table>
@@ -131,6 +139,26 @@ export default function PortForwards() {
             </label>
             <label className="block">Internal address<input aria-label="Internal address" placeholder="192.168.1.10" className={input} value={editing.pf.to_addr} onChange={(e) => set('to_addr', e.target.value)} />{err('to_addr')}</label>
             <label className="block">Internal port<input aria-label="Internal port" placeholder="same as external" className={input} value={editing.pf.to_port} onChange={(e) => set('to_port', e.target.value)} />{err('to_port')}</label>
+            <fieldset>
+              <legend>Allowed sources</legend>
+              <p className="text-xs text-gray-500">Only these addresses may use the forward; none ticked lets anyone in. Country objects (Network → Addresses) limit it to some countries.</p>
+              <div className="mt-1 max-h-40 overflow-y-auto rounded border border-gray-200 p-1 dark:border-gray-600">
+                {sources.length === 0 && <p className="px-1 text-xs text-gray-500">No address objects yet.</p>}
+                {sources.map((o) => {
+                  const on = editing.pf.source?.includes(o.name) ?? false
+                  return (
+                    <label key={o.name} className="flex items-center gap-2 px-1 py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => set('source', on ? (editing.pf.source ?? []).filter((n) => n !== o.name) : [...(editing.pf.source ?? []), o.name])}
+                      />
+                      {o.name} <span className="text-xs text-gray-500">{o.kind}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="rounded border border-gray-300 px-3 py-1">Cancel</button>
               <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">Save</button>

@@ -77,6 +77,9 @@ func (s *Server) simulatePolicy(w http.ResponseWriter, r *http.Request) {
 	if s.Feeds != nil {
 		rt.InFeed = func(feed string, a netip.Addr) bool { return slices.Contains(s.Feeds.Lookup(a.String()), feed) }
 	}
+	if s.GeoIP != nil && s.GeoIP.Loaded() {
+		rt.Country = s.GeoIP.Lookup
+	}
 	res, err := nft.Simulate(cfg, nft.SimFlow{SrcIP: src, DstIP: dst, Protocol: proto,
 		DstPort: uint16(req.DstPort), SrcPort: uint16(req.SrcPort), SrcIntf: req.SrcIntf, At: at}, rt)
 	if err != nil {

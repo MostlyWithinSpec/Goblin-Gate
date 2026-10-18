@@ -28,6 +28,9 @@ export function usedBy(path: string, name: string, cfg: Candidate): string[] {
       if (fields(p).includes(name)) out.push(`policy ${p.id} "${p.name}"`)
     }
   }
+  if (path === 'addresses' || path === 'address_groups') {
+    for (const f of cfg.nat?.port_forwards ?? []) if (f.source?.includes(name)) out.push(`port forward "${f.name}"`)
+  }
   if (path === 'addresses') {
     for (const g of cfg.address_groups ?? []) if (g.members?.includes(name)) out.push(`address group "${g.name}"`)
   }

@@ -21,6 +21,19 @@ RuntimeDirectory=goblind
 RuntimeDirectoryMode=0750
 ExecStart=/usr/sbin/goblind --web-dir /usr/share/goblin-gate/web
 TimeoutStopSec=10
+# goblind needs root (nftables, tc, networkd, sysctl, APT sources), so the
+# sandbox only takes away what it never uses. Package updates run in their
+# own transient unit (systemd-run), outside these limits.
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
 StandardOutput=journal
 StandardError=journal
 

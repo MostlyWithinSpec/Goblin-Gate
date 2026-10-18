@@ -73,6 +73,10 @@ func TestDNSFilterE2E(t *testing.T) {
 		}
 	}
 	sh("unbound-checkconf")
+	// the unit's RuntimeDirectory on the box
+	if err := os.MkdirAll(filepath.Dir(ControlSocket), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	unbound := exec.Command("unbound", "-d", "-c", "/etc/unbound/unbound.conf")
 	if err := unbound.Start(); err != nil {
 		t.Fatal(err)

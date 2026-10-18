@@ -36,7 +36,10 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
+	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
+	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
+	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
@@ -209,6 +212,12 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if !o.dev {
 		ddnsMgr = &ddns.Manager{Updater: &ddns.Updater{}, Logger: logger}
 	}
+	// Log export (task 096): forwards events to remote syslog / Loki. Not in
+	// --dev (the API answers 503).
+	var logExporter *logexport.Exporter
+	if !o.dev {
+		logExporter = &logexport.Exporter{Logger: logger}
+	}
 	if o.dev {
 		feedSync.Run = func(context.Context, []byte) error { return nil }
 		dnsSync.Write = func(string, []byte) error { return nil }
@@ -238,6 +247,50 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		wgKeyDir = filepath.Join(dir, "wireguard")
 	}
 	engine.BeforeApply = func(cfg *config.Config) error { return wireguard.EnsureKeys(wgKeyDir, cfg) }
+
+	// GeoIP (task 094): the country database behind "country" objects. A
+	// commit that uses countries needs it; a ruleset load empties the
+	// country sets, so they are refilled after every apply.
+	geoMgr := &geoip.Manager{Dir: filepath.Join(dataDir, "geoip"), Logger: logger}
+	if o.dev {
+		geoMgr.RunNFT = func(context.Context, []byte) error { return nil }
+	}
+	if err := geoMgr.Load(); err != nil {
+		logger.Warn("geoip: stored database unreadable, it will be downloaded again", "error", err)
+	}
+	engine.CheckCandidate = func(ctx context.Context, cfg *config.Config) []config.ValidationError {
+		sets, err := nft.CountrySets(cfg)
+		if err != nil || len(sets) == 0 {
+			return nil
+		}
+		dctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+		if err := geoMgr.Ensure(dctx, cfg.GeoIP.SourceURL); err != nil {
+			return []config.ValidationError{{Path: "geoip", Message: "the policies use countries (" + strings.Join(nft.UsedCountries(sets), ", ") +
+				"), but the GeoIP database could not be downloaded, so they would match nothing: " + err.Error()}}
+		}
+		return nil
+	}
+	// Git history (task 098): each saved revision becomes a commit, pushed
+	// in the background. Not in --dev (the API answers 503).
+	var gitMgr *gitbackup.Manager
+	if !o.dev {
+		gitMgr = &gitbackup.Manager{Dir: filepath.Join(dataDir, "git-backup"), Store: store, Logger: logger}
+		engine.AfterSave = func(live *config.Config, _ int) { gitMgr.Sync(ctx, live) }
+		go gitMgr.Run(ctx)
+		go func() { // catch up on revisions recorded before a restart
+			if cfg, err := store.Running(); err == nil {
+				gitMgr.Sync(ctx, cfg)
+			}
+		}()
+	}
+	go geoMgr.Run(ctx, func() *config.Config {
+		cfg, err := store.Running()
+		if err != nil {
+			return nil
+		}
+		return cfg
+	})
 	// DHCP client names in DNS (task 055): kept in Unbound at runtime.
 	dhcpNames := &dhcpdns.Syncer{LeaseFile: kea.LeaseFile, Logger: logger, Settings: func() (dhcpdns.Settings, error) {
 		cfg, err := store.Running()
@@ -285,6 +338,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		wf.Resync(live)
 		dnsSync.Resync(live)
 		feedSync.Resync(live)
+		geoMgr.Resync(live)
 		dhcpNames.Resync(ctx) // a commit restarts Unbound, which drops runtime names
 		if flowSampler != nil {
 			flowSampler.SetLocalPrefixes(render.InternalPrefixes(live))
@@ -326,6 +380,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 
 	apiServer := api.NewServer(store, engine)
+	apiServer.GeoIP = geoMgr
+	apiServer.GitBackup = gitMgr
 	apiServer.Logger = logger
 
 	// Notifications (task 053): alerts about commits, lockouts, feed errors,
@@ -445,6 +501,17 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		apiServer.DDNS = ddnsMgr
 	}
 
+	if logExporter != nil {
+		go logExporter.Run(ctx, func() []config.LogExport {
+			cfg, err := store.Running()
+			if err != nil {
+				return nil
+			}
+			return cfg.LogExport
+		})
+		apiServer.LogExport = logExporter
+	}
+
 	// Stats: the event store, policy counters and system load.
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {
 		return fmt.Errorf("data dir: %w", err)
@@ -474,7 +541,16 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if err != nil {
 		return err
 	}
-	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), OnEvent: ipsBatch.Observe}
+	// Every event goes to the IPS batcher and, when configured, to the log
+	// export destinations (task 096).
+	onEvent := func(ev *logs.Event) { ipsBatch.Observe(ev) }
+	if logExporter != nil {
+		onEvent = func(ev *logs.Event) {
+			ipsBatch.Observe(ev)
+			logExporter.Observe(ev)
+		}
+	}
+	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), OnEvent: onEvent}
 	go ingester.Run(ctx, sources)
 	var counters interface {
 		stats.CounterSource

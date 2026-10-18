@@ -5,6 +5,16 @@ set -e
 
 mkdir -p /etc/goblingate /var/lib/goblingate /var/log/ulog /var/log/suricata /etc/nftables.d
 chmod 0750 /etc/goblingate /var/lib/goblingate
+# the config, its revisions and the event store hold password hashes, private
+# keys and traffic history: root only (goblind writes new ones 0600)
+find /etc/goblingate /var/lib/goblingate -type f -perm /0044 -exec chmod go-rwx {} + 2>/dev/null || true
+
+# Suricata drops root after opening its queues (goblin-suricata@.service).
+if ! getent passwd suricata >/dev/null; then
+	adduser --system --group --no-create-home --home /nonexistent --gecos "Goblin Gate IPS" suricata >/dev/null
+fi
+chown -R suricata:suricata /var/log/suricata
+chmod 0750 /var/log/suricata
 
 # nftables.service loads goblind's last ruleset at boot, before goblind runs.
 if ! grep -q 'include "/etc/nftables.d/\*.nft"' /etc/nftables.conf 2>/dev/null; then
@@ -48,7 +58,13 @@ for u in systemd-networkd.service nftables.service ulogd2.service unbound.servic
 	systemctl enable "$u" >/dev/null 2>&1 || true
 done
 if [ -d /run/systemd/system ]; then
+	/usr/lib/systemd/systemd-sysctl /usr/lib/sysctl.d/80-goblin-hardening.conf || true
 	systemctl restart ulogd2.service || true
 	systemctl restart goblind.service || true
+	# Unbound restarts in its sandbox when goblind applies the config (its
+	# control socket moved into /run/unbound); kea's config does not change.
+	systemctl try-restart kea-dhcp4-server.service || true
+	# pick up the sandboxed unit; the queues bypass Suricata while it restarts
+	systemctl try-restart 'goblin-suricata@*.service' || true
 fi
 exit 0

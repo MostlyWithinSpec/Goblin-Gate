@@ -27,8 +27,20 @@ func (v *validator) checkAddresses() {
 			if !validHostname(a.Value) {
 				v.add(p+".value", "invalid hostname %q", a.Value)
 			}
+		case "country":
+			codes := CountryCodes(a.Value)
+			if len(codes) == 0 {
+				v.add(p+".value", "pick at least one country")
+			} else if len(codes) > MaxCountriesPerObject {
+				v.add(p+".value", "at most %d countries per object", MaxCountriesPerObject)
+			}
+			for _, c := range codes {
+				if _, ok := Countries[c]; !ok {
+					v.add(p+".value", "unknown country code %q: want ISO 3166 codes like US, CA", c)
+				}
+			}
 		default:
-			v.add(p+".type", "unknown type %q: want subnet, host, range or fqdn", a.Type)
+			v.add(p+".type", "unknown type %q: want subnet, host, range, fqdn or country", a.Type)
 		}
 	}
 }

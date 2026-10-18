@@ -33,11 +33,16 @@ vi.mock('../api/auth', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/auth')>()
   return { ...real, getMe: vi.fn(), setup2FA: vi.fn(), enable2FA: vi.fn(), disable2FA: vi.fn() }
 })
+vi.mock('../api/gitbackup', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../api/gitbackup')>()
+  return { ...real, getGitBackupStatus: vi.fn(), pushGitBackup: vi.fn(), forgetGitBackupHostKey: vi.fn() }
+})
 
 import * as api from '../api/objects'
 import * as sys from '../api/system'
 import * as cfgApi from '../api/config'
 import * as auth from '../api/auth'
+import * as gitApi from '../api/gitbackup'
 import System from '../pages/System'
 
 const cfg: Candidate = {
@@ -66,6 +71,9 @@ beforeEach(() => {
   vi.mocked(auth.enable2FA).mockReset().mockResolvedValue({ status: 'enabled' })
   vi.mocked(auth.disable2FA).mockReset().mockResolvedValue({ status: 'disabled' })
   vi.mocked(sys.getSystemInfo).mockResolvedValue({ version: '0.1.0', time: new Date().toISOString(), hostname: 'gw1', uptime_seconds: 3600, ntp_synchronized: true })
+  vi.mocked(gitApi.getGitBackupStatus).mockReset().mockResolvedValue({ enabled: false, pending: false })
+  vi.mocked(gitApi.pushGitBackup).mockReset().mockResolvedValue({ status: 'ok' })
+  vi.mocked(gitApi.forgetGitBackupHostKey).mockReset().mockResolvedValue({ status: 'ok' })
 })
 
 describe('General tab', () => {
@@ -233,5 +241,59 @@ describe('Metrics card', () => {
     await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
     expect(vi.mocked(api.patchSection).mock.calls[0]).toEqual(['system.metrics', { enabled: true, allow: ['192.168.1.10/32', '10.0.0.0/8'] }])
     expect(await screen.findByText('Saved. Use the commit bar to apply.')).toBeInTheDocument()
+  })
+})
+
+describe('Git backup card', () => {
+  test('shows the deploy key and wiki instructions when enabled', async () => {
+    vi.mocked(gitApi.getGitBackupStatus).mockResolvedValue({
+      enabled: true, remote: 'git@github.com:user/repo.git', branch: 'main',
+      public_key: 'ssh-ed25519 AAAA testkey', pending: false,
+    })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Backup' }))
+    // Wait for the card to render (needs status resolved).
+    expect(await screen.findByText('Config history in git')).toBeInTheDocument()
+    // Wiki section mentions secrets are left out.
+    expect(screen.getByText(/Secrets \(password hashes, 2FA secrets, tokens\) are left out/)).toBeInTheDocument()
+    // Deploy key is shown with a copy button.
+    expect(screen.getByText('ssh-ed25519 AAAA testkey')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy deploy key' })).toBeInTheDocument()
+  })
+
+  test('enable + save PATCHes git_backup section', async () => {
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Backup' }))
+    const box = await screen.findByLabelText('Enable git config history')
+    expect(box).not.toBeChecked()
+    fireEvent.click(box)
+    fireEvent.change(screen.getByLabelText('Remote URL'), { target: { value: 'git@gitea.example.com:gw/config.git' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledWith('git_backup', expect.objectContaining({ enabled: true, remote: 'git@gitea.example.com:gw/config.git' })))
+  })
+
+  test('Test push calls the push endpoint and shows success', async () => {
+    vi.mocked(gitApi.getGitBackupStatus)
+      .mockResolvedValueOnce({ enabled: true, remote: 'git@github.com:user/repo.git', branch: 'main', public_key: 'ssh-ed25519 AAAA k', pending: false })
+      .mockResolvedValue({ enabled: true, remote: 'git@github.com:user/repo.git', branch: 'main', last_push: new Date().toISOString(), pushed_revision: 7, pending: false })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Backup' }))
+    const btn = await screen.findByRole('button', { name: 'Test push' })
+    fireEvent.click(btn)
+    await waitFor(() => expect(gitApi.pushGitBackup).toHaveBeenCalled())
+    expect(await screen.findByText('Pushed to remote.')).toBeInTheDocument()
+  })
+
+  test('last_error is displayed in an alert with forget-host-key action', async () => {
+    vi.mocked(gitApi.getGitBackupStatus).mockResolvedValue({
+      enabled: true, remote: 'git@github.com:user/repo.git', host_key: 'ssh-ed25519 BBBB pinned', pending: false,
+      last_error: 'host key verification failed',
+    })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Backup' }))
+    expect(await screen.findByText(/host key verification failed/)).toBeInTheDocument()
+    const forget = await screen.findByRole('button', { name: /Forget host key and retry/ })
+    fireEvent.click(forget)
+    await waitFor(() => expect(gitApi.forgetGitBackupHostKey).toHaveBeenCalled())
   })
 })

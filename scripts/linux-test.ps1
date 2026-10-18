@@ -37,7 +37,7 @@ if [ -f internal/render/nft/testdata/full.nft ]; then
   nft -f internal/render/nft/testdata/full.nft
   nft -f internal/render/nft/testdata/full.nft
   echo "nft load + reload of full.nft: ok"
-  GOBLIN_NFT_LOAD=1 go test -count=1 -run 'TestFeedBatchLoad|TestScheduleLoad|TestBlockLoad' -v ./internal/render/nft | grep -E "^(\s*--- |ok|FAIL|\s+(feeds|schedule|blocks)_linux)"
+  GOBLIN_NFT_LOAD=1 go test -count=1 -run 'TestFeedBatchLoad|TestScheduleLoad|TestBlockLoad|TestCountryBatchLoad' -v ./internal/render/nft | grep -E "^(\s*--- |ok|FAIL|\s+(feeds|schedule|blocks|country)_linux)"
 fi
 # DNS filter in a real unbound (needs internet for the unfiltered answers)
 GOBLIN_UNBOUND_E2E=1 go test -count=1 -run TestDNSFilterE2E -v ./internal/render/unbound | grep -E "^(\s*--- |ok|FAIL|\s+filter_linux)"

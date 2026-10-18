@@ -66,6 +66,7 @@ func TestWebFilterE2E(t *testing.T) {
 		os.MkdirAll(filepath.Dir(p), 0o755)
 		os.WriteFile(p, b, 0o644)
 	}
+	os.MkdirAll(filepath.Dir(unbound.ControlSocket), 0o755) // the unit's RuntimeDirectory on the box
 	ub := exec.Command("unbound", "-d", "-c", "/etc/unbound/unbound.conf")
 	if err := ub.Start(); err != nil {
 		t.Fatal(err)

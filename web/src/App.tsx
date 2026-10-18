@@ -11,6 +11,7 @@ import Security from './pages/Security'
 import Log from './pages/Log'
 import PacketCapture from './pages/log/PacketCapture'
 import Live from './pages/log/Live'
+import LogExportPage from './pages/log/Export'
 import System from './pages/System'
 import { Revisions } from './pages/Revisions'
 import Notifications from './pages/system/Notifications'
@@ -95,6 +96,7 @@ function App() {
               <Route path="/log" element={<Log />} />
               <Route path="/log/capture" element={<PacketCapture />} />
               <Route path="/log/live" element={<Live />} />
+              <Route path="/log/export" element={<LogExportPage />} />
               <Route path="/system" element={<System />} />
               <Route path="/system/revisions" element={<Revisions />} />
               <Route path="/system/notifications" element={<Notifications />} />

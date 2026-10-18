@@ -405,3 +405,56 @@ func TestCommitChecksInstalledPluginsRollbackDoesNot(t *testing.T) {
 		t.Fatalf("running hostname = %q", got)
 	}
 }
+
+// CheckCandidate errors block a commit like validation errors; a rollback
+// does not run it.
+func TestCheckCandidateHook(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	calls := 0
+	e.engine.CheckCandidate = func(_ context.Context, c *config.Config) []config.ValidationError {
+		calls++
+		if c.System.Hostname == "nodb" {
+			return []config.ValidationError{{Path: "geoip", Message: "no database"}}
+		}
+		return nil
+	}
+	e.setHostname(t, "gate1")
+	if _, err := e.engine.Commit(ctx, "alice", ""); err != nil {
+		t.Fatal(err)
+	}
+	e.setHostname(t, "nodb")
+	var ve *ValidationError
+	if _, err := e.engine.Commit(ctx, "alice", ""); !errors.As(err, &ve) || !strings.Contains(ve.Error(), "no database") {
+		t.Fatalf("commit: %v", err)
+	}
+	if got := e.runningHostname(t); got != "gate1" {
+		t.Fatalf("running changed: %q", got)
+	}
+	n := calls
+	if _, err := e.engine.Rollback(ctx, 1, "bob"); err != nil || calls != n {
+		t.Fatalf("rollback: %v, check ran %d times", err, calls-n)
+	}
+}
+
+// AfterSave sees the revision already saved.
+func TestAfterSaveHook(t *testing.T) {
+	e := newEnv(t)
+	got := make(chan int, 1)
+	e.engine.AfterSave = func(_ *config.Config, rev int) {
+		revs, _ := e.store.ListRevisions()
+		if len(revs) > 0 && revs[len(revs)-1].Revision == rev {
+			got <- rev
+		} else {
+			got <- -1
+		}
+	}
+	e.setHostname(t, "gate1")
+	rev, err := e.engine.Commit(context.Background(), "alice", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := <-got; r != rev {
+		t.Fatalf("AfterSave saw %d, want %d", r, rev)
+	}
+}

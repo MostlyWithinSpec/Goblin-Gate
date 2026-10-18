@@ -213,6 +213,9 @@ table inet goblin {
 		ct state invalid drop
 		iifname "lo" accept
 		iifname != { "tailscale0", "eth0", "eth0.7" } ip saddr 100.64.0.0/10 drop comment "tailscale: no tailnet addresses from local networks"
+		iifname { "eth0", "eth0.7" } ip saddr { 10.10.0.0/24, 10.20.0.0/24, 127.0.0.0/8, 192.168.1.0/24 } drop comment "anti-spoofing: local addresses arriving on a WAN"
+		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
+		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		jump threat_feeds_input
 		iifname "eth1.20" meta l4proto { tcp, udp } th dport 5300 accept comment "guest: web filter dns"
 		iifname "eth1.20" tcp dport 80 accept comment "guest: block page"
@@ -247,6 +250,9 @@ table inet goblin {
 		ct state established,related accept
 		ct state invalid drop
 		iifname != { "tailscale0", "eth0", "eth0.7" } ip saddr 100.64.0.0/10 drop comment "tailscale: no tailnet addresses from local networks"
+		iifname { "eth0", "eth0.7" } ip saddr { 10.10.0.0/24, 10.20.0.0/24, 127.0.0.0/8, 192.168.1.0/24 } drop comment "anti-spoofing: local addresses arriving on a WAN"
+		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
+		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		jump threat_feeds
 		jump upnp_forward comment "upnp mappings (miniupnpd)"
 		iifname "eth1.20" tcp dport 853 reject with tcp reset comment "web filter office: no DNS-over-TLS"

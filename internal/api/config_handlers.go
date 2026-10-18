@@ -34,26 +34,9 @@ func (s *Server) seesSecrets(r *http.Request) bool {
 	return id.CanWrite()
 }
 
-// redactSecrets blanks what a plugin or read-only user must not see:
-// password hashes, two-factor secrets, notification credentials (URLs can carry webhook
-// secrets) and feed download headers (API keys of paid feeds).
-func redactSecrets(cfg *config.Config) {
-	for i := range cfg.Admins {
-		cfg.Admins[i].PasswordHash = ""
-		cfg.Admins[i].TOTPSecret = ""
-	}
-	for i := range cfg.Feeds {
-		cfg.Feeds[i].AuthHeader = ""
-	}
-	for i := range cfg.Notifications.Channels {
-		c := &cfg.Notifications.Channels[i]
-		c.URL, c.Token, c.BotToken, c.Password = "", "", "", ""
-	}
-	for i := range cfg.DDNS {
-		cfg.DDNS[i].Token = ""
-		cfg.DDNS[i].URL = ""
-	}
-}
+// redactSecrets blanks what a plugin or read-only user must not see
+// (config.RedactSecrets).
+func redactSecrets(cfg *config.Config) { config.RedactSecrets(cfg) }
 
 func (s *Server) getCandidate(w http.ResponseWriter, r *http.Request) {
 	cfg, err := s.Store.Candidate()

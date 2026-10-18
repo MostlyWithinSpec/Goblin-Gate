@@ -203,10 +203,14 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 	cfg, _ := a.store.Running()
 	cfg.Feeds = []config.Feed{{Name: "paid", Type: "ip", URL: "https://feeds.example.net/x", Enabled: true, AuthHeader: "Authorization: Bearer feedsecret"}}
 	cfg.DDNS = []config.DDNS{{Name: "home", Enabled: true, Provider: "cloudflare", Hostname: "host.example.net", Token: "ddns-secret-token", ZoneID: "abc123"}}
+	cfg.LogExport = []config.LogExport{
+		{Name: "syslog-hq", Enabled: true, Type: "syslog", Address: "10.0.0.2:514"},
+		{Name: "loki-home", Enabled: true, Type: "loki", URL: "https://loki.example.net/loki/api/v1/push", Username: "pusher", Password: "loki-secret-password", Token: "loki-secret-token"},
+	}
 	if _, err := a.store.SaveRevision(cfg, "test", "feed"); err != nil {
 		t.Fatal(err)
 	}
-	// secrets: password hashes, the feed's auth header, and the DDNS token
+	// secrets: password hashes, the feed's auth header, the DDNS token and the log export credentials
 	hashes := func(cfg map[string]any) (n int) {
 		for _, ad := range cfg["admins"].([]any) {
 			if h, _ := ad.(map[string]any)["password_hash"].(string); h != "" {
@@ -217,6 +221,12 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 			n++
 		}
 		if strings.Contains(jsonString(cfg), "ddns-secret-token") {
+			n++
+		}
+		if strings.Contains(jsonString(cfg), "loki-secret-password") {
+			n++
+		}
+		if strings.Contains(jsonString(cfg), "loki-secret-token") {
 			n++
 		}
 		return n
@@ -236,8 +246,8 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 
 	admin := a.browser()
 	admin.login("admin")
-	if n := hashes(admin.expect("GET", "/api/v1/config/running", nil, 200)); n != 4 {
-		t.Fatalf("admin running: %d secrets, want 4 (2 hashes + feed header + ddns token)", n)
+	if n := hashes(admin.expect("GET", "/api/v1/config/running", nil, 200)); n != 6 {
+		t.Fatalf("admin running: %d secrets, want 6 (2 hashes + feed header + ddns token + loki password + loki token)", n)
 	}
 	if code, _, _ := admin.do("GET", "/api/v1/system/backup", nil); code != 200 {
 		t.Fatalf("admin backup: %d", code)

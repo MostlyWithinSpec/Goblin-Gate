@@ -6,12 +6,40 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Filter, X } from 'lucide-react'
 import { listLogs, type LogEvent } from '../../api/stats'
+import { geoipLookup, getGeoIP } from '../../api/objects'
 import { Badge } from '../../components/Badge'
 import { EditDrawer } from '../../components/EditDrawer'
 import { CHIP_FIELDS, KINDS, RANGES, columnsFor, fmtTime, logFilter, logParams, parseLogParams, summary, type LogState } from './logLogic'
 
 const actionVariant = (a: string) => (a === 'deny' || a === 'drop' ? 'error' : a === 'alert' ? 'warning' : a === 'allow' || a === 'accept' ? 'success' : 'secondary')
 const input = 'rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-700'
+
+// CountryRow: looks up the country for an IP via /api/v1/geoip/lookup, but only
+// when the GeoIP database is loaded. Renders nothing otherwise.
+function CountryRow({ ip }: { ip: string }) {
+  const [country, setCountry] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getGeoIP()
+      .then((r) => {
+        if (!r.status.loaded) return
+        return geoipLookup(ip).then((res) => {
+          if (!cancelled) setCountry(res.country || null)
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [ip])
+
+  if (country === null) return null
+  return (
+    <>
+      <dt className="text-gray-500">src_country</dt>
+      <dd className="col-span-2">{country}</dd>
+    </>
+  )
+}
 
 function cell(e: LogEvent, f: keyof LogEvent): React.ReactNode {
   if (f === 'action') return <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
@@ -193,6 +221,7 @@ export default function LogViewer() {
           <dl className="grid grid-cols-3 gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
             <dt className="text-gray-500">time</dt>
             <dd className="col-span-2">{fmtTime(detail.time)}</dd>
+            {detail.src_ip && <CountryRow ip={detail.src_ip} />}
             {(Object.keys(detail) as (keyof LogEvent)[])
               .filter((k) => k !== 'time' && k !== 'id' && detail[k] !== undefined && detail[k] !== '')
               .map((k) => (

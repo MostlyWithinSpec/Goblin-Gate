@@ -57,11 +57,22 @@ describe('Updates page', () => {
     wrap(<Updates />)
     await screen.findByText('0.1.0-alpha.1')
     fireEvent.change(screen.getByLabelText('Update channel'), { target: { value: 'beta' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save channel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
     await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
     const calls = vi.mocked(api.patchSection).mock.calls
     expect(calls[0][0]).toBe('system')
     expect(calls[0][1]).toMatchObject({ update_channel: 'beta' })
+  })
+
+  test('security updates are on by default and can be set to manual', async () => {
+    wrap(<Updates />)
+    await screen.findByText('0.1.0-alpha.1')
+    const box = screen.getByRole('checkbox', { name: /security updates automatically/ })
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(vi.mocked(api.patchSection).mock.calls[0][1]).toMatchObject({ security_updates: 'manual' })
   })
 
   test('confirm dialog gates the update and applyUpdate is called on confirm', async () => {

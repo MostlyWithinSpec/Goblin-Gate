@@ -54,6 +54,9 @@ export interface SystemStatus {
   version: string
   pending_confirm?: { deadline: string } | null
   sqm?: SQMStatus[]
+  // a Debian update (kernel, libc) waits for a restart
+  reboot_required?: boolean
+  reboot_packages?: string[] | null
 }
 
 export const getSystemStatus = (): Promise<SystemStatus> => apiClient<SystemStatus>('/api/v1/system/status')

@@ -202,6 +202,9 @@ export function validateAddress(a: { type: string; value: string }): Errors {
       }
       case 'fqdn':
         return HOST.test(v)
+      case 'country':
+        // A non-empty list of ISO 3166-1 alpha-2 codes, e.g. "CN,RU".
+        return COUNTRY_CODES.test(v)
     }
     return false
   })()
@@ -211,9 +214,13 @@ export function validateAddress(a: { type: string; value: string }): Errors {
     host: 'Enter an IPv4 or IPv6 address',
     range: 'Enter a range like 192.168.1.10-192.168.1.20 or 2001:db8::1-2001:db8::ff',
     fqdn: 'Enter a hostname like example.com',
+    country: 'Pick at least one country',
   }
   return { value: want[a.type] ?? 'Invalid value' }
 }
+
+// COUNTRY_CODES matches one or more ISO 3166-1 alpha-2 codes joined with commas.
+const COUNTRY_CODES = /^[A-Z]{2}(,[A-Z]{2})*$/
 
 export function validateService(s: { protocol: string; ports?: string }): Errors {
   if (s.protocol !== 'tcp' && s.protocol !== 'udp') return {}
@@ -473,6 +480,59 @@ export function validateDDNS(d: { name: string; provider: string; hostname: stri
     }
   }
   return e
+}
+
+// validateLogExport mirrors internal/config/validate_logexport.go. password and
+// token are not validated here: they arrive redacted (empty) for non-secret-seers
+// and the server keeps the stored value when an edit sends none.
+export function validateLogExport(
+  d: { name: string; type: string; kinds?: string[]; address?: string; protocol?: string; url?: string },
+  others: { name: string }[],
+): Errors {
+  const e: Errors = {}
+  if (!NAME.test(d.name)) e.name = 'Name: letters, digits, . _ - (max 63)'
+  else if (others.some((o) => o.name === d.name)) e.name = 'Name is already used'
+  if (d.type !== 'syslog' && d.type !== 'loki') e.type = 'Type must be syslog or loki'
+  for (const k of d.kinds ?? []) {
+    if (!['traffic', 'ips', 'dns', 'webfilter', 'system'].includes(k)) e.kinds = `Unknown kind ${k}`
+  }
+  switch (d.type) {
+    case 'syslog': {
+      const addr = (d.address ?? '').trim()
+      if (!addr) e.address = 'Address is required for syslog'
+      else if (!hostPortOK(addr)) e.address = 'Enter host:port, e.g. 10.0.0.2:514'
+      const proto = d.protocol || 'udp'
+      if (proto !== 'udp' && proto !== 'tcp' && proto !== 'tls') e.protocol = 'Protocol must be udp, tcp or tls'
+      break
+    }
+    case 'loki': {
+      const url = (d.url ?? '').trim()
+      if (!url) e.url = 'URL is required for Loki'
+      else if (!url.startsWith('https://') && !url.startsWith('http://')) e.url = 'URL must start with https:// or http://'
+      else if (!url.endsWith('/loki/api/v1/push')) e.url = 'URL must end in /loki/api/v1/push'
+      break
+    }
+  }
+  return e
+}
+
+// hostPortOK accepts "host:port" or "[v6]:port" with a valid host and port 1-65535.
+function hostPortOK(s: string): boolean {
+  if (s.startsWith('[')) {
+    const end = s.indexOf(']:')
+    if (end < 0) return false
+    return isV6Host(s.slice(1, end)) && portOnly(s.slice(end + 2))
+  }
+  const i = s.lastIndexOf(':')
+  if (i < 0) return false
+  const host = s.slice(0, i)
+  return !!host && (ipv4(host) !== null || isV6Host(host) || HOST.test(host)) && portOnly(s.slice(i + 1))
+}
+
+function portOnly(s: string): boolean {
+  if (!/^\d{1,5}$/.test(s)) return false
+  const n = Number(s)
+  return n >= 1 && n <= 65535 && String(n) === s
 }
 
 // expandV6 expands an IPv6 address to 8 groups of hex numbers, or null.

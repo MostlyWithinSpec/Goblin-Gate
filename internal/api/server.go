@@ -23,6 +23,9 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
+	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
+	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
+	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
@@ -63,6 +66,14 @@ type Server struct {
 	Feeds *feeds.Manager
 	// DDNS runs dynamic DNS updates (task 087); nil answers 503.
 	DDNS *ddns.Manager
+	// GeoIP owns the country database (task 094); nil answers 503.
+	GeoIP *geoip.Manager
+	// GitBackup records revisions in git and pushes them (task 098); nil
+	// answers 503.
+	GitBackup *gitbackup.Manager
+	// LogExport forwards events to remote syslog / Loki (task 096); nil
+	// answers 503.
+	LogExport *logexport.Exporter
 	// Notify sends alerts (task 053); nil sends none.
 	Notify *notify.Dispatcher
 	// Updates installs package updates (task 051); nil answers 503 (dev mode).
@@ -211,8 +222,15 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/feeds", s.feedStatus)
 	handle("GET /api/v1/feeds/lookup", s.feedLookup)
 	handle("POST /api/v1/feeds/{name}/refresh", s.feedRefresh)
+	handle("GET /api/v1/git-backup", s.gitBackupStatus)
+	handle("POST /api/v1/git-backup/push", s.gitBackupPush)
+	handle("POST /api/v1/git-backup/forget-host-key", s.gitBackupForgetHostKey)
+	handle("GET /api/v1/geoip", s.geoipStatus)
+	handle("GET /api/v1/geoip/lookup", s.geoipLookup)
+	handle("POST /api/v1/geoip/refresh", s.geoipRefresh)
 	handle("GET /api/v1/ddns", s.ddnsStatus)
 	handle("POST /api/v1/ddns/{name}/update", s.ddnsUpdateNow)
+	handle("GET /api/v1/log-export", s.logExportStatus)
 	handle("POST /api/v1/stats/query", s.statsQuery)
 	handle("GET /api/v1/stats/policies", s.policyStats)
 	handle("GET /api/v1/stats/system", s.systemStats)
@@ -388,6 +406,8 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		resp["hostname"] = cfg.System.Hostname
 		resp["sqm"] = s.sqmStatus(cfg)
 	}
+	// a kernel (or libc, systemd) security update waits for a restart
+	resp["reboot_required"], resp["reboot_packages"] = rebootRequired()
 	if deadline, ok := s.Commit.PendingConfirm(); ok {
 		resp["pending_confirm"] = map[string]any{"deadline": deadline.UTC().Format(time.RFC3339)}
 	} else {

@@ -151,7 +151,8 @@ func TestMappings(t *testing.T) {
 	check("tcp/udp → two forwards", forward(c, "console-tcp") != nil && forward(c, "console-udp") != nil)
 	check("all ports flagged as risk", riskOn(res, "DMZ host"))
 	check("shifted range skipped", has(res, "Shifted range", Skipped, "moving the port range"))
-	check("source-restricted forward flagged", riskOn(res, "Office only"))
+	check("source-restricted forward keeps its source", forward(c, "office-only") != nil && len(forward(c, "office-only").Source) == 1 &&
+		forward(c, "office-only").Source[0] == "203.0.113.7" && has(res, "Office only", Converted, "only from 203.0.113.7"))
 	// services
 	check("DHCP with static lease, lowercase MAC", len(c.DHCP) == 2 && c.DHCP[0].StaticLeases[0].MAC == "aa:bb:cc:00:00:05" && c.DHCP[0].LeaseSeconds == 7200)
 	check("static map without IP left out", has(res, "lan", Approximated, "without an IP address"))

@@ -3,6 +3,7 @@ package pfsense
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -264,9 +265,20 @@ func (im *importer) portForwards() {
 			skip("protocol %q is not supported for port forwards", r.Protocol)
 			continue
 		}
-		var notes []string
-		if r.Source.Any == nil && (r.Source.Address != "" || r.Source.Network != "") {
-			notes = append(notes, "its source restriction is not supported: anyone may connect")
+		// A source the gate cannot express skips the forward: importing it
+		// without the limit would open it to everyone.
+		src := im.ruleAddr(r.Source)
+		switch {
+		case src.why != "":
+			skip("source: %s", src.why)
+			continue
+		case src.self || src.feed != "":
+			skip("source %q is not supported for port forwards", r.Source.Address+r.Source.Network)
+			continue
+		}
+		var source []string
+		if !slices.Contains(src.refs, "all") {
+			source = src.refs
 		}
 		base := slug(r.Descr, fmt.Sprintf("forward-%d", i+1))
 		for _, p := range protos {
@@ -275,17 +287,18 @@ func (im *importer) portForwards() {
 				name = base + "-" + p
 			}
 			im.cfg.NAT.PortForwards = append(im.cfg.NAT.PortForwards, config.PortForward{
-				Name: unique(used, name), InIntf: in, ExtPort: ext, Protocol: p, ToAddr: to.String(), ToPort: toPort})
+				Name: unique(used, name), InIntf: in, ExtPort: ext, Protocol: p, ToAddr: to.String(), ToPort: toPort, Source: source})
 		}
 		detail := fmt.Sprintf("%s %s → %s", strings.Join(protos, "+"), ext, to)
 		if toPort != "" {
 			detail += ":" + toPort
 		}
+		if source != nil {
+			detail += ", only from " + strings.Join(source, ", ")
+		}
 		switch {
-		case lo == 1 && hi == 65535:
+		case lo == 1 && hi == 65535 && source == nil:
 			im.risk("nat", label, Converted, "%s: EVERY port of the WAN goes to %s; that host is fully exposed to the internet. Consider forwarding only the ports it needs, or UPnP", detail, to)
-		case len(notes) > 0:
-			im.risk("nat", label, Approximated, "%s; %s", detail, strings.Join(notes, "; "))
 		default:
 			im.add("nat", label, Converted, "%s", detail)
 		}

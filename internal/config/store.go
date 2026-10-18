@@ -48,7 +48,7 @@ func New(dir string) (*Store, error) {
 	if dir == "" {
 		dir = DefaultDir
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "history"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "history"), 0o700); err != nil {
 		return nil, fmt.Errorf("config store: %w", err)
 	}
 	return &Store{dir: dir}, nil
@@ -291,7 +291,7 @@ func (s *Store) writeIndexLocked(idx []RevisionInfo) error {
 // stale .tmp left behind by a crashed run is simply overwritten.
 func atomicWrite(path string, data []byte) error {
 	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", tmp, err)
 	}

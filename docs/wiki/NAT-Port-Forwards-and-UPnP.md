@@ -19,7 +19,9 @@ policy towards `all` does not translate LAN-to-LAN traffic.
 | To address | `192.168.1.50` (IPv4) |
 | To port | empty = same as external; a single port; or exactly the same range |
 
-A port forward lets its traffic in by itself: no extra policy is needed.
+A port forward lets its traffic in by itself: no extra policy is needed. **Allowed sources** limits who may
+use it: tick address objects or groups (a home office address, or a country object such as "United States")
+and everyone else is dropped. None ticked lets anyone in.
 
 **Forward only what you need.** A forward of every port (1-65535) exposes the whole host to the internet.
 For games and consoles, UPnP below is usually the better answer; for remote access to your network, use a

@@ -3,6 +3,8 @@ package logs
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -15,6 +17,13 @@ type Store struct {
 
 // NewStore creates a new Store.
 func NewStore(dbPath string) (*Store, error) {
+	// The events are traffic history: root only. SQLite gives its -wal and
+	// -shm files the database file's mode, so create that one first.
+	if dbPath != "" && !strings.HasPrefix(dbPath, ":memory:") && !strings.HasPrefix(dbPath, "file:") {
+		if f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0o600); err == nil {
+			f.Close()
+		}
+	}
 	// WAL lets the API read while the ingester writes; busy_timeout makes
 	// writers wait for each other instead of failing.
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")

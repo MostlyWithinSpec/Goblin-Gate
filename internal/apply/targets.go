@@ -198,6 +198,8 @@ var groups = []group{
 		// remaining packages still come from the CD).
 		name:   "apt",
 		prefix: "/etc/apt/sources.list.d/",
+		// the nightly security updates (unattended-upgrades) settings
+		also: []string{"/etc/apt/apt.conf.d/52goblin-"},
 		activate: func([]string) [][]string {
 			return [][]string{{"sh", "-c", `[ ! -f /etc/apt/sources.list ] || sed -i 's|^deb cdrom:|# deb cdrom:|' /etc/apt/sources.list`}}
 		},

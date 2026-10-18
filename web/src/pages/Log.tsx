@@ -19,6 +19,7 @@ export default function Log() {
           <button type="button" className={tab(charts)} onClick={() => navigate('/log?view=charts')}>Chart builder</button>
           <a href="/log/capture" className={tab(false)}>Packet capture</a>
           <a href="/log/live" className={tab(false)}>Live</a>
+          <a href="/log/export" className={tab(false)}>Export</a>
         </div>
       </div>
       {charts ? <ChartBuilder /> : <LogViewer />}

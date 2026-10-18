@@ -75,6 +75,9 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkDNS()
 	v.checkPlugins()
 	v.checkDDNS()
+	v.checkGeoIP()
+	v.checkGitBackup()
+	v.checkLogExport()
 	return v.errs
 }
 

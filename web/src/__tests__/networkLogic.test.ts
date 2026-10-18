@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { DHCPServer, PortForward } from '../api/network'
-import { cleanDHCP, inSubnet, ipv4, portOrRange, validateDHCP, validateDNS, validatePortForward } from '../pages/network/networkLogic'
+import { cleanDHCP, inSubnet, ipv4, portOrRange, validateDHCP, validateDNS, validateLogExport, validatePortForward } from '../pages/network/networkLogic'
 
 describe('address helpers', () => {
   test('ipv4', () => {
@@ -72,4 +72,42 @@ test('validateDNS', () => {
   expect(e.forwarders).toMatch(/dns.google/)
   expect(e['record.bad name']).toMatch(/invalid host/)
   expect(e['record.ok']).toMatch(/IPv4/)
+})
+
+describe('validateLogExport', () => {
+  const syslog = (x: Partial<Parameters<typeof validateLogExport>[0]> = {}) =>
+    validateLogExport({ name: 'rsyslog', type: 'syslog', address: '10.0.0.2:514', protocol: 'udp', ...x }, [])
+  const loki = (x: Partial<Parameters<typeof validateLogExport>[0]> = {}) =>
+    validateLogExport({ name: 'grafana', type: 'loki', url: 'https://loki.example.com/loki/api/v1/push', ...x }, [])
+
+  test('accepts valid syslog and loki entries', () => {
+    expect(syslog()).toEqual({})
+    expect(syslog({ protocol: 'tls', address: '[2001:db8::1]:6514' })).toEqual({})
+    expect(loki()).toEqual({})
+    expect(loki({ kinds: ['traffic', 'ips'] })).toEqual({})
+  })
+
+  test('name rules', () => {
+    expect(syslog({ name: 'bad name' }).name).toMatch(/Name/)
+    expect(syslog({ name: '' }).name).toBeDefined()
+    expect(validateLogExport({ name: 'rsyslog', type: 'syslog', address: '1.2.3.4:514' }, [{ name: 'rsyslog' }]).name).toMatch(/already used/)
+  })
+
+  test('type and kinds', () => {
+    expect(syslog({ type: 'splunk' as never }).type).toMatch(/syslog or loki/)
+    expect(loki({ kinds: ['bogus'] }).kinds).toMatch(/Unknown kind bogus/)
+  })
+
+  test('syslog address and protocol', () => {
+    expect(syslog({ address: '' }).address).toMatch(/required/)
+    expect(syslog({ address: '10.0.0.2' }).address).toMatch(/host:port/)
+    expect(syslog({ address: '10.0.0.2:99999' }).address).toMatch(/host:port/)
+    expect(syslog({ protocol: 'sctp' as never }).protocol).toMatch(/udp, tcp or tls/)
+  })
+
+  test('loki url', () => {
+    expect(loki({ url: '' }).url).toMatch(/required/)
+    expect(loki({ url: 'ftp://x/loki/api/v1/push' }).url).toMatch(/https?:\/\//)
+    expect(loki({ url: 'https://x/other' }).url).toMatch(/\/loki\/api\/v1\/push/)
+  })
 })

@@ -11,6 +11,7 @@ export interface PortForward {
   protocol: 'tcp' | 'udp'
   to_addr: string // IPv4
   to_port: string // "" = same as ext_port
+  source?: string[] // address or address group names (countries too); empty = anyone
 }
 
 export interface DHCPStaticLease {
@@ -76,6 +77,8 @@ export interface NetworkConfig {
   dhcp?: DHCPServer[]
   dns?: DNSSettings
   upnp?: UPnPConfig
+  addresses?: { name: string; type: string }[]
+  address_groups?: { name: string }[]
 }
 
 export interface DHCPLease {

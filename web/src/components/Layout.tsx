@@ -46,7 +46,19 @@ const ConnectionBadge: React.FC = () => {
   const q = useQuery({ queryKey: ['system', 'status', 'badge'], queryFn: getSystemStatus, refetchInterval: 15000, retry: false })
   const online = q.isSuccess
   const label = q.isLoading ? 'Connecting' : online ? 'Online' : 'Offline'
+  const reboot = q.data?.reboot_required
+  const pkgs = q.data?.reboot_packages ?? []
   return (
+    <>
+    {reboot && (
+      <Link
+        to="/system"
+        className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+        title={`A security update is installed and needs a restart to take effect${pkgs.length ? ` (${pkgs.join(', ')})` : ''}. Restart from System when it suits you.`}
+      >
+        Restart needed
+      </Link>
+    )}
     <div
       className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1 text-sm font-medium"
       title={online ? 'Goblin Gate is answering' : 'Goblin Gate is not answering'}
@@ -56,6 +68,7 @@ const ConnectionBadge: React.FC = () => {
         <span>{label}</span>
       </span>
     </div>
+    </>
   )
 }
 
