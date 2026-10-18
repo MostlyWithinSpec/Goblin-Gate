@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Docker engine is not running - start Dock
 $script = @'
 set -eo pipefail
 apt-get update -qq >/dev/null
-apt-get install -y -qq nftables kea-dhcp4-server unbound dnsutils iproute2 tcpdump >/dev/null 2>&1
+apt-get install -y -qq nftables kea-dhcp4-server unbound dnsutils iproute2 tcpdump traceroute iputils-ping >/dev/null 2>&1
 # what unbound.service's start helper does: the DNSSEC anchor from dns-root-data
 install -o unbound -m644 /usr/share/dns/root.key /var/lib/unbound/root.key
 echo "nft: $(nft --version)  kea: $(kea-dhcp4 -v)  kernel: $(uname -r)"
@@ -41,6 +41,8 @@ if [ -f internal/render/nft/testdata/full.nft ]; then
 fi
 # DNS filter in a real unbound (needs internet for the unfiltered answers)
 GOBLIN_UNBOUND_E2E=1 go test -count=1 -run TestDNSFilterE2E -v ./internal/render/unbound | grep -E "^(\s*--- |ok|FAIL|\s+filter_linux)"
+# smart queue: CAKE and an ingress IFB on a dummy device (needs sch_cake in the kernel)
+GOBLIN_SQM_LOAD=1 go test -count=1 -run TestScriptLoads -v ./internal/render/sqm | grep -E "^(\s*--- |ok|FAIL|\s+sqm_linux)"
 # web filter proxy in front of the same unbound
 GOBLIN_WF_E2E=1 go test -count=1 -run TestWebFilterE2E -v ./internal/webfilter | grep -E "^(\s*--- |ok|FAIL|\s+e2e_linux)"
 # QR codes (WireGuard client configs) must decode in a real reader

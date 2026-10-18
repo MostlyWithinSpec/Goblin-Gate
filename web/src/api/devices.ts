@@ -31,3 +31,9 @@ export async function renameDevice(mac: string, name: string): Promise<DeviceInv
 export async function forgetDevice(mac: string): Promise<void> {
   await apiClient(`/api/v1/devices/${mac}`, { method: 'DELETE' })
 }
+
+export async function wakeDevice(mac: string): Promise<{ status: string; broadcast: string }> {
+  return apiClient<{ status: string; broadcast: string }>(`/api/v1/devices/${mac}/wake`, {
+    method: 'POST',
+  })
+}

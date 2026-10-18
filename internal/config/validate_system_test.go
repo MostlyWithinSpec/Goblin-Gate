@@ -103,3 +103,33 @@ func TestValidHostPort(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSQM(t *testing.T) {
+	cases := []struct {
+		name string
+		lan  bool
+		sqm  SQM
+		want string // "" = valid
+	}{
+		{"on", false, SQM{Enabled: true, DownloadMbit: 450, UploadMbit: 36}, ""},
+		{"off without speeds", false, SQM{}, ""},
+		{"no download", false, SQM{Enabled: true, UploadMbit: 36}, "interfaces[0].sqm.download_mbit"},
+		{"no upload", false, SQM{Enabled: true, DownloadMbit: 450}, "interfaces[0].sqm.upload_mbit"},
+		{"too fast", false, SQM{Enabled: true, DownloadMbit: MaxSQMMbit + 1, UploadMbit: 1}, "interfaces[0].sqm.download_mbit"},
+		{"on a lan", true, SQM{Enabled: true, DownloadMbit: 1, UploadMbit: 1}, "interfaces[1].sqm"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Default()
+			q := tc.sqm
+			c.Interfaces[map[bool]int{false: 0, true: 1}[tc.lan]].SQM = &q
+			var got []string
+			for _, e := range Validate(c) {
+				got = append(got, e.Path)
+			}
+			if tc.want == "" && len(got) > 0 || tc.want != "" && !strings.Contains(strings.Join(got, " "), tc.want) {
+				t.Fatalf("errors %v, want %q", got, tc.want)
+			}
+		})
+	}
+}

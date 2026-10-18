@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"sort"
 	"sync"
 	"time"
 )
@@ -29,9 +30,26 @@ type Identity struct {
 // CanWrite reports whether the identity may change config.
 func (id Identity) CanWrite() bool { return id.Role == "admin" }
 
+// SessID returns the hashed session id of a session-method identity, or ""
+// for other methods. It is what the active-sessions list keys on.
+func (id Identity) SessID() string { return id.sessID }
+
 type session struct {
 	Identity
-	created, seen time.Time
+	addr, userAgent string
+	created, seen   time.Time
+}
+
+// SessionInfo is the public view of a live session (task 086). The ID is
+// the first 16 hex chars of the hashed cookie, never the cookie itself.
+type SessionInfo struct {
+	ID        string    `json:"id"`
+	User      string    `json:"user"`
+	Role      string    `json:"role"`
+	Addr      string    `json:"addr"`
+	UserAgent string    `json:"user_agent"`
+	Created   time.Time `json:"created"`
+	LastSeen  time.Time `json:"last_seen"`
 }
 
 // Sessions keeps browser sessions in memory (a daemon restart logs everyone
@@ -68,6 +86,16 @@ func hashID(v string) string {
 // Create starts a session and returns the cookie value and its identity
 // (with the CSRF token the client must echo in X-CSRF-Token).
 func (s *Sessions) Create(user, role string) (string, Identity) {
+	return s.CreateFrom(user, role, "", "")
+}
+
+// CreateFrom is Create with the client address and user agent recorded on
+// the session for the active-sessions list. The user agent is truncated to
+// 200 chars.
+func (s *Sessions) CreateFrom(user, role, addr, userAgent string) (string, Identity) {
+	if len(userAgent) > 200 {
+		userAgent = userAgent[:200]
+	}
 	cookie := RandomToken(32)
 	id := Identity{User: user, Role: role, Method: "session", CSRF: RandomToken(32), sessID: hashID(cookie)}
 	now := s.now()
@@ -77,8 +105,49 @@ func (s *Sessions) Create(user, role string) (string, Identity) {
 		s.byID = map[string]*session{}
 	}
 	s.gcLocked(now)
-	s.byID[id.sessID] = &session{Identity: id, created: now, seen: now}
+	s.byID[id.sessID] = &session{Identity: id, addr: addr, userAgent: userAgent, created: now, seen: now}
 	return cookie, id
+}
+
+// List returns the live (non-expired) sessions, newest first. Expired ones
+// are removed as a side effect.
+func (s *Sessions) List() []SessionInfo {
+	now := s.now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gcLocked(now)
+	out := make([]SessionInfo, 0, len(s.byID))
+	for k, ss := range s.byID {
+		out = append(out, SessionInfo{
+			ID:        k[:16],
+			User:      ss.User,
+			Role:      ss.Role,
+			Addr:      ss.addr,
+			UserAgent: ss.userAgent,
+			Created:   ss.created,
+			LastSeen:  ss.seen,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Created.After(out[j].Created) })
+	return out
+}
+
+// DeleteByID ends the session whose short id (the first 16 hex characters
+// of its hashed id, as the active-sessions list shows it) is exactly id. It
+// reports whether a session was found.
+func (s *Sessions) DeleteByID(id string) bool {
+	if len(id) != 16 {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k := range s.byID {
+		if k[:16] == id {
+			delete(s.byID, k)
+			return true
+		}
+	}
+	return false
 }
 
 // Lookup returns the session for a cookie value and refreshes its idle

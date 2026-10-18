@@ -37,6 +37,7 @@ type Config struct {
 	DefaultGateway string `json:"default_gateway,omitempty"`
 	// Plugins are the optional plugins the admin enabled (docs/dev/plugins.md).
 	Plugins []Plugin `json:"plugins,omitempty"`
+	DDNS    []DDNS   `json:"ddns,omitempty"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not
@@ -74,6 +75,19 @@ type Metrics struct {
 	Allow   []string `json:"allow,omitempty"`
 }
 
+// SQM is smart queue management on a WAN: CAKE shaping of upload on the
+// WAN device and of download on an ingress IFB device. Speeds a little below
+// the line's real speed (about 90 %) keep the queue in the box, where CAKE
+// controls it, instead of in the modem.
+type SQM struct {
+	Enabled      bool `json:"enabled"`
+	DownloadMbit int  `json:"download_mbit,omitempty"`
+	UploadMbit   int  `json:"upload_mbit,omitempty"`
+}
+
+// MaxSQMMbit is the highest shaping rate accepted (100 Gbit/s).
+const MaxSQMMbit = 100000
+
 // SSHKey is one OpenSSH public key, e.g. "ssh-ed25519 AAAA... me@laptop".
 type SSHKey struct {
 	Name string `json:"name"`
@@ -94,6 +108,8 @@ type Interface struct {
 	Description string        `json:"description,omitempty"`
 	AllowAccess []string      `json:"allow_access,omitempty"` // ping | https | ssh
 	IPv6        *IPv6         `json:"ipv6,omitempty"`
+	// SQM shapes a WAN with CAKE so a busy line keeps low latency.
+	SQM *SQM `json:"sqm,omitempty"`
 }
 
 // VLAN is an 802.1Q sub-interface on a physical interface, carrying the same

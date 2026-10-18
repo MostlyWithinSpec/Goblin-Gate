@@ -33,6 +33,10 @@ type DNS struct {
 	NoDHCPNames bool `json:"no_dhcp_names,omitempty"`
 	// DomainForwards send chosen domains to chosen servers (split DNS).
 	DomainForwards []DomainForward `json:"domain_forwards,omitempty"`
+	// AllowPrivateAnswers turns off DNS rebinding protection: when true,
+	// public names may answer with private addresses (no Unbound
+	// private-address/private-domain lines are rendered).
+	AllowPrivateAnswers bool `json:"allow_private_answers,omitempty"`
 }
 
 // DomainForward sends queries for Domain (and its subdomains) to Servers.

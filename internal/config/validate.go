@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base32"
 	"encoding/base64"
 	"fmt"
 	"github.com/networkgoblinlabs/goblin-gate/internal/appctrl"
@@ -73,6 +74,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkNotifications()
 	v.checkDNS()
 	v.checkPlugins()
+	v.checkDDNS()
 	return v.errs
 }
 
@@ -183,6 +185,11 @@ func (v *validator) checkFeedsAndAdmins() {
 	for i, a := range v.cfg.Admins {
 		if !oneOf(a.Role, "admin", "readonly") {
 			v.add(fmt.Sprintf("admins[%d].role", i), "unknown role %q: want admin or readonly", a.Role)
+		}
+		if a.TOTPSecret != "" {
+			if b, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(a.TOTPSecret); err != nil || len(b) != 20 {
+				v.add(fmt.Sprintf("admins[%d].totp_secret", i), "invalid two-factor secret (set it up again from the web UI)")
+			}
 		}
 	}
 	if len(v.cfg.Admins) == 0 && !v.cfg.AllowNoAdmin {

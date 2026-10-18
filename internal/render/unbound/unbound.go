@@ -192,6 +192,33 @@ func (r Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 	for _, r := range records {
 		b.WriteString(r)
 	}
+
+	// DNS rebinding protection (task 083): upstream answers may not use
+	// private addresses or the domains below. Local data (static leases,
+	// local records, DHCP names) is served by this box and is unaffected:
+	// private-address only filters what upstream servers answer with.
+	// 100.64.0.0/10 is deliberately not listed: Tailscale MagicDNS answers
+	// in it.
+	if !cfg.DNS.AllowPrivateAnswers {
+		for _, p := range []string{
+			"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
+			"127.0.0.0/8", "fd00::/8", "fe80::/10", "::ffff:0:0/96",
+		} {
+			fmt.Fprintf(&b, "  private-address: %s\n", p)
+		}
+		domains := []string{local, "plex.direct"} // plex.direct: Plex local connections
+		for _, f := range cfg.DNS.DomainForwards {
+			domains = append(domains, strings.TrimSuffix(f.Domain, "."))
+		}
+		seen := map[string]bool{}
+		for _, d := range domains {
+			if !seen[d] {
+				seen[d] = true
+				fmt.Fprintf(&b, "  private-domain: %s\n", d)
+			}
+		}
+	}
+
 	// split DNS: private zones forwarded elsewhere cannot validate
 	if cfg.DNS.DNSSEC {
 		for _, f := range cfg.DNS.DomainForwards {

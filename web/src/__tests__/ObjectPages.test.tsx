@@ -23,8 +23,13 @@ vi.mock('../api/stats', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/stats')>()
   return { ...real, listLogs: vi.fn() }
 })
+vi.mock('../api/config', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../api/config')>()
+  return { ...real, getSystemStatus: vi.fn() }
+})
 import * as api from '../api/objects'
 import * as stats from '../api/stats'
+import { getSystemStatus } from '../api/config'
 import Addresses from '../pages/network/Addresses'
 import AddressGroups from '../pages/network/AddressGroups'
 import Services from '../pages/network/Services'
@@ -77,6 +82,7 @@ beforeEach(() => {
   vi.mocked(api.getCandidate).mockResolvedValue(structuredClone(cfg))
   vi.mocked(api.patchSection).mockReset().mockResolvedValue({ status: 'ok', validation_errors: null })
   vi.mocked(api.getDevices).mockResolvedValue([{ name: 'eth0', up: true }, { name: 'eth1', up: true }])
+  vi.mocked(getSystemStatus).mockReset().mockResolvedValue({ version: 'test', sqm: [{ interface: 'wan1', active: true, download_mbit: 943, upload_mbit: 94 }] })
   vi.mocked(api.getFeedStatus).mockResolvedValue([{ name: 'spamhaus', type: 'ip', url: '', enabled: true, count: 1234, fetched_at: new Date().toISOString() }])
   vi.mocked(api.getWebCategories).mockResolvedValue({ categories: ['adult', 'gambling', 'news'], entries: 5000 })
   vi.mocked(api.getApps).mockResolvedValue(apps)
@@ -317,6 +323,71 @@ describe('Interfaces', () => {
     expect(path).toBe('interfaces')
     const wan1 = (list as api.Interface[])[0]
     expect(wan1.ipv6).toEqual({ mode: 'dhcp6', pd_size: 56 })
+  })
+
+  test('smart queue section appears for WANs only', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
+    expect(await screen.findByText('Smart queue (reduces lag when the line is busy)')).toBeInTheDocument()
+    // Close and open a LAN: no smart queue section there.
+    const close = screen.getByRole('button', { name: '' })
+    fireEvent.click(close)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'wan1' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'lan' }))
+    await screen.findByText('Edit lan')
+    expect(screen.queryByText('Smart queue (reduces lag when the line is busy)')).not.toBeInTheDocument()
+  })
+
+  test('saving an enabled smart queue PATCHes the sqm block', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
+    fireEvent.click(await screen.findByLabelText('Enable smart queue'))
+    fireEvent.change(screen.getByLabelText('SQM download Mbit'), { target: { value: '943' } })
+    fireEvent.change(screen.getByLabelText('SQM upload Mbit'), { target: { value: '94' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [path, list] = lastPatch()
+    expect(path).toBe('interfaces')
+    const wan1 = (list as api.Interface[])[0]
+    expect(wan1.sqm).toEqual({ enabled: true, download_mbit: 943, upload_mbit: 94 })
+  })
+
+  test('disabling smart queue keeps the speeds in the saved body', async () => {
+    const cfgWithSqm = structuredClone(cfg)
+    cfgWithSqm.interfaces![0].sqm = { enabled: true, download_mbit: 500, upload_mbit: 50 }
+    vi.mocked(api.getCandidate).mockResolvedValue(cfgWithSqm)
+
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
+    const enable = await screen.findByLabelText('Enable smart queue')
+    expect(enable).toBeChecked()
+    fireEvent.click(enable)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [, list] = lastPatch()
+    const wan1 = (list as api.Interface[])[0]
+    expect(wan1.sqm).toEqual({ enabled: false, download_mbit: 500, upload_mbit: 50 })
+  })
+
+  test('enabling smart queue with empty speeds shows validation errors', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
+    fireEvent.click(await screen.findByLabelText('Enable smart queue'))
+    expect(screen.getByLabelText('SQM download Mbit')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const msg = /about 90% of the measured speed/
+    expect(await screen.findAllByText(msg)).toHaveLength(2)
+    expect(api.patchSection).not.toHaveBeenCalled()
+  })
+
+  test('SQM badge on an enabled WAN shows the live state', async () => {
+    const cfgWithSqm = structuredClone(cfg)
+    cfgWithSqm.interfaces![0].sqm = { enabled: true, download_mbit: 943, upload_mbit: 94 }
+    vi.mocked(api.getCandidate).mockResolvedValue(cfgWithSqm)
+
+    wrap(<Interfaces />)
+    const row = (await screen.findByRole('button', { name: 'wan1' })).closest('tr')!
+    expect(within(row).getByText('SQM').parentElement).toHaveAttribute('title', 'smart queue active')
   })
 })
 

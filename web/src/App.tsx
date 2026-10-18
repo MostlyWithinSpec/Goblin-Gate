@@ -18,6 +18,7 @@ import Plugins from './pages/system/Plugins'
 import PluginPage from './pages/system/PluginPage'
 import Updates from './pages/system/Updates'
 import GeneratedConfigPage from './pages/system/GeneratedConfig'
+import Diagnostics from './pages/system/Diagnostics'
 import Snapshots from './pages/system/Snapshots'
 import SentryQueue from './pages/plugins/sentry/Queue'
 import SentryIncidents from './pages/plugins/sentry/Incidents'
@@ -38,6 +39,7 @@ import Gateways from './pages/network/Gateways'
 import GatewayGroups from './pages/network/GatewayGroups'
 import StaticRoutes from './pages/network/StaticRoutes'
 import Devices from './pages/network/Devices'
+import DynamicDNS from './pages/network/DynamicDNS'
 import ThreatFeeds from './pages/security/ThreatFeeds'
 import DNSFilterProfiles from './pages/security/DNSFilterProfiles'
 import WebFilterProfiles from './pages/security/WebFilterProfiles'
@@ -77,6 +79,7 @@ function App() {
                 <Route path="gateway-groups" element={<GatewayGroups />} />
                 <Route path="static-routes" element={<StaticRoutes />} />
                 <Route path="devices" element={<Devices />} />
+                <Route path="dynamic-dns" element={<DynamicDNS />} />
               </Route>
               <Route path="/policy" element={<Policy />} />
               <Route path="/policy/schedules" element={<Schedules />} />
@@ -99,6 +102,7 @@ function App() {
               <Route path="/system/plugins/:name/*" element={<PluginPage />} />
               <Route path="/system/updates" element={<Updates />} />
               <Route path="/system/generated" element={<GeneratedConfigPage />} />
+              <Route path="/system/diagnostics" element={<Diagnostics />} />
               <Route path="/system/snapshots" element={<Snapshots />} />
               <Route path="/plugins/sentry" element={<SentryQueue />} />
               <Route path="/plugins/sentry/incidents" element={<SentryIncidents />} />

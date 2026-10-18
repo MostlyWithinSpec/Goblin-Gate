@@ -105,4 +105,7 @@ type Admin struct {
 	Username     string `json:"username"`
 	PasswordHash string `json:"password_hash,omitempty"` // argon2id, set by task 007/022
 	Role         string `json:"role"`                    // admin | readonly
+	// TOTPSecret turns on two-factor login: base32 (160 bits), set through
+	// POST /api/v1/auth/2fa/enable, a secret like PasswordHash.
+	TOTPSecret string `json:"totp_secret,omitempty"`
 }

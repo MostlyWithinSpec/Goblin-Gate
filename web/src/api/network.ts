@@ -33,6 +33,7 @@ export interface DNSSettings {
   forwarders?: string[]
   dnssec?: boolean
   local_records?: Record<string, string> // name -> IPv4
+  allow_private_answers?: boolean // true = no DNS rebinding protection
 }
 
 export interface UPnpAllow {

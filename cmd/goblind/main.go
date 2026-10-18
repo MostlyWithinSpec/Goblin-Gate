@@ -30,6 +30,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/ddns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
@@ -43,6 +44,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
+	sqmrender "github.com/networkgoblinlabs/goblin-gate/internal/render/sqm"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/suricata"
 	sysrender "github.com/networkgoblinlabs/goblin-gate/internal/render/system"
 	tsrender "github.com/networkgoblinlabs/goblin-gate/internal/render/tailscale"
@@ -201,6 +203,12 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	feedMgr := &feeds.Manager{Dir: filepath.Join(dataDir, "feeds"), Logger: logger}
 	feedSync := &feeds.NFTSync{Logger: logger}
 	dnsSync := &feeds.DNSSync{Feeds: feedMgr, Logger: logger}
+	// Dynamic DNS (task 087): updates cloudflare/duckdns/custom entries when
+	// the public IP changes. Not in --dev (the API answers 503).
+	var ddnsMgr *ddns.Manager
+	if !o.dev {
+		ddnsMgr = &ddns.Manager{Updater: &ddns.Updater{}, Logger: logger}
+	}
 	if o.dev {
 		feedSync.Run = func(context.Context, []byte) error { return nil }
 		dnsSync.Write = func(string, []byte) error { return nil }
@@ -211,7 +219,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}}
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, sqmrender.Renderer{}}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
 	// Web filter (task 033): goblind answers the DNS of web-filtered
@@ -425,6 +433,17 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		return cfg.Feeds, nil
 	})
 	apiServer.Feeds = feedMgr
+
+	if ddnsMgr != nil {
+		go ddnsMgr.Run(ctx, func() []config.DDNS {
+			cfg, err := store.Running()
+			if err != nil {
+				return nil
+			}
+			return cfg.DDNS
+		})
+		apiServer.DDNS = ddnsMgr
+	}
 
 	// Stats: the event store, policy counters and system load.
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {

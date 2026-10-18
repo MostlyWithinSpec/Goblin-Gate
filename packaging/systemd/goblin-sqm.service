@@ -1,0 +1,14 @@
+[Unit]
+Description=Goblin Gate smart queue (CAKE shaping on WAN interfaces)
+# tc settings do not survive a reboot: put them back once the links exist.
+After=systemd-networkd.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/goblingate/sqm/sqm.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /etc/goblingate/sqm/sqm.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -42,9 +42,18 @@ export const commitConfig = (comment = '', confirmMinutes = 0): Promise<CommitRe
 export const confirmCommit = (): Promise<{ status: string }> =>
   apiClient<{ status: string }>('/api/v1/commit/confirm', { method: 'POST' })
 
+// Live state of one smart-queue (SQM) deployment on a WAN.
+export interface SQMStatus {
+  interface: string
+  active: boolean
+  download_mbit: number
+  upload_mbit: number
+}
+
 export interface SystemStatus {
   version: string
   pending_confirm?: { deadline: string } | null
+  sqm?: SQMStatus[]
 }
 
 export const getSystemStatus = (): Promise<SystemStatus> => apiClient<SystemStatus>('/api/v1/system/status')

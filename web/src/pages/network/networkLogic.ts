@@ -2,7 +2,7 @@
 // internal/config/validate_policy.go and validate_net.go; the server stays
 // authoritative.
 import type { DHCPServer, DNSSettings, PortForward } from '../../api/network'
-import type { Candidate, Gateway, GatewayGroup, IPv6, Route, WireGuardClient } from '../../api/objects'
+import type { Candidate, Gateway, GatewayGroup, IPv6, Route, SQM, WireGuardClient } from '../../api/objects'
 
 export type Errors = Record<string, string>
 
@@ -243,6 +243,24 @@ export function validateAddressing(x: Addressing): Errors {
   return e
 }
 
+// validateSQM checks the smart queue block of an interface. Mirrors
+// internal/config/validate_net.go: SQM is for WANs only, and when enabled both
+// speeds must be 1-100000 Mbit/s.
+export function validateSQM(sqm: SQM | undefined, role: string): Errors {
+  const e: Errors = {}
+  if (!sqm) return e
+  if (role !== 'wan') {
+    e.sqm = 'Smart queue is for WAN interfaces only'
+    return e
+  }
+  if (sqm.enabled) {
+    const speedMsg = 'Enter the speed in Mbit/s, 1-100000 (about 90% of the measured speed)'
+    if (!Number.isInteger(sqm.download_mbit) || (sqm.download_mbit ?? 0) < 1 || (sqm.download_mbit ?? 0) > 100000) e.sqm_download = speedMsg
+    if (!Number.isInteger(sqm.upload_mbit) || (sqm.upload_mbit ?? 0) < 1 || (sqm.upload_mbit ?? 0) > 100000) e.sqm_upload = speedMsg
+  }
+  return e
+}
+
 // validateGroup: a group needs members, and groups share the name space of
 // the objects they collect (addresses or services).
 export function validateGroup(g: { name: string; members?: string[] }, objects: string[], kind: string): Errors {
@@ -426,6 +444,34 @@ export function validateWireGuardClient(w: WireGuardClient): Errors {
   const [host, port, more] = (w.endpoint ?? '').split(':')
   if (more !== undefined || !host || !port) e.endpoint = 'Enter host:port, e.g. se-sto-wg-001.example.net:51820'
   if (w.mtu !== undefined && (w.mtu < 1280 || w.mtu > 1500)) e.mtu = 'MTU must be 1280-1500'
+  return e
+}
+
+// validateDDNS mirrors internal/config/validate_ddns.go. token is the raw
+// form value ("" when editing and unchanged); the server keeps the stored
+// token in that case, so an empty token is valid when isNew is false.
+export function validateDDNS(d: { name: string; provider: string; hostname: string; interface?: string; token?: string; zone_id?: string; url?: string }, wanIfs: string[], others: { name: string }[], isNew = true): Errors {
+  const e: Errors = {}
+  if (!NAME.test(d.name)) e.name = 'Name: letters, digits, . _ - (max 63)'
+  else if (others.some((o) => o.name === d.name)) e.name = 'Name is already used'
+  if (!HOST.test(d.hostname.trim())) e.hostname = 'Enter a valid hostname like vpn.example.com'
+  if (d.interface && !wanIfs.includes(d.interface)) e.interface = 'Pick a WAN interface'
+  switch (d.provider) {
+    case 'cloudflare':
+      if (isNew && !d.token?.trim()) e.token = 'Token is required'
+      if (!d.zone_id?.trim()) e.zone_id = 'Zone ID is required'
+      break
+    case 'duckdns':
+      if (isNew && !d.token?.trim()) e.token = 'Token is required'
+      break
+    case 'custom': {
+      const url = d.url?.trim() ?? ''
+      if (!url) e.url = 'URL is required'
+      else if (!url.startsWith('https://')) e.url = 'Must start with https://'
+      else if (!url.includes('{ip}')) e.url = 'Must contain {ip}'
+      break
+    }
+  }
   return e
 }
 

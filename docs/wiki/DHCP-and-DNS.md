@@ -26,4 +26,17 @@ A network can also have no DHCP on the box (another DHCP server, or only static 
 - **Domain forwards** (split DNS): send one domain to another server, for example `corp.example` to your
   work VPN's DNS server or `ad.home.arpa` to a domain controller.
 
+### DNS rebinding protection
+
+By default the resolver refuses to hand out private addresses (`10/8`, `172.16/12`, `192.168/16`,
+`169.254/16`, loopback, ULA and link-local IPv6) for names that answer from upstream servers, and it treats
+the local domain, every forwarded domain and `plex.direct` as private too. This stops a website from
+rebinding its own name to an address on your LAN (DNS rebinding). Names the box answers itself — static
+leases, local records, DHCP names — are not affected.
+
+`plex.direct` is private because Plex uses it for local connections; Tailscale's MagicDNS space
+(`100.64.0.0/10`) is deliberately left open. If a service needs public names to answer with private
+addresses, either add a **domain forward** for its internal zone or untick "Allow public names to answer
+with private addresses" in the DNS settings (this turns the protection off).
+
 Blocking ads and malware by name is the DNS filter: see [[Threat Feeds and DNS Filter]].

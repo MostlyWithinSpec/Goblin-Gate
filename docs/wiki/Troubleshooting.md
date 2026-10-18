@@ -54,6 +54,21 @@ If you committed with a confirmation window, wait: it rolls back on its own. Oth
 menu option 4 (shell), then `goblin -c "rollback <revision>"` with the last good revision (System →
 Revisions lists them; `goblin -c "history"` on the shell).
 
+## Diagnostics
+
+System → Diagnostics runs checks from the box itself (admins only):
+
+- **Ping**: reachability and latency to a host, optionally out of a specific interface or VLAN. Useful when
+  one network works but another does not — ping the same host from each source interface.
+- **Traceroute**: which hop stops answering on the way to a host. A `*` row is a hop that did not answer
+  (often a router that blocks probes); look for where real hops end.
+- **DNS lookup**: what the resolver returns for a name or IP (PTR). Ask "this firewall" to test Unbound, or
+  an upstream IP to compare — different answers point at the box's DNS configuration.
+
+At most two diagnostics run at once; if one is already busy you get "Another diagnostic is running; try
+again in a moment." Traceroute can take up to a minute — the button stays disabled with a spinner until it
+finishes.
+
 ## Reporting a bug
 
 Open an issue with: the Goblin Gate version (System → About), what you did, what you expected, and the

@@ -18,6 +18,8 @@ vi.mock('../api/system', async (importOriginal) => {
     getTokens: vi.fn(),
     createToken: vi.fn(),
     deleteToken: vi.fn(),
+    getSessionList: vi.fn(),
+    deleteSession: vi.fn(),
     downloadBackup: vi.fn(),
     restoreBackup: vi.fn(),
     getSystemInfo: vi.fn(),
@@ -29,7 +31,7 @@ vi.mock('../api/config', async (importOriginal) => {
 })
 vi.mock('../api/auth', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/auth')>()
-  return { ...real, getMe: vi.fn() }
+  return { ...real, getMe: vi.fn(), setup2FA: vi.fn(), enable2FA: vi.fn(), disable2FA: vi.fn() }
 })
 
 import * as api from '../api/objects'
@@ -54,10 +56,15 @@ beforeEach(() => {
   vi.mocked(sys.getTokens).mockResolvedValue([])
   vi.mocked(sys.createToken).mockResolvedValue({ token: 'tok_abc', info: { id: '1', name: 't', user: 'root', role: 'admin', created: new Date().toISOString() } })
   vi.mocked(sys.deleteToken).mockResolvedValue({ status: 'deleted' })
+  vi.mocked(sys.getSessionList).mockReset().mockResolvedValue([])
+  vi.mocked(sys.deleteSession).mockReset().mockResolvedValue({})
   vi.mocked(sys.downloadBackup).mockResolvedValue(undefined)
   vi.mocked(sys.restoreBackup).mockResolvedValue({ status: 'candidate', hostname: 'gw1', message: 'ok' })
   vi.mocked(cfgApi.getConfigDiff).mockResolvedValue({ count: 0, changes: [] })
   vi.mocked(auth.getMe).mockResolvedValue({ user: 'root', role: 'admin', method: 'session' })
+  vi.mocked(auth.setup2FA).mockReset().mockResolvedValue({ secret: 'JBSWY3DPEHPK3PXP', otpauth_url: 'otpauth://totp/goblin-gate:root?secret=JBSWY3DPEHPK3PXP', qr_svg: '<svg id="qr"></svg>' })
+  vi.mocked(auth.enable2FA).mockReset().mockResolvedValue({ status: 'enabled' })
+  vi.mocked(auth.disable2FA).mockReset().mockResolvedValue({ status: 'disabled' })
   vi.mocked(sys.getSystemInfo).mockResolvedValue({ version: '0.1.0', time: new Date().toISOString(), hostname: 'gw1', uptime_seconds: 3600, ntp_synchronized: true })
 })
 
@@ -113,6 +120,78 @@ describe('Admins tab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
     const delBtn = await screen.findByLabelText('Delete root')
     expect(delBtn).toBeDisabled()
+  })
+
+  test('active sessions card lists sessions and signs out via DELETE', async () => {
+    vi.mocked(sys.getSessionList).mockResolvedValue([
+      { id: 'a1b2c3d4e5f60718', user: 'root', role: 'admin', addr: '10.0.0.9', user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0', created: new Date().toISOString(), last_seen: new Date().toISOString(), current: true },
+      { id: 'ffeeddccbbaa9988', user: 'alice', role: 'readonly', addr: '10.0.0.42', user_agent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/121.0', created: new Date().toISOString(), last_seen: new Date(Date.now() - 120000).toISOString() },
+    ])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Active sessions')
+    // Both sessions render; the caller's own is badged.
+    expect(await screen.findByText('alice')).toBeInTheDocument()
+    expect(screen.getByText('This session')).toBeInTheDocument()
+    // Only the other user has a sign-out button.
+    const btn = screen.getByRole('button', { name: 'Sign out alice' })
+    fireEvent.click(btn)
+    await waitFor(() => expect(sys.deleteSession).toHaveBeenCalledWith('ffeeddccbbaa9988'))
+  })
+
+  test('sign out is skipped when confirm is declined', async () => {
+    vi.mocked(sys.getSessionList).mockResolvedValue([
+      { id: 'ffeeddccbbaa9988', user: 'alice', role: 'readonly', addr: '10.0.0.42', user_agent: 'Firefox/121.0', created: new Date().toISOString(), last_seen: new Date().toISOString() },
+    ])
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    const btn = await screen.findByRole('button', { name: 'Sign out alice' })
+    fireEvent.click(btn)
+    expect(sys.deleteSession).not.toHaveBeenCalled()
+  })
+
+  test('admins with two-factor enabled get a 2FA badge', async () => {
+    vi.mocked(sys.getAdmins).mockResolvedValue([
+      { username: 'root', role: 'admin', has_password: true, totp_enabled: true },
+      { username: 'alice', role: 'readonly', has_password: true },
+    ])
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Administrators')
+    // Only the totp_enabled admin (root) has the badge, not alice.
+    const rows = screen.getAllByRole('row')
+    const rootRow = rows.find((r) => r.textContent?.includes('root'))!
+    expect(rootRow.textContent).toContain('2FA')
+    const aliceRow = rows.find((r) => r.textContent?.includes('alice'))!
+    expect(aliceRow.textContent).not.toContain('2FA')
+  })
+
+  test('two-factor setup shows the QR and secret, then enable sends the code', async () => {
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Two-factor authentication')
+    fireEvent.click(screen.getByRole('button', { name: /Set up/ }))
+    // The QR svg and the secret are shown.
+    expect(await screen.findByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument()
+    const qr = document.querySelector('svg#qr')
+    expect(qr).not.toBeNull()
+    fireEvent.change(screen.getByLabelText(/Code from your app/i), { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: /Turn on/ }))
+    await waitFor(() => expect(auth.enable2FA).toHaveBeenCalledWith('123456'))
+    expect(await screen.findByText('Two-factor login is on.')).toBeInTheDocument()
+  })
+
+  test('two-factor disable sends the current password', async () => {
+    vi.mocked(auth.getMe).mockResolvedValue({ user: 'root', role: 'admin', method: 'session', totp_enabled: true })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Two-factor authentication')
+    fireEvent.click(screen.getByRole('button', { name: /Turn off/ }))
+    fireEvent.change(screen.getByLabelText(/Current password/i), { target: { value: 'hunter2' } })
+    fireEvent.click(screen.getByRole('button', { name: /Turn off/ }))
+    await waitFor(() => expect(auth.disable2FA).toHaveBeenCalledWith('hunter2'))
   })
 })
 

@@ -17,7 +17,9 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/ddns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
+	"github.com/networkgoblinlabs/goblin-gate/internal/diag"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
@@ -59,6 +61,8 @@ type Server struct {
 
 	// Feeds serves the threat feed endpoints; nil answers 503.
 	Feeds *feeds.Manager
+	// DDNS runs dynamic DNS updates (task 087); nil answers 503.
+	DDNS *ddns.Manager
 	// Notify sends alerts (task 053); nil sends none.
 	Notify *notify.Dispatcher
 	// Updates installs package updates (task 051); nil answers 503 (dev mode).
@@ -110,8 +114,18 @@ type Server struct {
 	// Flows samples the connection table (task 078); nil answers 503.
 	Flows *flows.Sampler
 
-	started time.Time
-	setupMu sync.Mutex
+	// DiagRunner runs ping/traceroute and DiagLookup does DNS lookups for
+	// the diagnostics; nil = the real ones (tests replace them).
+	DiagRunner diag.Runner
+	DiagLookup func(ctx context.Context, name, typ, server string) (diag.DNSResult, error)
+
+	// SQMActive reports whether CAKE shapes a device; nil = ask tc.
+	SQMActive func(dev string) bool
+
+	started  time.Time
+	setupMu  sync.Mutex
+	diagOnce sync.Once
+	diagSem  chan struct{}
 }
 
 // NewServer creates an API server.
@@ -174,6 +188,9 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/system/backup", s.backup)
 	handle("POST /api/v1/system/restore", s.restore)
 	handle("GET /api/v1/dhcp/leases", s.dhcpLeases)
+	handle("POST /api/v1/diag/ping", s.diagPing)
+	handle("POST /api/v1/diag/traceroute", s.diagTraceroute)
+	handle("POST /api/v1/diag/dns", s.diagDNS)
 	handle("GET /api/v1/snapshots", s.listSnapshots)
 	handle("POST /api/v1/snapshots", s.createSnapshot)
 	handle("GET /api/v1/snapshots/{name}", s.getSnapshot)
@@ -194,6 +211,8 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/feeds", s.feedStatus)
 	handle("GET /api/v1/feeds/lookup", s.feedLookup)
 	handle("POST /api/v1/feeds/{name}/refresh", s.feedRefresh)
+	handle("GET /api/v1/ddns", s.ddnsStatus)
+	handle("POST /api/v1/ddns/{name}/update", s.ddnsUpdateNow)
 	handle("POST /api/v1/stats/query", s.statsQuery)
 	handle("GET /api/v1/stats/policies", s.policyStats)
 	handle("GET /api/v1/stats/system", s.systemStats)
@@ -212,9 +231,14 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/auth/logout", s.logout)
 	handle("GET /api/v1/auth/me", s.me)
 	handle("POST /api/v1/auth/password", s.changePassword)
+	handle("POST /api/v1/auth/2fa/setup", s.twoFactorSetup)
+	handle("POST /api/v1/auth/2fa/enable", s.twoFactorEnable)
+	handle("POST /api/v1/auth/2fa/disable", s.twoFactorDisable)
 	handle("GET /api/v1/auth/tokens", s.listTokens)
 	handle("POST /api/v1/auth/tokens", s.createToken)
 	handle("DELETE /api/v1/auth/tokens/{id}", s.deleteToken)
+	handle("GET /api/v1/auth/sessions", s.listSessions)
+	handle("DELETE /api/v1/auth/sessions/{id}", s.deleteSession)
 	handle("GET /api/v1/flows", s.listFlows)
 	handle("GET /api/v1/flows/devices", s.flowDevices)
 	handle("POST /api/v1/capture", s.startCapture)
@@ -227,6 +251,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("DELETE /api/v1/blocks/{ip}", s.removeBlock)
 	handle("GET /api/v1/devices", s.listDevices)
 	handle("PATCH /api/v1/devices/{mac}", s.patchDevice)
+	handle("POST /api/v1/devices/{mac}/wake", s.wakeDevice)
 	handle("DELETE /api/v1/devices/{mac}", s.deleteDevice)
 	handle("GET /api/v1/plugins", s.listPlugins)
 	handle("POST /api/v1/plugins/{name}/enable", s.enablePlugin)
@@ -361,6 +386,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	if cfg, err := s.Store.Running(); err == nil && cfg.System.Hostname != "" {
 		resp["hostname"] = cfg.System.Hostname
+		resp["sqm"] = s.sqmStatus(cfg)
 	}
 	if deadline, ok := s.Commit.PendingConfirm(); ok {
 		resp["pending_confirm"] = map[string]any{"deadline": deadline.UTC().Format(time.RFC3339)}

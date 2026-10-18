@@ -44,7 +44,7 @@ systemctl mask suricata.service >/dev/null 2>&1 || true
 # goblind runs goblin-miniupnpd; the stock unit would add a forward chain
 # with policy drop (table inet filter) and stop all routing.
 systemctl mask miniupnpd.service >/dev/null 2>&1 || true
-for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service; do
+for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service goblin-sqm.service; do
 	systemctl enable "$u" >/dev/null 2>&1 || true
 done
 if [ -d /run/systemd/system ]; then

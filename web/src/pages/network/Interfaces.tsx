@@ -2,9 +2,10 @@
 // addressing. Interfaces and VLANs share one name space.
 import { useEffect, useState } from 'react'
 import { Checklist, ConfigList, inputClass, omitEmpty, type FormCtx } from '../../components/ConfigList'
-import { getDevices, type Device, type Interface, type IPv6, type VLAN } from '../../api/objects'
+import { getDevices, type Device, type Interface, type IPv6, type SQM, type VLAN } from '../../api/objects'
+import { getSystemStatus, type SQMStatus } from '../../api/config'
 import { Badge } from '../../components/Badge'
-import { validateAddressing, validateIPv6 } from './networkLogic'
+import { validateAddressing, validateIPv6, validateSQM } from './networkLogic'
 
 type Addressed = Interface | VLAN
 
@@ -46,6 +47,15 @@ function cleanAddressing<T extends Addressed>(x: T): T {
     out.ipv6 = v
   } else if (out.ipv6?.mode === 'none') {
     delete out.ipv6
+  }
+  // Smart queue: keep the speeds even when disabled so re-enabling does not
+  // require typing them again. An enabled block without speeds must survive
+  // clean so validateSQM can report the missing values; only drop a block
+  // that is disabled and has no speeds at all.
+  if ('sqm' in out) {
+    const s = (out as Interface).sqm
+    if (!s || (s.enabled !== true && s.download_mbit === undefined && s.upload_mbit === undefined)) delete (out as Interface).sqm
+    else (out as Interface).sqm = { enabled: !!s.enabled, download_mbit: s.download_mbit, upload_mbit: s.upload_mbit }
   }
   return omitEmpty(out)
 }
@@ -193,6 +203,37 @@ function AddressingFields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p:
   )
 }
 
+// SQMFields renders the smart queue section of a WAN interface form.
+function SQMFields({ x, set, ctx }: { x: Interface; set: (p: Partial<Interface>) => void; ctx: FormCtx }) {
+  const s: SQM = x.sqm ?? { enabled: false }
+  const setS = (p: Partial<SQM>) => set({ sqm: { ...s, ...p } })
+  return (
+    <div className="space-y-3 rounded border p-3">
+      <h4 className="text-sm font-semibold">Smart queue (reduces lag when the line is busy)</h4>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" aria-label="Enable smart queue" checked={s.enabled} onChange={(e) => setS({ enabled: e.target.checked })} />
+        Enable smart queue
+      </label>
+      {ctx.err('sqm')}
+      {s.enabled && (
+        <>
+          <label className="block">
+            Download speed (Mbit/s)
+            <input aria-label="SQM download Mbit" type="number" min={1} max={100000} className={inputClass} placeholder="943" value={s.download_mbit ?? ''} onChange={(e) => setS({ download_mbit: e.target.value ? Number(e.target.value) : undefined })} />
+            {ctx.err('sqm_download')}
+          </label>
+          <label className="block">
+            Upload speed (Mbit/s)
+            <input aria-label="SQM upload Mbit" type="number" min={1} max={100000} className={inputClass} placeholder="94" value={s.upload_mbit ?? ''} onChange={(e) => setS({ upload_mbit: e.target.value ? Number(e.target.value) : undefined })} />
+            {ctx.err('sqm_upload')}
+          </label>
+          <p className="text-xs opacity-70">Run a speed test without smart queue, then enter about 90% of the result.</p>
+        </>
+      )}
+    </div>
+  )
+}
+
 const addr = (x: Addressed) => (x.mode === 'static' ? x.address : x.mode)
 const v6addr = (x: Addressed) => {
   if (!x.ipv6 || x.ipv6.mode === 'none') return ''
@@ -203,10 +244,22 @@ const status = (x: Addressed) => (x.enabled ? <Badge variant="success">enabled</
 
 export default function Interfaces() {
   const [devices, setDevices] = useState<Device[] | null>(null)
+  const [sqmStatus, setSqmStatus] = useState<SQMStatus[]>([])
   useEffect(() => {
     getDevices().then(setDevices).catch(() => setDevices([]))
+    getSystemStatus()
+      .then((s) => setSqmStatus(s.sqm ?? []))
+      .catch(() => setSqmStatus([]))
   }, [])
   const missing = (dev: string) => devices !== null && devices.length > 0 && dev !== '' && !devices.some((d) => d.name === dev)
+  // SQM badge for WANs with smart queue enabled; the tooltip says whether CAKE
+  // is actually running on the device.
+  const sqmBadge = (x: Interface) => {
+    if (!x.sqm?.enabled) return null
+    const live = sqmStatus.find((s) => s.interface === x.name)
+    const active = live ? (live.active ? 'active' : 'not active') : 'unknown'
+    return <span title={`smart queue ${active}`}><Badge variant="secondary">SQM</Badge></span>
+  }
 
   return (
     <div className="space-y-8">
@@ -220,6 +273,7 @@ export default function Interfaces() {
         validate={(x, cfg) => ({
           ...validateAddressing(x),
           ...validateIPv6(x.ipv6, x.role, cfg),
+          ...validateSQM(x.sqm, x.role),
           ...(x.device ? {} : { device: 'Pick the network device' }),
           ...((cfg.vlans ?? []).some((v) => v.name === x.name) ? { name: 'A VLAN has this name' } : {}),
         })}
@@ -237,6 +291,7 @@ export default function Interfaces() {
           { label: 'Address', render: addr },
           { label: 'IPv6', render: v6addr },
           { label: 'Access', render: (x) => (x.allow_access ?? []).join(', ') },
+          { label: 'SQM', render: sqmBadge },
           { label: 'Status', render: status },
         ]}
         form={(x, set, ctx) => (
@@ -271,6 +326,7 @@ export default function Interfaces() {
               </select>
             </label>
             <AddressingFields x={x} set={set} ctx={ctx} />
+            {x.role === 'wan' && <SQMFields x={x} set={set} ctx={ctx} />}
             <IPv6Fields x={x} set={set} ctx={ctx} />
           </>
         )}

@@ -12,6 +12,15 @@ gives `Permission denied`. That is on purpose.
 
 Locked out of the web UI? On the console, menu option 3 resets the admin password.
 
+## Two-factor login
+
+Turn it on under **System → Admins → Two-factor authentication**: press **Set up**, scan the QR code with an
+authenticator app (or enter the secret by hand), then type the 6-digit code and **Turn on**. From then on,
+logging in to the web UI asks for a second step — the code from the app.
+
+Lost your phone? Two-factor can only be turned off from the console: `goblin --set-password <user>` resets the
+password and turns two-factor off, so you can sign in again and set it up with a new device.
+
 ## The REST API
 
 Everything the web UI does goes through `https://<box>/api/v1/...`.

@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
@@ -33,6 +35,7 @@ type Authenticator struct {
 
 	dummyOnce sync.Once
 	dummy     string
+	totp      totpState
 }
 
 // NewAuthenticator returns an Authenticator with fresh sessions and limiter.
@@ -154,7 +157,9 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				return
 			}
 		}
+		// read-only users may still secure their own login (password, 2FA)
 		if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" &&
+			!strings.HasPrefix(r.URL.Path, "/api/v1/auth/2fa/") &&
 			!(r.Method == http.MethodPost && readOnlyPosts[r.URL.Path]) {
 			writeError(w, http.StatusForbidden, "forbidden", "read-only users cannot change anything", nil)
 			return
@@ -193,9 +198,10 @@ func (s *Server) setCookie(w http.ResponseWriter, name, value string, httpOnly b
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Code     string `json:"code,omitempty"` // two-factor code, when the user has it on
 }
 
-// POST /api/v1/auth/login {username, password} → {user, role, csrf_token}
+// POST /api/v1/auth/login {username, password, code?} → {user, role, csrf_token}
 // and the session + CSRF cookies.
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if s.Authn == nil {
@@ -214,11 +220,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "too many failed logins; try again later", nil)
 		return
 	}
-	hash, role := a.dummyHash(), ""
+	hash, role, totpSecret := a.dummyHash(), "", ""
 	if cfg, err := s.Store.Running(); err == nil {
 		for _, ad := range cfg.Admins {
 			if ad.Username == req.Username && ad.PasswordHash != "" {
-				hash, role = ad.PasswordHash, ad.Role
+				hash, role, totpSecret = ad.PasswordHash, ad.Role, ad.TOTPSecret
 			}
 		}
 	}
@@ -237,8 +243,21 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "login_failed", "wrong user name or password", nil)
 		return
 	}
+	if totpSecret != "" {
+		if req.Code == "" {
+			// the password was right: ask for the code (not a failed login)
+			writeError(w, http.StatusUnauthorized, "totp_required", "enter the code from your authenticator app", nil)
+			return
+		}
+		if !a.totp.guard.Use(req.Username, totpSecret, req.Code, time.Now()) {
+			locked := a.Limiter.Fail(addr, req.Username)
+			s.audit(r, "login_failed", req.Username, map[string]any{"locked": locked, "reason": "totp"})
+			writeError(w, http.StatusUnauthorized, "totp_invalid", "that code is not right; codes change every 30 seconds", nil)
+			return
+		}
+	}
 	a.Limiter.Succeed(addr)
-	cookie, id := a.Sessions.Create(req.Username, role)
+	cookie, id := a.Sessions.CreateFrom(req.Username, role, addr, r.Header.Get("User-Agent"))
 	s.setCookie(w, SessionCookie, cookie, true, 0)
 	s.setCookie(w, CSRFCookie, id.CSRF, false, 0)
 	s.audit(r, "login", req.Username, nil)
@@ -268,7 +287,14 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		id = auth.Identity{User: "dev", Role: "admin", Method: "none"}
 	}
-	writeJSON(w, http.StatusOK, id)
+	totp := false
+	if cfg, err := s.Store.Running(); err == nil {
+		totp = adminTOTP(cfg, id.User) != ""
+	}
+	writeJSON(w, http.StatusOK, struct {
+		auth.Identity
+		TOTPEnabled bool `json:"totp_enabled"`
+	}{id, totp})
 }
 
 func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) (auth.Identity, bool) {
@@ -341,6 +367,62 @@ func (s *Server) deleteToken(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "token_deleted", id.User, map[string]any{"token": tid})
 	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
+}
+
+// sessionCaller is the short id of the caller's own browser session, or ""
+// when the request does not act through a session (token, socket, dev).
+func sessionCaller(id auth.Identity) string {
+	if id.Method != "session" || id.SessID() == "" {
+		return ""
+	}
+	return id.SessID()[:16]
+}
+
+// GET /api/v1/auth/sessions → {sessions: [SessionInfo, current flag on the
+// caller's own session]}. Admins see every live session; readonly users
+// only their own.
+func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
+	if s.Authn == nil {
+		writeError(w, http.StatusNotFound, "auth_disabled", "authentication is disabled (dev mode)", nil)
+		return
+	}
+	id, _ := IdentityFrom(r)
+	caller := sessionCaller(id)
+	list := s.Authn.Sessions.List()
+	out := make([]map[string]any, 0, len(list))
+	for _, si := range list {
+		if !id.CanWrite() && si.ID != caller {
+			continue // readonly users see only their own session
+		}
+		m := map[string]any{
+			"id": si.ID, "user": si.User, "role": si.Role, "addr": si.Addr,
+			"user_agent": si.UserAgent, "created": si.Created, "last_seen": si.LastSeen,
+			"current": si.ID == caller,
+		}
+		out = append(out, m)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sessions": out})
+}
+
+// DELETE /api/v1/auth/sessions/{id} ends a session. Admins may end any;
+// others only their own.
+func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
+	if s.Authn == nil {
+		writeError(w, http.StatusNotFound, "auth_disabled", "authentication is disabled (dev mode)", nil)
+		return
+	}
+	id, _ := IdentityFrom(r)
+	target := r.PathValue("id")
+	if !id.CanWrite() && target != sessionCaller(id) {
+		writeError(w, http.StatusForbidden, "forbidden", "you can only end your own session", nil)
+		return
+	}
+	if !s.Authn.Sessions.DeleteByID(target) {
+		writeError(w, http.StatusNotFound, "not_found", "no such session", nil)
+		return
+	}
+	s.audit(r, "session_revoked", id.User, map[string]any{"session": target})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type passwordRequest struct {
@@ -416,6 +498,12 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user_not_found", "no such user", nil)
 		return
 	}
+	// a reset on the box (root over the socket) is the recovery path for a
+	// lost authenticator: it turns two-factor login off as well
+	recovery := id.Method == "socket"
+	if recovery {
+		setTOTP(running, target, "")
+	}
 	cand, err := s.Store.Candidate()
 	if err != nil {
 		s.internal(w, "read candidate config", err)
@@ -425,6 +513,9 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.internal(w, "save password", err)
 		return
+	}
+	if recovery {
+		setTOTP(cand, target, "")
 	}
 	if setHash(cand, target, newHash) {
 		if err := s.Store.SetCandidate(cand); err != nil {

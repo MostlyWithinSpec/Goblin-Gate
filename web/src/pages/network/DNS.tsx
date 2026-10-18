@@ -9,6 +9,7 @@ type Rec = { name: string; ip: string }
 export default function DNS() {
   const [forwarders, setForwarders] = useState('')
   const [dnssec, setDnssec] = useState(false)
+  const [allowPrivateAnswers, setAllowPrivateAnswers] = useState(false)
   const [records, setRecords] = useState<Rec[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,6 +23,7 @@ export default function DNS() {
         const d = cfg.dns ?? {}
         setForwarders((d.forwarders ?? []).join(', '))
         setDnssec(!!d.dnssec)
+        setAllowPrivateAnswers(!!d.allow_private_answers)
         setRecords(Object.entries(d.local_records ?? {}).map(([name, ip]) => ({ name, ip })).sort((a, b) => a.name.localeCompare(b.name)))
         setLoaded(true)
       })
@@ -42,6 +44,7 @@ export default function DNS() {
     const fw = forwarders.split(/[\s,]+/).filter(Boolean)
     if (fw.length) dns.forwarders = fw
     if (dnssec) dns.dnssec = true
+    if (allowPrivateAnswers) dns.allow_private_answers = true
     if (rows.length) dns.local_records = Object.fromEntries(rows.map((r) => [r.name.trim(), r.ip.trim()]))
     Object.assign(errs, validateDNS(dns))
     setErrors(errs)
@@ -74,6 +77,10 @@ export default function DNS() {
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={dnssec} onChange={(e) => setDnssec(e.target.checked)} />
         Validate DNSSEC
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={allowPrivateAnswers} onChange={(e) => setAllowPrivateAnswers(e.target.checked)} />
+        Allow public names to answer with private addresses (turns off DNS rebinding protection)
       </label>
       <fieldset>
         <legend className="mb-1 font-medium">Local records</legend>

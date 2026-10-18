@@ -2,8 +2,8 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Search, Trash2, ExternalLink, Plus, ShieldAlert } from 'lucide-react'
-import { listDevices, renameDevice, forgetDevice, type DeviceInventory } from '../../api/devices'
+import { Search, Trash2, ExternalLink, Plus, ShieldAlert, Power } from 'lucide-react'
+import { listDevices, renameDevice, forgetDevice, wakeDevice, type DeviceInventory } from '../../api/devices'
 import { createBlock } from '../../api/sentry'
 import { EditDrawer } from '../../components/EditDrawer'
 import { Dialog } from '../../components/Dialog'
@@ -67,6 +67,15 @@ export default function Devices() {
     },
   })
 
+  const [wakeMsg, setWakeMsg] = useState<string | null>(null)
+  const wakeMut = useMutation({
+    mutationFn: (mac: string) => wakeDevice(mac),
+    onSuccess: (_data, mac) => {
+      const d = devices.find((x) => x.mac === mac)
+      setWakeMsg(`Wake-up packet sent to ${d?.name || d?.hostname || mac}. It can take a minute to start.`)
+    },
+  })
+
   const blockMut = useMutation({
     mutationFn: () => createBlock({ ip: blockIp, minutes: blockMinutes, reason: blockReason, allow_internal: blockAllowInternal }),
     onSuccess: () => {
@@ -104,6 +113,7 @@ export default function Devices() {
   const openDevice = (d: DeviceInventory) => {
     setSelected(d)
     setName(d.name ?? '')
+    setWakeMsg(null)
   }
 
   const submitBlock = () => {
@@ -282,6 +292,21 @@ export default function Devices() {
               >
                 <ShieldAlert size={14} /> Block temporarily
               </button>
+              <button
+                type="button"
+                title="Sends a Wake-on-LAN magic packet. WOL must be enabled in the device's BIOS and network settings."
+                onClick={() => wakeMut.mutate(selected.mac)}
+                disabled={wakeMut.isPending}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:underline disabled:opacity-50"
+              >
+                <Power size={14} /> {wakeMut.isPending ? 'Waking…' : 'Wake device'}
+              </button>
+              {wakeMsg && (
+                <p className="text-xs text-green-600 dark:text-green-400">{wakeMsg}</p>
+              )}
+              {wakeMut.isError && (
+                <p role="alert" className="text-xs text-red-600">{(wakeMut.error as Error).message}</p>
+              )}
             </div>
 
             {/* Forget */}

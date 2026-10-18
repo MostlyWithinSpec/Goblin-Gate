@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,10 +202,11 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 	a := newAuthAPI(t)
 	cfg, _ := a.store.Running()
 	cfg.Feeds = []config.Feed{{Name: "paid", Type: "ip", URL: "https://feeds.example.net/x", Enabled: true, AuthHeader: "Authorization: Bearer feedsecret"}}
+	cfg.DDNS = []config.DDNS{{Name: "home", Enabled: true, Provider: "cloudflare", Hostname: "host.example.net", Token: "ddns-secret-token", ZoneID: "abc123"}}
 	if _, err := a.store.SaveRevision(cfg, "test", "feed"); err != nil {
 		t.Fatal(err)
 	}
-	// secrets: password hashes and the feed's auth header
+	// secrets: password hashes, the feed's auth header, and the DDNS token
 	hashes := func(cfg map[string]any) (n int) {
 		for _, ad := range cfg["admins"].([]any) {
 			if h, _ := ad.(map[string]any)["password_hash"].(string); h != "" {
@@ -212,6 +214,9 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 			}
 		}
 		if strings.Contains(jsonString(cfg), "feedsecret") {
+			n++
+		}
+		if strings.Contains(jsonString(cfg), "ddns-secret-token") {
 			n++
 		}
 		return n
@@ -231,8 +236,8 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 
 	admin := a.browser()
 	admin.login("admin")
-	if n := hashes(admin.expect("GET", "/api/v1/config/running", nil, 200)); n != 3 {
-		t.Fatalf("admin running: %d secrets, want 3 (2 hashes + feed header)", n)
+	if n := hashes(admin.expect("GET", "/api/v1/config/running", nil, 200)); n != 4 {
+		t.Fatalf("admin running: %d secrets, want 4 (2 hashes + feed header + ddns token)", n)
 	}
 	if code, _, _ := admin.do("GET", "/api/v1/system/backup", nil); code != 200 {
 		t.Fatalf("admin backup: %d", code)
@@ -341,4 +346,90 @@ func TestSocketResetsPassword(t *testing.T) {
 		t.Fatalf("socket reset: %d %s", rec.Code, rec.Body)
 	}
 	a.browser().expect("POST", "/api/v1/auth/login", map[string]string{"username": "admin", "password": "recovered password"}, 200)
+}
+
+func TestActiveSessions(t *testing.T) {
+	a := newAuthAPI(t)
+
+	admin := a.browser()
+	admin.login("admin")
+	viewer := a.browser()
+	viewer.login("viewer")
+
+	// Admin sees both sessions; own is marked current.
+	out := admin.expect("GET", "/api/v1/auth/sessions", nil, 200)
+	sess := out["sessions"].([]any)
+	if len(sess) != 2 {
+		t.Fatalf("admin session list: %d entries, want 2: %v", len(sess), sess)
+	}
+	var adminID, viewerID string
+	currentCount := 0
+	for _, s := range sess {
+		m := s.(map[string]any)
+		if m["user"] == "admin" {
+			adminID = m["id"].(string)
+			if m["current"] != true {
+				t.Errorf("admin session not marked current: %v", m)
+			}
+			currentCount++
+		}
+		if m["user"] == "viewer" {
+			viewerID = m["id"].(string)
+			if m["current"] != false {
+				t.Errorf("viewer session marked current for admin caller: %v", m)
+			}
+		}
+	}
+	if currentCount != 1 {
+		t.Errorf("current count = %d, want 1", currentCount)
+	}
+
+	// The raw cookie value must never appear in the response body.
+	cookieVal := ""
+	for _, c := range admin.client.Jar.Cookies(mustURL(t, admin.base)) {
+		if c.Name == SessionCookie {
+			cookieVal = c.Value
+		}
+	}
+	if cookieVal != "" && strings.Contains(jsonString(out), cookieVal) {
+		t.Fatal("session cookie value leaked in API response")
+	}
+
+	// Readonly user sees only their own session.
+	vout := viewer.expect("GET", "/api/v1/auth/sessions", nil, 200)
+	vsess := vout["sessions"].([]any)
+	if len(vsess) != 1 {
+		t.Fatalf("viewer session list: %d entries, want 1: %v", len(vsess), vsess)
+	}
+	vm := vsess[0].(map[string]any)
+	if vm["user"] != "viewer" || vm["current"] != true {
+		t.Errorf("viewer sees %+v, want own session marked current", vm)
+	}
+
+	// Readonly cannot delete admin's session.
+	if out := viewer.expect("DELETE", "/api/v1/auth/sessions/"+adminID, nil, 403); errCode(out) != "forbidden" {
+		t.Fatalf("viewer delete admin: %v", out)
+	}
+
+	// Unknown id → 404 not_found.
+	if out := admin.expect("DELETE", "/api/v1/auth/sessions/ffffffffffffffff", nil, 404); errCode(out) != "not_found" {
+		t.Fatalf("unknown session: %v", out)
+	}
+
+	// Admin can delete viewer's session.
+	admin.expect("DELETE", "/api/v1/auth/sessions/"+viewerID, nil, 204)
+	// Viewer is now logged out.
+	viewer.expect("GET", "/api/v1/config/running", nil, 401)
+
+	// Deleting the same id again → 404.
+	admin.expect("DELETE", "/api/v1/auth/sessions/"+viewerID, nil, 404)
+}
+
+func mustURL(t *testing.T, s string) *url.URL {
+	t.Helper()
+	u, err := url.Parse(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }

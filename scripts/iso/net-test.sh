@@ -274,6 +274,25 @@ check mw-failback-to-wan1 retry 120 sh -c "$W http://192.0.2.80/ | grep -q 'hell
 check mw-wan-down-logged retry 30 sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' '$BOX/api/v1/logs?kind=system' | jq -e '[.events[] | select(.action == \"wan_down\")] | length > 0'"
 api GET /api/v1/gateways/status >"$A/gateways-final.json"
 
+# --- smart queue: CAKE on WAN 1 (upload) and its IFB (download), then off
+log "smart queue on wan1"
+ST="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/system/status"
+patch interfaces "$(cand | jq -c '[.interfaces[] | if .name == "wan1" then .sqm = {"enabled":true,"download_mbit":200,"upload_mbit":50} else . end]')"
+api POST /api/v1/commit '{"comment":"sqm on"}' | tee "$A/commit-sqm-on.json"; echo
+check sqm-active retry 30 sh -c "$ST | jq -e '.sqm[] | select(.interface == \"wan1\") | .active'"
+check sqm-traffic-flows retry 30 sh -c "$CL curl -s -m 5 http://203.0.113.80/whoami | grep -q sees"
+patch interfaces "$(cand | jq -c '[.interfaces[] | if .name == "wan1" then .sqm.enabled = false else . end]')"
+api POST /api/v1/commit '{"comment":"sqm off"}' | tee "$A/commit-sqm-off.json"; echo
+check sqm-off retry 30 sh -c "$ST | jq -e '.sqm | length == 0'"
+
+# --- diagnostics from the box itself
+api POST /api/v1/diag/ping '{"host":"203.0.113.80","count":2}' >"$A/diag-ping.json"
+check diag-ping jq -e '.received >= 1' "$A/diag-ping.json"
+api POST /api/v1/diag/traceroute '{"host":"203.0.113.80","max_hops":5}' >"$A/diag-traceroute.json"
+check diag-traceroute jq -e '[.hops[] | select(.address == "203.0.113.80")] | length == 1' "$A/diag-traceroute.json"
+api POST /api/v1/diag/dns '{"name":"www.test.example"}' >"$A/diag-dns.json"
+check diag-dns jq -e '.rcode == "NOERROR" and (.answers | index("203.0.113.80"))' "$A/diag-dns.json"
+
 # --- artifacts
 for p in /api/v1/system/status /api/v1/feeds "/api/v1/logs?limit=200" /api/v1/config/running /api/v1/stats/policies; do
 	f=$(echo "$p" | tr '/?=&' '____'); api GET "$p" >"$A/api$f.json" 2>&1

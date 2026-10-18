@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle } from 'lucide-react'
+import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle, LogOut } from 'lucide-react'
 import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device, type MetricsSettings } from '../api/objects'
 import { inputClass, NAME_RE, omitEmpty } from '../components/ConfigList'
 import { getConfigDiff, type DiffResponse } from '../api/config'
-import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry } from '../api/system'
-import { getMe, type Me } from '../api/auth'
+import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, getSessionList, deleteSession, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry, type SessionInfo } from '../api/system'
+import { getMe, setup2FA, enable2FA, disable2FA, type Me, type TwoFactorSetup } from '../api/auth'
 import { Badge } from '../components/Badge'
 
 const TABS = ['General', 'Admins', 'API Tokens', 'Backup', 'Import', 'About'] as const
@@ -65,6 +65,10 @@ const System: React.FC = () => {
         <Link to="/system/generated" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Generated config</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Renderer output: running vs candidate, with diff</span>
+        </Link>
+        <Link to="/system/diagnostics" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+          <span className="font-semibold text-blue-700 dark:text-blue-300">Diagnostics</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-300">Ping, traceroute and DNS lookup from the box</span>
         </Link>
       </div>
     </div>
@@ -252,7 +256,7 @@ const AdminsTab: React.FC = () => {
       </div>
       <table className="min-w-full text-sm">
         <thead className="text-left text-xs uppercase text-gray-500">
-          <tr><th className="px-3 py-2">Username</th><th className="px-3 py-2">Role</th><th className="px-3 py-2"></th></tr>
+          <tr><th className="px-3 py-2">Username</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">2FA</th><th className="px-3 py-2"></th></tr>
         </thead>
         <tbody>
           {admins.map((a) => (
@@ -264,6 +268,7 @@ const AdminsTab: React.FC = () => {
                   <option value="readonly">readonly</option>
                 </select>
               </td>
+              <td className="px-3 py-2">{a.totp_enabled && <Badge variant="success">2FA</Badge>}</td>
               <td className="whitespace-nowrap px-3 py-2 text-right">
                 <button type="button" onClick={() => resetPassword(a.username)} className="mr-2 text-sm text-blue-600 hover:underline">Reset password</button>
                 <button type="button" disabled={!canDelete(a)} onClick={() => doDelete(a.username)} className="text-red-600 disabled:opacity-40" aria-label={`Delete ${a.username}`}>
@@ -303,7 +308,214 @@ const AdminsTab: React.FC = () => {
         </form>
       )}
 
+      <TwoFactorCard me={me} onChanged={() => getMe().then(setMe)} />
+      <SessionsCard />
       <SSHKeysSection />
+    </div>
+  )
+}
+
+// Two-factor (TOTP) login for the signed-in user (task 085 backend).
+const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me, onChanged }) => {
+  const [setup, setSetup] = useState<TwoFactorSetup | null>(null)
+  const [code, setCode] = useState('')
+  const [offPassword, setOffPassword] = useState('')
+  const [showOff, setShowOff] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  const startSetup = async () => {
+    setBusy(true); setError(null)
+    try {
+      const s = await setup2FA()
+      setSetup(s)
+      setCode('')
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const turnOn = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    if (!code) return
+    setBusy(true); setError(null)
+    try {
+      await enable2FA(code)
+      setSetup(null)
+      setCode('')
+      setDone(true)
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const turnOff = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    if (!offPassword) return
+    setBusy(true); setError(null)
+    try {
+      await disable2FA(offPassword)
+      setShowOff(false)
+      setOffPassword('')
+      setDone(true)
+      onChanged()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const copySecret = () => {
+    if (!setup) return
+    navigator.clipboard?.writeText(setup.secret).catch(() => {})
+  }
+
+  return (
+    <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-600">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Two-factor authentication</h3>
+      {error && <div className="mt-2 rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+      {done && <div className="mt-2 rounded bg-green-50 p-2 text-sm text-green-700" role="status">Two-factor login is on.</div>}
+
+      {!me?.totp_enabled ? (
+        !setup ? (
+          <div className="mt-2 flex items-center gap-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Require a code from your authenticator app at login.</p>
+            <button type="button" onClick={startSetup} disabled={busy} className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+              {busy ? 'Setting up…' : 'Set up'}
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={turnOn} className="mt-2 space-y-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Scan this code with your authenticator app, or enter the secret by hand:
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="bg-white p-2 inline-block" dangerouslySetInnerHTML={{ __html: setup.qr_svg }} />
+              <div className="space-y-1">
+                <code className="block break-all text-sm">{setup.secret}</code>
+                <button type="button" onClick={copySecret} className="text-sm text-blue-600 hover:underline">Copy secret</button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="totp-enable-code" className="text-sm">Code from your app</label>
+              <input
+                id="totp-enable-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                className={`${inputClass} w-32`}
+                placeholder="123456"
+              />
+              <button type="submit" disabled={busy || code.length !== 6} className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                {busy ? 'Turning on…' : 'Turn on'}
+              </button>
+            </div>
+          </form>
+        )
+      ) : (
+        !showOff ? (
+          <div className="mt-2 flex items-center gap-3">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Two-factor login is on.</p>
+            <button type="button" onClick={() => { setShowOff(true); setDone(false) }} className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+              Turn off
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={turnOff} className="mt-2 flex items-center gap-2">
+            <label htmlFor="totp-off-password" className="text-sm">Current password</label>
+            <input
+              id="totp-off-password"
+              type="password"
+              value={offPassword}
+              onChange={(e) => setOffPassword(e.target.value)}
+              className={`${inputClass} w-56`}
+            />
+            <button type="submit" disabled={busy || !offPassword} className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50">
+              {busy ? 'Turning off…' : 'Turn off'}
+            </button>
+          </form>
+        )
+      )}
+    </div>
+  )
+}
+
+// Active sessions: live list from /api/v1/auth/sessions (task 086).
+function timeAgo(iso: string, now: number): string {
+  const diff = Math.max(0, (now - new Date(iso).getTime()) / 1000)
+  if (diff < 60) return `${Math.floor(diff)}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`
+  return `${Math.floor(diff / 86400)} d ago`
+}
+
+const SessionsCard: React.FC = () => {
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  const load = useCallback(() => {
+    getSessionList().then(setSessions).catch(() => setSessions([]))
+  }, [])
+  useEffect(load, [load])
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const signOut = async (s: SessionInfo) => {
+    if (!window.confirm(`Sign out ${s.user}'s session from ${s.addr}?`)) return
+    try {
+      await deleteSession(s.id)
+      load()
+    } catch { /* ignore */ }
+  }
+
+  const ua = (s: SessionInfo) => {
+    const parts = s.user_agent.split(' ')
+    return parts.length > 1 ? parts[parts.length - 1] : s.user_agent || 'unknown'
+  }
+
+  if (!sessions) return null
+
+  return (
+    <div className="mt-6 rounded border border-gray-200 p-4 dark:border-gray-600">
+      <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Active sessions</h3>
+      {sessions.length === 0 ? (
+        <p className="text-sm text-gray-500">No active sessions.</p>
+      ) : (
+        <table className="min-w-full text-sm">
+          <thead className="text-left text-xs uppercase text-gray-500">
+            <tr><th className="px-3 py-2">User</th><th className="px-3 py-2">Address</th><th className="px-3 py-2">Browser</th><th className="px-3 py-2">Signed in</th><th className="px-3 py-2">Last active</th><th className="px-3 py-2"></th></tr>
+          </thead>
+          <tbody>
+            {sessions.map((s) => (
+              <tr key={s.id} className="border-t border-gray-100 dark:border-gray-700">
+                <td className="px-3 py-2 font-medium">{s.user}{s.current && <span className="ml-1"><Badge variant="primary">This session</Badge></span>}</td>
+                <td className="px-3 py-2 text-gray-500">{s.addr}</td>
+                <td className="px-3 py-2 text-gray-500" title={s.user_agent}>{ua(s)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-gray-500">{new Date(s.created).toLocaleString()}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-gray-500">{timeAgo(s.last_seen, now)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {!s.current && (
+                    <button type="button" onClick={() => signOut(s)} className="flex items-center gap-1 text-sm text-red-600 hover:underline" aria-label={`Sign out ${s.user}`}>
+                      <LogOut size={14} /> Sign out
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }

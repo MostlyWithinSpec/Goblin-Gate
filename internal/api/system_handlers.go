@@ -254,6 +254,7 @@ type adminInfo struct {
 	Username    string `json:"username"`
 	Role        string `json:"role"`
 	HasPassword bool   `json:"has_password"`
+	TOTPEnabled bool   `json:"totp_enabled"`
 }
 
 // GET /api/v1/admins → {admins: [{username, role, has_password}]} (never hashes).
@@ -265,7 +266,7 @@ func (s *Server) listAdmins(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []adminInfo{}
 	for _, a := range cfg.Admins {
-		out = append(out, adminInfo{Username: a.Username, Role: a.Role, HasPassword: a.PasswordHash != ""})
+		out = append(out, adminInfo{Username: a.Username, Role: a.Role, HasPassword: a.PasswordHash != "", TOTPEnabled: a.TOTPSecret != ""})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"admins": out})
 }

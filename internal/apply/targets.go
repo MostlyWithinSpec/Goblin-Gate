@@ -222,6 +222,19 @@ var groups = []group{
 			return [][]string{{"systemctl", "enable", upnpUnit}, {"systemctl", "restart", upnpUnit}}
 		},
 	},
+	{
+		// Smart queue: a script of tc commands (CAKE on WAN devices). Last,
+		// so the devices exist; goblin-sqm.service runs it again at boot.
+		name:   "sqm",
+		prefix: "/etc/goblingate/sqm/",
+		activate: func(files []string) [][]string {
+			var out [][]string
+			for _, f := range files {
+				out = append(out, []string{"sh", f})
+			}
+			return out
+		},
+	},
 }
 
 // upnpUnit runs miniupnpd (internal/render/upnp.Unit).

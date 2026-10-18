@@ -7,6 +7,7 @@ export interface AdminInfo {
   username: string
   role: 'admin' | 'readonly'
   has_password: boolean
+  totp_enabled?: boolean
 }
 
 export interface TokenInfo {
@@ -53,6 +54,25 @@ export function createToken(body: { name: string; readonly?: boolean }): Promise
 
 export const deleteToken = (id: string) =>
   apiClient<{ status: string }>(`/api/v1/auth/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
+
+// --- Active sessions ------------------------------------------------------------
+
+export interface SessionInfo {
+  id: string
+  user: string
+  role: string
+  addr: string
+  user_agent: string
+  created: string
+  last_seen: string
+  current?: boolean
+}
+
+export const getSessionList = () =>
+  apiClient<{ sessions: SessionInfo[] }>('/api/v1/auth/sessions').then((r) => r.sessions ?? [])
+
+export const deleteSession = (id: string) =>
+  apiClient(`/api/v1/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 // --- Backup / restore ---------------------------------------------------------
 

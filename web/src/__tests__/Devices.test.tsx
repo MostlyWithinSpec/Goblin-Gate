@@ -12,6 +12,7 @@ vi.mock('../api/devices', async (importOriginal) => {
     listDevices: vi.fn(),
     renameDevice: vi.fn(),
     forgetDevice: vi.fn(),
+    wakeDevice: vi.fn(),
   }
 })
 vi.mock('../api/sentry', async (importOriginal) => {
@@ -47,6 +48,7 @@ beforeEach(() => {
   vi.mocked(devices.listDevices).mockReset().mockResolvedValue([device()])
   vi.mocked(devices.renameDevice).mockReset().mockResolvedValue(device({ name: 'Living room TV' }))
   vi.mocked(devices.forgetDevice).mockReset().mockResolvedValue(undefined)
+  vi.mocked(devices.wakeDevice).mockReset().mockResolvedValue({ status: 'sent', broadcast: '192.168.1.255' })
   vi.mocked(sentry.createBlock).mockReset().mockResolvedValue({
     ip: '192.168.1.50',
     until: new Date(Date.now() + 3600_000).toISOString(),
@@ -143,5 +145,19 @@ describe('Devices page', () => {
 
     wrap(<Devices />)
     expect(await screen.findByText('Device inventory runs on the firewall itself.')).toBeTruthy()
+  })
+
+  test('wake button POSTs and shows success message', async () => {
+    wrap(<Devices />)
+    await screen.findByText('tv.local')
+
+    // Open the drawer.
+    fireEvent.click(screen.getByText('aa:bb:cc:dd:ee:01'))
+    const wakeBtn = await screen.findByRole('button', { name: /Wake device/ })
+    fireEvent.click(wakeBtn)
+
+    await waitFor(() => expect(devices.wakeDevice).toHaveBeenCalledWith('aa:bb:cc:dd:ee:01'))
+    // Success message uses hostname (no admin label set).
+    expect(await screen.findByText(/Wake-up packet sent to tv\.local/)).toBeTruthy()
   })
 })

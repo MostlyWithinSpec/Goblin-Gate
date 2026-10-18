@@ -15,6 +15,14 @@ export interface IPv6 {
   ra?: { enabled: boolean; dns: boolean; managed?: boolean; other?: boolean }
 }
 
+// Smart queue (CAKE) on a WAN. The speeds stay in the config even when it is
+// disabled, so re-enabling does not require typing them again.
+export interface SQM {
+  enabled: boolean
+  download_mbit?: number // 1-100000, about 90% of the measured speed
+  upload_mbit?: number // 1-100000
+}
+
 export interface Interface {
   name: string
   device: string
@@ -27,6 +35,7 @@ export interface Interface {
   description?: string
   allow_access?: string[] // ping | https | ssh
   ipv6?: IPv6
+  sqm?: SQM
 }
 
 export interface VLAN {
@@ -249,6 +258,7 @@ export interface Candidate {
   routes?: Route[]
   default_gateway?: string
   vpn?: { wireguard_clients?: WireGuardClient[] }
+  ddns?: DDNS[]
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -292,6 +302,34 @@ export interface FeedStatus {
 export const getFeedStatus = () => apiClient<{ feeds: FeedStatus[] }>('/api/v1/feeds').then((r) => r.feeds ?? [])
 export const refreshFeed = (name: string) =>
   apiClient<FeedStatus>(`/api/v1/feeds/${encodeURIComponent(name)}/refresh`, { method: 'POST' })
+
+// DDNS (task 087/088): one dynamic DNS entry. The box pushes its public IP to
+// a provider so the hostname always resolves.
+export interface DDNS {
+  name: string
+  enabled: boolean
+  provider: 'cloudflare' | 'duckdns' | 'custom'
+  hostname: string
+  interface?: string
+  token?: string
+  zone_id?: string
+  url?: string
+}
+
+// DDNSStatus is the per-entry view from GET /api/v1/ddns.
+export interface DDNSStatus {
+  name: string
+  hostname: string
+  ip?: string
+  last_update?: string
+  last_error?: string
+  last_attempt?: string
+}
+
+export const getDDNSStatus = () => apiClient<{ entries: DDNSStatus[] }>('/api/v1/ddns').then((r) => r.entries ?? [])
+export const updateDDNSNow = (name: string) =>
+  apiClient<DDNSStatus>(`/api/v1/ddns/${encodeURIComponent(name)}/update`, { method: 'POST' })
+
 export const lookupFeeds = (q: string) =>
   apiClient<{ query: string; feeds: string[] }>(`/api/v1/feeds/lookup?q=${encodeURIComponent(q)}`)
 

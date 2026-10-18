@@ -141,4 +141,16 @@ describe('DNS', () => {
     expect(await screen.findByText('Not IPv4: dns.google')).toBeInTheDocument()
     expect(api.patchSection).not.toHaveBeenCalled()
   })
+
+  test('turns off DNS rebinding protection with the checkbox', async () => {
+    render(<DNS />)
+    await screen.findByDisplayValue('1.1.1.1')
+    fireEvent.click(screen.getByLabelText('Allow public names to answer with private addresses (turns off DNS rebinding protection)'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(lastPatch()).toEqual([
+      'dns',
+      { forwarders: ['1.1.1.1'], dnssec: true, allow_private_answers: true, local_records: { 'nas.home.arpa': '192.168.1.5' } },
+    ])
+  })
 })

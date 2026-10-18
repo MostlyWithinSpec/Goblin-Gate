@@ -242,3 +242,45 @@ func renderConf(t *testing.T, cfg *config.Config) string {
 	}
 	return string(files[Path])
 }
+
+// TestRebindProtection (task 083): by default upstream answers may not use
+// private addresses or the local/forwarded domains; local data is still
+// served. allow_private_answers removes every protection line.
+func TestRebindProtection(t *testing.T) {
+	cfg := full()
+	s := renderConf(t, cfg)
+	for _, want := range []string{
+		"private-address: 10.0.0.0/8\n", "private-address: 172.16.0.0/12\n",
+		"private-address: 192.168.0.0/16\n", "private-address: 169.254.0.0/16\n",
+		"private-address: 127.0.0.0/8\n", "private-address: fd00::/8\n",
+		"private-address: fe80::/10\n", "private-address: ::ffff:0:0/96\n",
+		"private-domain: home.arpa\n", "private-domain: plex.direct\n",
+		// local data is served by this box and is not filtered
+		`local-data: "printer.home.arpa A 192.168.1.10"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if strings.Contains(s, "private-address: 100.64.0.0/10") {
+		t.Error("Tailscale MagicDNS space must not be filtered")
+	}
+
+	cfg.DNS.AllowPrivateAnswers = true
+	s = renderConf(t, cfg)
+	for _, bad := range []string{"private-address:", "private-domain:"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("must not contain %q when allow_private_answers is set", bad)
+		}
+	}
+
+	// a forwarded domain becomes private (internal servers answer it)
+	cfg = full()
+	cfg.DNS.DomainForwards = []config.DomainForward{
+		{Domain: "corp.example.", Servers: []netip.Addr{netip.MustParseAddr("10.20.0.53")}},
+	}
+	s = renderConf(t, cfg)
+	if !strings.Contains(s, "private-domain: corp.example\n") {
+		t.Errorf("forwarded domain must be private:\n%s", s)
+	}
+}

@@ -50,6 +50,16 @@ func (v *validator) checkInterfaces() {
 			v.add(p+".role", "unknown role %q: want wan, lan, dmz, guest or mgmt", in.Role)
 		}
 		v.checkAddressing(p, "interface", in.Mode, in.Address, in.Gateway, in.MTU, in.AllowAccess)
+		if q := in.SQM; q != nil {
+			switch {
+			case in.Role != "wan":
+				v.add(p+".sqm", "smart queue is for WAN interfaces only")
+			case q.Enabled && (q.DownloadMbit < 1 || q.DownloadMbit > MaxSQMMbit):
+				v.add(p+".sqm.download_mbit", "download speed must be 1-%d Mbit/s (about 90%% of the measured speed)", MaxSQMMbit)
+			case q.Enabled && (q.UploadMbit < 1 || q.UploadMbit > MaxSQMMbit):
+				v.add(p+".sqm.upload_mbit", "upload speed must be 1-%d Mbit/s (about 90%% of the measured speed)", MaxSQMMbit)
+			}
+		}
 	}
 }
 
