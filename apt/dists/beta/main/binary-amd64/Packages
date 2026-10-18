@@ -66,6 +66,23 @@ Description: Goblin Sentry for Goblin Gate
  Turns IPS alerts into incidents and answers them with temporary blocks,
  notifications and an approval queue.
 
+Package: goblin-gate-plugin-sentry
+Architecture: amd64
+Version: 0.1.0~beta.5
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Depends: goblin-gate (>= 0.1.0~beta.5)
+Filename: pool/beta/goblin-gate-plugin-sentry_0.1.0.beta.5_amd64.deb
+Size: 2455172
+MD5sum: ec27e35e93ea13aa002dbea281571658
+SHA1: b825b2b8d17e9c16b400c6e0058d2c9df7983171
+SHA256: bb0ca224d67520f7654ec8452051c8cf412c08e2d6002abd17cf8d0615c48c7d
+SHA512: 482df197f8ee1f8dd75ea9849052a69730468531c93cc69579b84001e759ceb448aa4c41f8f03d18df7caa72e4f13f881d74b3438d174e1fcb44435f0b77c8da
+Description: Goblin Sentry for Goblin Gate
+ Turns IPS alerts into incidents and answers them with temporary blocks,
+ notifications and an approval queue.
+
 Package: goblin-gate
 Architecture: amd64
 Version: 0.1.0~alpha.2
@@ -192,6 +209,28 @@ MD5sum: a4f515ad11780b0de583380c45439b7e
 SHA1: cf40dc63c32ad29386726363fbf127779411cc99
 SHA256: 9eed07b7fe50f9aff6574ccd2852cc4fb169b1921d40bfb5b4d675ccae34fb62
 SHA512: d8960deda84261ffdc68245fa22545d90890669b3427413792a77f8c403f0c8cf8b4c24b43e68b7198ff1f5c9cbc93450e3b02d3f919dd1aaab4c388a5d015ee
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.
+
+Package: goblin-gate
+Architecture: amd64
+Version: 0.1.0~beta.5
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Installed-Size: 32896
+Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates, iputils-ping, tcpdump, traceroute, unattended-upgrades, git
+Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Filename: pool/beta/goblin-gate_0.1.0.beta.5_amd64.deb
+Size: 8688980
+MD5sum: 3a149cb3cae08a6fd03cc8af3949e3cf
+SHA1: ceefb2923605e6e4a6fa4ac7997a5cf120012631
+SHA256: 682bf3f4e0faa927c0affe165458cfa8006170dfad1d32cf6122b85db9064ae7
+SHA512: 7157ea6e9749120a6e8d3a0293ca2c208ad253ac018d1675e6d544a6e899af8968fead315060351cc852257487a89bc57e7ebc683b45dfbd47d9eb265f462dd6
 Description: Goblin Gate firewall
  A home and small-office firewall and router: nftables policies, DHCP
  (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
