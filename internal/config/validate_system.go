@@ -40,6 +40,14 @@ func (v *validator) checkSystemSettings() {
 	if u := s.UpdateURL; u != "" && ((!strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://")) || strings.IndexFunc(u, unicode.IsSpace) >= 0) {
 		v.add("system.update_url", "want an http:// or https:// URL")
 	}
+	if len(s.Metrics.Allow) > 32 {
+		v.add("system.metrics.allow", "at most 32 CIDR entries allowed (got %d)", len(s.Metrics.Allow))
+	}
+	for i, c := range s.Metrics.Allow {
+		if _, err := netip.ParsePrefix(c); err != nil {
+			v.add(fmt.Sprintf("system.metrics.allow[%d]", i), "invalid CIDR %q", c)
+		}
+	}
 	seen := map[string]bool{}
 	for i, k := range s.SSHKeys {
 		p := fmt.Sprintf("system.ssh_keys[%d]", i)

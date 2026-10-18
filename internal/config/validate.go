@@ -379,6 +379,9 @@ func (v *validator) checkWireGuard() {
 		if !w.Address.IsValid() || !w.Address.Addr().Is4() || w.Address.Bits() > 30 {
 			v.add(p+".address", "address must be an IPv4 CIDR with room for clients, e.g. 10.66.0.1/24")
 		}
+		if w.Endpoint != "" && !validHost(w.Endpoint) {
+			v.add(p+".endpoint", "want the public DNS name or IP address clients connect to, e.g. vpn.example.net")
+		}
 		for j, a := range w.AllowAccess {
 			if !oneOf(a, "ping", "https", "ssh") {
 				v.add(fmt.Sprintf("%s.allow_access[%d]", p, j), "unknown access %q: want ping, https or ssh", a)

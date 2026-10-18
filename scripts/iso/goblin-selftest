@@ -22,6 +22,6 @@ say "networkd $(ls /etc/systemd/network/ | tr '\n' ' ')"
 t journalctl -u goblind --no-pager -o cat | grep -E '"level":"(WARN|ERROR)"' | head -5 | cut -c1-400 | while read -r l; do say "goblind $l"; done
 if [ -d /sys/firmware/efi ]; then say "boot uefi $(t mokutil --sb-state | head -1)"; else say "boot bios"; fi
 say "suricata $(t suricata -V | head -1)"
-for p in tailscale suricata-update openssh-server miniupnpd-nftables; do say "pkg $p $(dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | tr -d ' ')"; done
+for p in tailscale suricata-update openssh-server miniupnpd-nftables tcpdump; do say "pkg $p $(dpkg-query -W -f='${db:Status-Abbrev}' "$p" 2>/dev/null | tr -d ' ')"; done
 say end
 exit 0

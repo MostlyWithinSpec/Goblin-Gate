@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -60,6 +61,9 @@ func TestWatch(t *testing.T) {
 	<-done
 	mu.Lock()
 	defer mu.Unlock()
+	// WriteFile truncates first: a tick in between sees an empty file and
+	// reports the removal before the addition, so compare without order.
+	sort.Strings(events)
 	if len(events) != 2 || events[0] != "+udp/3074" || events[1] != "-tcp/1000" {
 		t.Fatalf("events %v", events)
 	}

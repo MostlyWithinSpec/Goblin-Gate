@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -26,15 +27,19 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/apply"
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
+	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
@@ -253,6 +258,12 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if o.dev {
 		blockMgr.Run = func(context.Context, []byte) error { return nil }
 	}
+	// live flows and bandwidth (task 078): local networks follow the running
+	// config (set after every apply)
+	var flowSampler *flows.Sampler
+	if !o.dev && runtime.GOOS == "linux" {
+		flowSampler = &flows.Sampler{Logger: logger}
+	}
 	engine.AfterApply = func(live *config.Config) {
 		blockMgr.Resync(ctx)
 		if pluginMgr != nil {
@@ -267,8 +278,34 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Resync(live)
 		feedSync.Resync(live)
 		dhcpNames.Resync(ctx) // a commit restarts Unbound, which drops runtime names
+		if flowSampler != nil {
+			flowSampler.SetLocalPrefixes(render.InternalPrefixes(live))
+		}
 	}
 	go dhcpNames.Run(ctx)
+
+	// Device inventory (task 070): DHCP leases + neighbour table, refreshed
+	// every 60 s; a new MAC publishes a "new_device" notification after the
+	// first poll. In --dev the store is not wired to the API (503).
+	devStore := &devices.Store{
+		Path:      filepath.Join(dataDir, "devices.json"),
+		LeaseFile: kea.LeaseFile,
+		Logger:    logger,
+		Interfaces: func() map[string]string {
+			cfg, err := store.Running()
+			if err != nil {
+				return nil
+			}
+			rev := make(map[string]string, len(cfg.Interfaces)+len(cfg.VLANs))
+			for name, dev := range render.Devices(cfg) {
+				rev[dev] = name
+			}
+			return rev
+		},
+	}
+	if !o.dev {
+		go devStore.Run(ctx)
+	}
 
 	// Re-apply the running config so the live data plane matches what is on disk.
 	if applied, err := engine.ApplyRunning(ctx); err != nil {
@@ -314,11 +351,22 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	go notifier.Run(ctx)
 	apiServer.Notify = notifier
+	devStore.Notify = func(kind, key, title, message string) {
+		notifier.Publish(notify.Event{Kind: kind, Key: key, Title: title, Message: message})
+	}
 	apiServer.Gateways = gwMon
 	apiServer.Plugins = pluginMgr
 	apiServer.Blocks = blockMgr
 	if !o.dev {
+		apiServer.Devices = devStore // dev mode: no store, the API answers 503
 		apiServer.LiveAddrs = blocks.LiveAddrs
+	}
+	if !o.dev && runtime.GOOS == "linux" {
+		// the last capture's pcap stays here until the next one (task 076)
+		apiServer.Capture = &capture.Manager{Dir: filepath.Join(dataDir, "capture")}
+		apiServer.Flows = flowSampler
+		flowSampler.Names = deviceNames(devStore)
+		go flowSampler.Run(ctx)
 	}
 	gwMon.SetChanged(func(st gateways.Status) {
 		kind, title := "wan_up", "Gateway "+st.Name+" is up again"
@@ -726,7 +774,8 @@ func startWebFilter(ctx context.Context, wf *webfilter.Filter, dev bool, dir str
 // the local domain, whether it is on, and the names already defined there.
 func dhcpDNSSettings(cfg *config.Config) dhcpdns.Settings {
 	domain := strings.ToLower(cfg.EffectiveLocalDomain())
-	taken := map[string]bool{}
+	// the box's own name: a client must not take it over
+	taken := map[string]bool{strings.ToLower(cfg.System.Hostname) + "." + domain: true}
 	for name := range cfg.DNS.LocalRecords {
 		taken[strings.ToLower(strings.TrimSuffix(name, "."))] = true
 	}
@@ -738,4 +787,30 @@ func dhcpDNSSettings(cfg *config.Config) dhcpdns.Settings {
 		}
 	}
 	return dhcpdns.Settings{Enabled: !cfg.DNS.NoDHCPNames, Domain: domain, Taken: taken}
+}
+
+// deviceNames names flow addresses from the device inventory, re-reading it
+// at most every 10 s (the sampler asks once per flow).
+func deviceNames(store *devices.Store) func(netip.Addr) (flows.Device, bool) {
+	var (
+		mu    sync.Mutex
+		index map[netip.Addr]devices.Device
+		at    time.Time
+	)
+	return func(a netip.Addr) (flows.Device, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		if index == nil || time.Since(at) > 10*time.Second {
+			index, at = store.ByIP(), time.Now()
+		}
+		d, ok := index[a]
+		if !ok {
+			return flows.Device{}, false
+		}
+		name := d.Name
+		if name == "" {
+			name = d.Hostname
+		}
+		return flows.Device{MAC: d.MAC, Name: name}, true
+	}
 }

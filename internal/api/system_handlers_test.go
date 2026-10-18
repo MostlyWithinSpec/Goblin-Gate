@@ -76,6 +76,12 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// save a snapshot so the backup should include it
+	cfg, _ := a.store.Running()
+	if err := a.store.SaveSnapshot("lab-snap", "before change", "admin", 1, cfg); err != nil {
+		t.Fatal(err)
+	}
+
 	resp := b.raw("GET", "/api/v1/system/backup", "", nil)
 	if resp.code != 200 || !strings.Contains(resp.header.Get("Content-Disposition"), "goblin-gate-backed-up-") {
 		t.Fatalf("backup: %d %v", resp.code, resp.header)
@@ -88,7 +94,7 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	for _, f := range zr.File {
 		names[f.Name] = true
 	}
-	for _, want := range []string{"manifest.json", "running.json", "history/index.json", "history/000001.json"} {
+	for _, want := range []string{"manifest.json", "running.json", "history/index.json", "history/000001.json", "snapshots/lab-snap.json"} {
 		if !names[want] {
 			t.Errorf("backup lacks %s (has %v)", want, names)
 		}
@@ -115,6 +121,11 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	}
 	if a.applier.Calls() != calls {
 		t.Fatal("restore applied the config")
+	}
+
+	// the snapshot from the backup was restored
+	if _, err := a.store.GetSnapshot("lab-snap"); err != nil {
+		t.Fatalf("snapshot not restored: %v", err)
 	}
 
 	// a raw zip body works too; junk is refused

@@ -83,6 +83,9 @@ export const apiClient = async <T>(
     throw new APIRequestError(message, response.status, code, details)
   }
 
+  // 204 No Content (e.g. DELETE) has no body to parse.
+  if (response.status === 204) return undefined as T
+
   // Return parsed JSON data
   return response.json();
 };

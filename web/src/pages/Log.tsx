@@ -1,5 +1,5 @@
-// The /log route (task 026): Logs (the event viewer) and the chart builder.
-// The view is in the URL (?view=charts) so links can open either.
+// The /log route (task 026): Logs (the event viewer), the chart builder and
+// packet capture (task 077, its own page at /log/capture).
 import { useLocation, useNavigate } from 'react-router-dom'
 import LogViewer from './log/LogViewer'
 import ChartBuilder from './log/ChartBuilder'
@@ -17,6 +17,8 @@ export default function Log() {
         <div className="flex gap-1">
           <button type="button" className={tab(!charts)} onClick={() => navigate('/log')}>Logs</button>
           <button type="button" className={tab(charts)} onClick={() => navigate('/log?view=charts')}>Chart builder</button>
+          <a href="/log/capture" className={tab(false)}>Packet capture</a>
+          <a href="/log/live" className={tab(false)}>Live</a>
         </div>
       </div>
       {charts ? <ChartBuilder /> : <LogViewer />}

@@ -43,7 +43,7 @@ if grep -q "GG-SELFTEST end" boot.log; then
 	# (a broken install step once left them all out silently)
 	missing=""
 	grep -q "GG-SELFTEST suricata This is Suricata" boot.log || missing="$missing suricata"
-	for p in tailscale suricata-update openssh-server miniupnpd-nftables; do
+	for p in tailscale suricata-update openssh-server miniupnpd-nftables tcpdump; do
 		grep -q "GG-SELFTEST pkg $p ii" boot.log || missing="$missing $p"
 	done
 	if [ -n "$missing" ]; then echo "[$MODE] FAIL: not installed:$missing"; exit 1; fi

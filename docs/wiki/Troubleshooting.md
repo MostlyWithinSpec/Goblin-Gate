@@ -15,7 +15,7 @@ API shows the same list: `POST /api/v1/config/validate`.
 ## SSH says "Permission denied"
 
 Password logins over SSH are always off. Add a key under System → Admins → SSH keys and commit (see
-[[Remote Access: SSH, API and CLI]]).
+[[Remote Access: SSH, API and CLI|Remote-Access-SSH-API-CLI]]).
 
 ## A device can't reach something
 

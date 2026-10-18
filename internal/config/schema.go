@@ -61,6 +61,17 @@ type System struct {
 	// UpdateURL replaces the Goblin Gate APT repository (a mirror, an
 	// air-gapped network, tests); "" = the official repository.
 	UpdateURL string `json:"update_url,omitempty"`
+	// Metrics exposes Prometheus metrics at /metrics on the admin port.
+	// Off by default; scrapers must come from an allow-listed CIDR or carry
+	// a valid API token (task 080).
+	Metrics Metrics `json:"metrics,omitempty"`
+}
+
+// Metrics is the system.metrics setting: enablement and the CIDR allow list
+// for /metrics. At most 32 entries; each must parse as an IP prefix.
+type Metrics struct {
+	Enabled bool     `json:"enabled"`
+	Allow   []string `json:"allow,omitempty"`
 }
 
 // SSHKey is one OpenSSH public key, e.g. "ssh-ed25519 AAAA... me@laptop".

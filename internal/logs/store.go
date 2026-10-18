@@ -155,3 +155,23 @@ func (s *Store) Retention(days int) error {
 func (s *Store) Close() error {
 	return s.db.Close()
 }
+
+// CountByAction counts the events of kind with time >= since (Unix seconds),
+// per action, e.g. {"alert": 12, "drop": 3} for kind "ips".
+func (s *Store) CountByAction(kind string, since int64) (map[string]int64, error) {
+	rows, err := s.db.Query(`SELECT COALESCE(action, ''), COUNT(*) FROM events WHERE kind = ? AND time >= ? GROUP BY 1`, kind, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count events: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var action string
+		var n int64
+		if err := rows.Scan(&action, &n); err != nil {
+			return nil, fmt.Errorf("failed to count events: %w", err)
+		}
+		out[action] = n
+	}
+	return out, rows.Err()
+}

@@ -139,3 +139,20 @@ describe('Backup tab', () => {
     expect(screen.getByText('"newhost"')).toBeInTheDocument()
   })
 })
+
+describe('Metrics card', () => {
+  test('saves enabled and the allow list to system.metrics', async () => {
+    const c = structuredClone(cfg)
+    c.system = { ...c.system!, metrics: { enabled: false, allow: ['10.0.0.5/32'] } }
+    vi.mocked(api.getCandidate).mockResolvedValue(c)
+    wrap(<System />)
+    const box = await screen.findByLabelText('Enable metrics')
+    expect(screen.getByLabelText('Metrics allow list')).toHaveValue('10.0.0.5/32')
+    fireEvent.click(box)
+    fireEvent.change(screen.getByLabelText('Metrics allow list'), { target: { value: '192.168.1.10/32\n 10.0.0.0/8 \n' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save metrics' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(vi.mocked(api.patchSection).mock.calls[0]).toEqual(['system.metrics', { enabled: true, allow: ['192.168.1.10/32', '10.0.0.0/8'] }])
+    expect(await screen.findByText('Saved. Use the commit bar to apply.')).toBeInTheDocument()
+  })
+})

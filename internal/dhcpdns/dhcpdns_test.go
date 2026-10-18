@@ -58,7 +58,8 @@ func TestSync(t *testing.T) {
 	path := filepath.Join(dir, "leases.csv")
 	write := func(s string) { os.WriteFile(path, []byte(header+s), 0o644) }
 	future := now.Unix() + 600
-	write(line("192.168.1.100", "laptop", future, "0") + line("192.168.1.10", "printer", future, "0"))
+	write(line("192.168.1.100", "laptop", future, "0") + line("192.168.1.10", "printer", future, "0") +
+		line("192.168.1.66", "WPAD.local", future, "0")) // reserved: never registered
 
 	var calls []string
 	s := &Syncer{
@@ -77,7 +78,7 @@ func TestSync(t *testing.T) {
 	}
 	want := []string{"local_data laptop.home.arpa. 300 IN A 192.168.1.100", "local_data 100.1.168.192.in-addr.arpa. 300 IN PTR laptop.home.arpa."}
 	if strings.Join(calls, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("first sync (printer is a static lease, skipped):\n%s", strings.Join(calls, "\n"))
+		t.Fatalf("first sync (printer is a static lease, wpad reserved: both skipped):\n%s", strings.Join(calls, "\n"))
 	}
 
 	calls = nil

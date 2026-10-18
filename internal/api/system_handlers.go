@@ -36,6 +36,10 @@ type backupManifest struct {
 // revision (history/NNNNNN.json + history/index.json). It contains the admin
 // password hashes and every secret in the config: keep it safe.
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
+	if !s.seesSecrets(r) {
+		writeError(w, http.StatusForbidden, "forbidden", "backups contain password hashes and secrets: admins only", nil)
+		return
+	}
 	running, err := s.Store.Running()
 	if err != nil {
 		s.internal(w, "read running config for backup", err)
@@ -74,6 +78,24 @@ func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
 			var cfg *config.Config
 			if cfg, err = s.Store.Revision(rev.Revision); err == nil {
 				err = add(fmt.Sprintf("history/%06d.json", rev.Revision), cfg)
+			}
+		}
+	}
+	if err == nil && s.Devices != nil {
+		if devs, derr := s.Devices.List(); derr == nil {
+			err = add("devices.json", map[string]any{"devices": devs})
+		}
+	}
+	if err == nil {
+		if snaps, serr := s.Store.ListSnapshots(); serr == nil {
+			for _, info := range snaps {
+				if err != nil {
+					break
+				}
+				var snap *config.Snapshot
+				if snap, err = s.Store.GetSnapshot(info.Name); err == nil {
+					err = add("snapshots/"+info.Name+".json", snap)
+				}
 			}
 		}
 	}
@@ -130,9 +152,44 @@ func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, "store restored candidate", err)
 		return
 	}
-	s.audit(r, "backup_restored", s.user(r), map[string]any{"hostname": cfg.System.Hostname})
-	writeJSON(w, http.StatusOK, map[string]any{"status": "candidate", "hostname": cfg.System.Hostname,
-		"message": "The backup is loaded as the candidate config: review the changes and commit."})
+	// Restore any snapshots found in the backup.
+	snapCount := 0
+	zr, zerr := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if zerr == nil {
+		for _, f := range zr.File {
+			if !strings.HasPrefix(f.Name, "snapshots/") || !strings.HasSuffix(f.Name, ".json") {
+				continue
+			}
+			name := strings.TrimPrefix(strings.TrimSuffix(f.Name, ".json"), "snapshots/")
+			if snapCount >= config.MaxSnapshots || !config.ValidName(name) || f.UncompressedSize64 > MaxBackupSize {
+				continue
+			}
+			rc, err := f.Open()
+			if err != nil {
+				continue
+			}
+			var snap config.Snapshot
+			err = json.NewDecoder(io.LimitReader(rc, MaxBackupSize)).Decode(&snap)
+			rc.Close()
+			if err != nil || !config.ValidName(name) || snap.Config == nil {
+				continue
+			}
+			// Skip if the snapshot already exists.
+			if _, gerr := s.Store.GetSnapshot(name); gerr == nil {
+				continue
+			}
+			if serr := s.Store.SaveSnapshot(name, snap.Comment, "restore", snap.Revision, snap.Config); serr == nil {
+				snapCount++
+			}
+		}
+	}
+	s.audit(r, "backup_restored", s.user(r), map[string]any{"hostname": cfg.System.Hostname, "snapshots_restored": snapCount})
+	resp := map[string]any{"status": "candidate", "hostname": cfg.System.Hostname,
+		"message": "The backup is loaded as the candidate config: review the changes and commit."}
+	if snapCount > 0 {
+		resp["snapshots_restored"] = snapCount
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // readBackup returns the running config inside a backup zip.

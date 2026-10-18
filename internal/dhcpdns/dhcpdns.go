@@ -26,11 +26,20 @@ type Lease struct {
 	Name string // sanitized single DNS label
 }
 
-// ParseLeases reads Kea's memfile CSV (columns by header name). The file is
-// append-only between cleanups, so the last line per address wins; a lease
-// counts while it has not expired and its state is 0 (1 = declined,
-// 2 = expired-reclaimed).
-func ParseLeases(r io.Reader, now time.Time) ([]Lease, error) {
+// LeaseRecord is one active DHCPv4 lease (task 070): the address, the
+// client's MAC, its (sanitized) hostname and the expiry in unix seconds.
+type LeaseRecord struct {
+	IP       netip.Addr
+	MAC      string // lower-case, no separators
+	Hostname string // sanitized single DNS label; may be ""
+	Expires  int64  // unix seconds; 0 = not stated
+}
+
+// ParseLeaseRecords reads Kea's memfile CSV (columns by header name). The
+// file is append-only between cleanups, so the last line per address wins; a
+// lease counts while it has not expired and its state is 0 (1 = declined,
+// 2 = expired-reclaimed). It needs the hwaddr column as well.
+func ParseLeaseRecords(r io.Reader, now time.Time) ([]LeaseRecord, error) {
 	cr := csv.NewReader(bufio.NewReader(r))
 	cr.FieldsPerRecord = -1
 	header, err := cr.Read()
@@ -44,7 +53,7 @@ func ParseLeases(r io.Reader, now time.Time) ([]Lease, error) {
 	for i, h := range header {
 		col[strings.TrimSpace(h)] = i
 	}
-	for _, need := range []string{"address", "expire", "hostname"} {
+	for _, need := range []string{"address", "expire", "hostname", "hwaddr"} {
 		if _, ok := col[need]; !ok {
 			return nil, fmt.Errorf("dhcpdns: lease file has no %q column", need)
 		}
@@ -68,8 +77,9 @@ func ParseLeases(r io.Reader, now time.Time) ([]Lease, error) {
 			latest[ip] = rec
 		}
 	}
-	var out []Lease
-	for ip, rec := range latest {
+	var out []LeaseRecord
+	for _, rec := range latest {
+		ip, _ := netip.ParseAddr(get(rec, "address"))
 		exp, _ := strconv.ParseInt(get(rec, "expire"), 10, 64)
 		if exp != 0 && exp < now.Unix() {
 			continue
@@ -77,12 +87,44 @@ func ParseLeases(r io.Reader, now time.Time) ([]Lease, error) {
 		if st := get(rec, "state"); st != "" && st != "0" {
 			continue
 		}
-		if name := Sanitize(get(rec, "hostname")); name != "" {
-			out = append(out, Lease{IP: ip, Name: name})
-		}
+		out = append(out, LeaseRecord{
+			IP:       ip,
+			MAC:      NormalizeMAC(get(rec, "hwaddr")),
+			Hostname: Sanitize(get(rec, "hostname")),
+			Expires:  exp,
+		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].IP.Less(out[j].IP) })
 	return out, nil
+}
+
+// ParseLeases reads Kea's memfile CSV and returns the active leases that
+// carry a usable hostname. It reuses ParseLeaseRecords (task 070).
+func ParseLeases(r io.Reader, now time.Time) ([]Lease, error) {
+	recs, err := ParseLeaseRecords(r, now)
+	if err != nil {
+		return nil, err
+	}
+	var out []Lease
+	for _, rec := range recs {
+		if rec.Hostname != "" {
+			out = append(out, Lease{IP: rec.IP, Name: rec.Hostname})
+		}
+	}
+	return out, nil
+}
+
+// NormalizeMAC lower-cases a MAC and strips any separators ("AA-BB-..." or
+// "AABBCC..."), so two spellings of the same address compare equal.
+func NormalizeMAC(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // Sanitize turns a client-supplied hostname into one lower-case DNS label
@@ -105,6 +147,11 @@ func Sanitize(h string) string {
 	}
 	return s
 }
+
+// Reserved are names a DHCP client may not register: browsers and Windows
+// look them up to find a proxy or tunnel (a device calling itself "wpad"
+// could take over web traffic), and "localhost" must stay local.
+var Reserved = map[string]bool{"wpad": true, "isatap": true, "localhost": true, "teredo": true}
 
 // Settings is what the syncer needs from the running config.
 type Settings struct {
@@ -202,6 +249,9 @@ func (s *Syncer) Sync(ctx context.Context) error {
 			}
 			for _, l := range leases {
 				fqdn := l.Name + "." + strings.ToLower(set.Domain)
+				if Reserved[l.Name] {
+					continue // a client must not take over proxy auto-discovery & co.
+				}
 				if set.Taken[fqdn] {
 					continue // a static lease or local record wins
 				}

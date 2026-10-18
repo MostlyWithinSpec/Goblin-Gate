@@ -302,12 +302,20 @@ func (e *Engine) afterApply(live *config.Config) {
 // render runs every renderer and merges their files. Two renderers writing
 // the same path is a bug and is reported.
 func (e *Engine) render(cfg *config.Config) (map[string][]byte, error) {
-	files := make(map[string][]byte)
-	owner := make(map[string]string)
+	files, _, err := e.RenderAll(cfg)
+	return files, err
+}
+
+// RenderAll renders cfg in memory exactly as a commit would and returns the
+// files with the renderer that wrote each (the generated config viewer).
+// It touches nothing on disk.
+func (e *Engine) RenderAll(cfg *config.Config) (files map[string][]byte, owner map[string]string, err error) {
+	files = make(map[string][]byte)
+	owner = make(map[string]string)
 	for _, r := range e.Renderers {
 		out, err := r.Render(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("commit: render %s: %w", r.Name(), err)
+			return nil, nil, fmt.Errorf("commit: render %s: %w", r.Name(), err)
 		}
 		paths := make([]string, 0, len(out))
 		for p := range out {
@@ -316,11 +324,11 @@ func (e *Engine) render(cfg *config.Config) (map[string][]byte, error) {
 		sort.Strings(paths)
 		for _, p := range paths {
 			if prev, dup := owner[p]; dup {
-				return nil, fmt.Errorf("commit: renderers %s and %s both write %s", prev, r.Name(), p)
+				return nil, nil, fmt.Errorf("commit: renderers %s and %s both write %s", prev, r.Name(), p)
 			}
 			owner[p] = r.Name()
 			files[p] = out[p]
 		}
 	}
-	return files, nil
+	return files, owner, nil
 }

@@ -166,12 +166,16 @@ func (r *ruleset) policies() error {
 		counter := fmt.Sprintf("policy_%d", p.ID)
 		r.counters = append(r.counters, counterDecl{counter, p.Name})
 		if !p.Enabled {
+			r.owner[len(r.forward)] = p.ID
 			r.forward = append(r.forward, fmt.Sprintf("# policy %d %s is disabled", p.ID, quote(p.Name)))
 			continue
 		}
 		rules, err := r.policy(p, counter)
 		if err != nil {
 			return fmt.Errorf("policy %d: %w", p.ID, err)
+		}
+		for i := range rules {
+			r.owner[len(r.forward)+i] = p.ID
 		}
 		r.forward = append(r.forward, rules...)
 	}

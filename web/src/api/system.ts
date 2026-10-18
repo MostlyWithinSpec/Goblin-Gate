@@ -189,3 +189,44 @@ export function applyUpdate(body: { version?: string; include_os?: boolean }): P
     body: JSON.stringify(body),
   })
 }
+
+// --- Generated config viewer (task 074 backend) ---------------------------------
+
+export type GeneratedConfig = 'running' | 'candidate'
+
+export interface GeneratedFile {
+  path: string
+  renderer: string
+  size: number
+  redacted: boolean
+}
+
+export interface GeneratedListResponse {
+  files: GeneratedFile[]
+}
+
+export interface GeneratedFileContent {
+  path: string
+  renderer: string
+  content: string
+  redacted: boolean
+  truncated: boolean
+}
+
+export interface GeneratedDiffResponse {
+  path: string
+  diff: string
+}
+
+const cfgQuery = (config?: GeneratedConfig) => (config ? `?config=${config}` : '')
+
+export const getGeneratedFiles = (config?: GeneratedConfig) =>
+  apiClient<GeneratedListResponse>(`/api/v1/system/generated${cfgQuery(config)}`).then((r) => r.files ?? [])
+
+export const getGeneratedFile = (path: string, config?: GeneratedConfig) =>
+  apiClient<GeneratedFileContent>(
+    `/api/v1/system/generated/file?path=${encodeURIComponent(path)}${config ? `&config=${config}` : ''}`,
+  )
+
+export const getGeneratedDiff = (path: string) =>
+  apiClient<GeneratedDiffResponse>(`/api/v1/system/generated/diff?path=${encodeURIComponent(path)}`)

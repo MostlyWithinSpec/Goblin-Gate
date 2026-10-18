@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -45,6 +46,17 @@ func TestValidateSystemSettings(t *testing.T) {
 			c.System.SSHKeys = []SSHKey{{Name: "x", Key: good + "\nssh-ed25519 AAAA"}}
 		}, []string{"one line"}},
 		{"bad key name", func(c *Config) { c.System.SSHKeys = []SSHKey{{Name: "my key", Key: good}} }, []string{"system.ssh_keys[0].name"}},
+		{"metrics allow list", func(c *Config) {
+			c.System.Metrics = Metrics{Enabled: true, Allow: []string{"192.168.1.0/24", "10.0.0.5/32", "fd00::/8"}}
+		}, nil},
+		{"metrics bad cidr", func(c *Config) {
+			c.System.Metrics = Metrics{Enabled: true, Allow: []string{"192.168.1.0/24", "192.168.1.5"}}
+		}, []string{"system.metrics.allow[1]", "invalid CIDR"}},
+		{"metrics too many", func(c *Config) {
+			for i := range 33 {
+				c.System.Metrics.Allow = append(c.System.Metrics.Allow, fmt.Sprintf("10.0.%d.0/24", i))
+			}
+		}, []string{"system.metrics.allow", "at most 32"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -64,5 +76,30 @@ func TestValidateSystemSettings(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidHostPort(t *testing.T) {
+	for s, want := range map[string]bool{
+		"se-sto-wg-001.example.net:51820":  true,
+		"203.0.113.7:51820":                true,
+		"[2001:db8::1]:51820":              true,
+		"vpn.example.net:0":                false,
+		"vpn.example.net:65536":            false,
+		"vpn.example.net:051820":           false,
+		"vpn.example.net":                  false,
+		":51820":                           false,
+		"vpn.example.net:51820\n[Network]": false,
+		"vpn example.net:51820":            false,
+		"[203.0.113.7]:51820":              false,
+	} {
+		if got := validHostPort(s); got != want {
+			t.Errorf("validHostPort(%q) = %v, want %v", s, got, want)
+		}
+	}
+	for s, want := range map[string]bool{"vpn.example.net": true, "vpn.example.net.": true, "203.0.113.7": true, "2001:db8::1": true, "vpn.example.net\nx": false, "a b": false, "": false} {
+		if got := validHost(s); got != want {
+			t.Errorf("validHost(%q) = %v, want %v", s, got, want)
+		}
 	}
 }

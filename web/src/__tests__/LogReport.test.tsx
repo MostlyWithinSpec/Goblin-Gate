@@ -112,6 +112,20 @@ describe('LogViewer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filter on out_intf' }))
     await waitFor(() => expect(where).toBe('?out_intf=wan1'))
   })
+
+  test('a denied event offers the simulator with the flow prefilled', async () => {
+    open('/log')
+    fireEvent.click(await screen.findByText('8.8.8.8'))
+    const link = screen.getByRole('link', { name: 'Why was this denied?' })
+    const q = new URL(link.getAttribute('href')!, 'http://x').searchParams
+    expect(q.get('simulate')).toBe('1')
+    expect(q.get('src_ip')).toBe('192.168.1.20')
+    expect(q.get('dst_ip')).toBe('8.8.8.8')
+    expect(q.get('protocol')).toBe('udp')
+    expect(q.get('dst_port')).toBe('53')
+    expect(q.get('src_intf')).toBe('lan')
+    expect(q.get('at')).toBe(new Date(1760000003 * 1000).toISOString())
+  })
 })
 
 describe('ChartBuilder', () => {

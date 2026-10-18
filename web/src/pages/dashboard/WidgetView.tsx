@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { getFeedStats, getPolicyStats, getSystemStats, statsQuery, type TimeRange, type Widget } from '../../api/stats'
 import { getGatewayStatus } from '../../api/gateways'
+import { formatRate, listFlowDevices } from '../../api/flows'
 import Chart from './Chart'
 import { builtin, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
 
@@ -99,6 +100,32 @@ function GatewayBody() {
   )
 }
 
+// LiveTalkersBody is the live "Top talkers" widget (task 079): the top 5
+// devices by current bandwidth from /api/v1/flows/devices, refreshed every 3 s.
+function LiveTalkersBody() {
+  const q = useQuery({ queryKey: ['flows', 'devices'], queryFn: listFlowDevices, refetchInterval: 3_000, retry: false })
+  if (q.isLoading) return <Empty text="Loading…" />
+  if (q.isError) return <Empty text="Live flows are read on the firewall itself." />
+  const devices = (q.data ?? []).slice(0, 5)
+  if (devices.length === 0) return <Empty text="No active flows yet." />
+  return (
+    <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
+      <thead className="text-left text-xs uppercase text-gray-500">
+        <tr><th>Device</th><th className="text-right">Download</th><th className="text-right">Upload</th></tr>
+      </thead>
+      <tbody>
+        {devices.map((d) => (
+          <tr key={d.ip} data-testid={`talker-${d.ip}`}>
+            <td className="truncate">{d.name || d.ip}</td>
+            <td className="text-right font-mono text-xs" data-testid={`talker-down-${d.ip}`}>{formatRate(d.rx_bps)}</td>
+            <td className="text-right font-mono text-xs">{formatRate(d.tx_bps)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
   const navigate = useNavigate()
   const query = queryFor(widget)
@@ -142,7 +169,7 @@ function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
 export default function WidgetView({ widget, onChange, onRemove }: { widget: Widget; onChange: (patch: Partial<Widget>) => void; onRemove: () => void }) {
   const dark = useDark()
   const chart = chartFor(widget)
-  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways'
+  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways' || chart === 'live-talkers'
   return (
     <div className="flex h-full flex-col rounded-lg bg-white p-3 shadow dark:bg-gray-800" data-testid={`widget-${widget.type}`}>
       <div className="widget-drag mb-2 flex cursor-move items-center gap-2">
@@ -163,7 +190,7 @@ export default function WidgetView({ widget, onChange, onRemove }: { widget: Wid
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : chart === 'gateways' ? <GatewayBody /> : <QueryBody widget={widget} dark={dark} />}
+        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : chart === 'gateways' ? <GatewayBody /> : chart === 'live-talkers' ? <LiveTalkersBody /> : <QueryBody widget={widget} dark={dark} />}
       </div>
     </div>
   )

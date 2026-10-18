@@ -14,6 +14,7 @@ const tabs = [
   ['gateways', 'Gateways'],
   ['gateway-groups', 'Gateway Groups'],
   ['static-routes', 'Static Routes'],
+  ['devices', 'Devices'],
 ] as const
 
 export default function Network() {

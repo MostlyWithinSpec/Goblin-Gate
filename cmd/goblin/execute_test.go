@@ -286,3 +286,117 @@ func TestExecuteLineUnknownCommand(t *testing.T) {
 		t.Errorf("error = %q, want contains 'unknown command'", err.Error())
 	}
 }
+
+func TestDiagnosePolicy(t *testing.T) {
+	shell, h := newTestShell(t)
+	h.handler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"verdict":"deny","reason":"denied by policy 2 \"iot-no-lan\"","chain":"forward","src_intf":"iot","dst_intf":"lan","policy":{"id":2,"name":"iot-no-lan"},"steps":[{"id":1,"name":"iot-to-ha","matched":false,"reason":"tcp port 22 is not in service ha-web"},{"id":2,"name":"iot-no-lan","matched":true,"reason":"matches"}]}`)
+	}
+	if err := shell.executeLine("diagnose policy 192.168.20.5 192.168.1.23 tcp 22"); err != nil {
+		t.Fatal(err)
+	}
+	req := h.requests[0]
+	var body map[string]any
+	json.Unmarshal(req.Body, &body)
+	if req.Method != http.MethodPost || req.Path != "/api/v1/policy/simulate" || body["src_ip"] != "192.168.20.5" || body["protocol"] != "tcp" || body["dst_port"] != float64(22) {
+		t.Fatalf("request %s %s %v", req.Method, req.Path, body)
+	}
+	var out strings.Builder
+	var res simResult
+	json.Unmarshal([]byte(`{"verdict":"deny","reason":"r","chain":"forward","src_intf":"iot","dst_intf":"lan","steps":[{"id":1,"name":"a","matched":false,"reason":"why"}]}`), &res)
+	printSimulation(&out, &res)
+	if !strings.Contains(out.String(), "DENY: r") || !strings.Contains(out.String(), "[x] policy 1 a: why") {
+		t.Fatalf("output:\n%s", out.String())
+	}
+	if err := shell.executeLine("diagnose policy 1.2.3.4"); err == nil {
+		t.Error("missing destination accepted")
+	}
+}
+
+func TestExecuteLineSnapshotSave(t *testing.T) {
+	shell, h := newTestShell(t)
+	h.handler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/snapshots" {
+			io.WriteString(w, `{"name":"pre-upgrade"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}
+	if err := shell.executeLine("snapshot save pre-upgrade before the upgrade"); err != nil {
+		t.Fatalf("snapshot save: %v", err)
+	}
+	if len(h.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(h.requests))
+	}
+	req := h.requests[0]
+	if req.Method != http.MethodPost || req.Path != "/api/v1/snapshots" {
+		t.Fatalf("request = %s %s, want POST /api/v1/snapshots", req.Method, req.Path)
+	}
+	var body map[string]any
+	json.Unmarshal(req.Body, &body)
+	if body["name"] != "pre-upgrade" || body["comment"] != "before the upgrade" || body["from"] != "running" {
+		t.Errorf("body = %v", body)
+	}
+}
+
+func TestExecuteLineSnapshotRestore(t *testing.T) {
+	shell, h := newTestShell(t)
+	h.handler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/snapshots/pre-upgrade/restore" {
+			io.WriteString(w, `{"status":"ok","changes":3}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}
+	if err := shell.executeLine("snapshot restore pre-upgrade"); err != nil {
+		t.Fatalf("snapshot restore: %v", err)
+	}
+	if len(h.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(h.requests))
+	}
+	req := h.requests[0]
+	if req.Method != http.MethodPost || req.Path != "/api/v1/snapshots/pre-upgrade/restore" {
+		t.Fatalf("request = %s %s, want POST /api/v1/snapshots/pre-upgrade/restore", req.Method, req.Path)
+	}
+}
+
+func TestExecuteLineSnapshotList(t *testing.T) {
+	shell, h := newTestShell(t)
+	h.handler = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/snapshots" {
+			io.WriteString(w, `{"snapshots":[{"name":"a","comment":"c","created":"2026-01-01T00:00:00Z","created_by":"admin","revision":1}]}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}
+	if err := shell.executeLine("snapshot list"); err != nil {
+		t.Fatalf("snapshot list: %v", err)
+	}
+	if len(h.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(h.requests))
+	}
+	req := h.requests[0]
+	if req.Method != http.MethodGet || req.Path != "/api/v1/snapshots" {
+		t.Fatalf("request = %s %s, want GET /api/v1/snapshots", req.Method, req.Path)
+	}
+}
+
+func TestExecuteLineSnapshotErrors(t *testing.T) {
+	shell, _ := newTestShell(t)
+	if err := shell.executeLine("snapshot"); err == nil {
+		t.Error("bare 'snapshot' should error")
+	}
+	if err := shell.executeLine("snapshot save"); err == nil {
+		t.Error("snapshot save without name should error")
+	}
+	if err := shell.executeLine("snapshot restore"); err == nil {
+		t.Error("snapshot restore without name should error")
+	}
+	if err := shell.executeLine("snapshot frobnicate"); err == nil {
+		t.Error("unknown snapshot sub-command should error")
+	}
+}

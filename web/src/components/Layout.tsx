@@ -28,7 +28,8 @@ import {
   Inbox,
   ScrollText,
   ListOrdered,
-  Ban
+  Ban,
+  Camera
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
 import { PageErrorBoundary } from './PageErrorBoundary'
@@ -141,7 +142,8 @@ const Layout: React.FC = () => {
     { name: 'Revisions', path: '/system/revisions', icon: History, group: 'System' },
     { name: 'Notifications', path: '/system/notifications', icon: Bell, group: 'System' },
     { name: 'Plugins', path: '/system/plugins', icon: Puzzle, group: 'System' },
-    { name: 'Updates', path: '/system/updates', icon: Download, group: 'System' }
+    { name: 'Updates', path: '/system/updates', icon: Download, group: 'System' },
+    { name: 'Snapshots', path: '/system/snapshots', icon: Camera, group: 'System' }
   ]
 
   if (sentryInstalled) {

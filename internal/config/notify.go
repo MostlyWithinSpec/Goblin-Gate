@@ -53,6 +53,7 @@ var NotifyEvents = []string{
 	"update_available", // a newer Goblin Gate is in the update channel
 	"plugin",           // a plugin sent an alert (POST /api/v1/plugin/notify)
 	"block_added",      // an address was blocked temporarily (POST /api/v1/blocks)
+	"new_device",       // a new MAC address appeared on the network (device inventory, task 070)
 	"test",             // sent by POST /api/v1/notifications/test
 }
 

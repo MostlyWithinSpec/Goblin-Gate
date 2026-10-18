@@ -181,3 +181,31 @@ func toSet(lists ...[]string) map[string]bool {
 	}
 	return m
 }
+
+// validHost accepts a DNS name or an IP address (as a WireGuard endpoint
+// host): nothing that could carry spaces, newlines or other syntax into the
+// files it is written to.
+func validHost(s string) bool {
+	if _, err := netip.ParseAddr(s); err == nil {
+		return true
+	}
+	return validHostname(strings.TrimSuffix(s, "."))
+}
+
+// validHostPort accepts "host:port" or "[v6]:port" with a valid host and a
+// port 1-65535.
+func validHostPort(s string) bool {
+	host, port, ok := strings.Cut(s, ":")
+	if strings.HasPrefix(s, "[") {
+		end := strings.Index(s, "]:")
+		if end < 0 {
+			return false
+		}
+		host, port, ok = s[1:end], s[end+2:], true
+		if a, err := netip.ParseAddr(host); err != nil || !a.Is6() {
+			return false
+		}
+	}
+	n, err := strconv.Atoi(port)
+	return ok && err == nil && n >= 1 && n <= 65535 && strconv.Itoa(n) == port && validHost(host)
+}

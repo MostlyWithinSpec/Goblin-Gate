@@ -141,7 +141,7 @@ export interface NotifyRule {
 }
 
 // The events a rule can name (config.NotifyEvents).
-export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'plugin', 'block_added', 'test'] as const
+export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'plugin', 'block_added', 'new_device', 'test'] as const
 
 // Schedules (task 057): weekly time windows a policy can be limited to.
 // Times are in system.timezone. End before Start runs overnight; "24:00" is
@@ -168,6 +168,14 @@ export interface SystemSettings {
   ssh_keys?: SSHKey[]
   update_channel?: 'stable' | 'beta' | 'nightly'
   update_url?: string
+  metrics?: MetricsSettings
+}
+
+// system.metrics: Prometheus /metrics on the admin port; allow = CIDRs that
+// may scrape without an API token.
+export interface MetricsSettings {
+  enabled: boolean
+  allow?: string[]
 }
 
 // Multi-WAN gateways, groups and routes (task 049/050). Types mirror

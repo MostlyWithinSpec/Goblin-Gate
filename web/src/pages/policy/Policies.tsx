@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Clock, GripVertical, MoreVertical, Plus } from 'lucide-react'
+import { Clock, FlaskConical, GripVertical, MoreVertical, Plus } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import {
   getCandidate,
   getPolicyHits,
@@ -9,9 +10,12 @@ import {
   savePolicies,
   type Policy,
   type PolicyObjects,
+  type SimProtocol,
+  type SimulateRequest,
   type ValidationError,
 } from '../../api/policy'
 import PolicyEditor from './PolicyEditor'
+import PolicySimulator from './PolicySimulator'
 import { clean, clonePolicy, groupByPair, insertAt, move, newPolicy, profileBadges, replace } from './policyLogic'
 
 const Chips = ({ items }: { items?: string[] }) => (
@@ -172,6 +176,7 @@ interface Editing {
 }
 
 export default function Policies() {
+  const location = useLocation()
   const [policies, setPolicies] = useState<Policy[]>([])
   const [objects, setObjects] = useState<PolicyObjects | null>(null)
   const [hits, setHits] = useState<Record<number, number> | null>(null)
@@ -180,6 +185,9 @@ export default function Policies() {
   const [grouped, setGrouped] = useState(false)
   const [menuFor, setMenuFor] = useState<number | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
+  // non-null = the simulator panel is open; the value is the prefill (from
+  // ?simulate=1… or a log event's "Why was this denied?")
+  const [sim, setSim] = useState<SimulateRequest | null>(null)
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
 
   useEffect(() => {
@@ -190,16 +198,36 @@ export default function Policies() {
         setPolicies(cfg.policies ?? [])
         setObjects(objectsOf(cfg))
         // /policy?edit=<id> (the log viewer's "Go to policy") opens that policy
-        const edit = Number(new URLSearchParams(window.location.search).get('edit'))
+        const edit = Number(new URLSearchParams(location.search).get('edit'))
         const target = (cfg.policies ?? []).find((p) => p.id === edit)
         if (target) setEditing({ policy: target, isNew: false })
+        // /policy?simulate=1&src_ip=… opens the simulator with a prefilled flow
+        const q = new URLSearchParams(location.search)
+        if (q.get('simulate')) {
+          const prefill: SimulateRequest = {
+            src_ip: q.get('src_ip') ?? '',
+            dst_ip: q.get('dst_ip') ?? '',
+            protocol: (['tcp', 'udp', 'icmp'] as SimProtocol[]).includes(q.get('protocol') as SimProtocol)
+              ? (q.get('protocol') as SimProtocol)
+              : 'any',
+          }
+          const port = Number(q.get('dst_port'))
+          if (Number.isInteger(port) && port > 0) prefill.dst_port = port
+          const intf = q.get('src_intf')
+          if (intf) prefill.src_intf = intf
+          const at = q.get('at')
+          if (at) prefill.at = at
+          const config = q.get('config')
+          if (config === 'candidate' || config === 'running') prefill.config = config
+          setSim(prefill)
+        }
       })
       .catch((e: Error) => live && setError(e.message))
     getPolicyHits().then((h) => live && setHits(h))
     return () => {
       live = false
     }
-  }, [])
+  }, [location.search])
 
   // the row menu is fixed-positioned: close it when anything scrolls
   useEffect(() => {
@@ -282,6 +310,14 @@ export default function Policies() {
           <button
             type="button"
             disabled={!objects}
+            onClick={() => setSim({ src_ip: '', dst_ip: '', protocol: 'any' })}
+            className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <FlaskConical size={16} /> Simulate
+          </button>
+          <button
+            type="button"
+            disabled={!objects}
             onClick={() => setEditing({ policy: newPolicy(policies), isNew: true })}
             className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
@@ -347,6 +383,10 @@ export default function Policies() {
           onSave={onEditorSave}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {sim && objects && (
+        <PolicySimulator interfaces={objects.interfaces} initial={sim} onClose={() => setSim(null)} />
       )}
     </div>
   )

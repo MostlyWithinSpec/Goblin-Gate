@@ -9,7 +9,7 @@
 - [[Interfaces and VLANs]]
 - [[Objects]]
 - [[Firewall Policies]]
-- [[NAT, Port Forwards and UPnP]]
+- [[NAT, Port Forwards and UPnP|NAT-Port-Forwards-and-UPnP]]
 - [[DHCP and DNS]]
 - [[Multi-WAN and Routing]]
 - [[VPN]]
@@ -22,7 +22,9 @@
 
 **System**
 - [[Updates and Backups]]
-- [[Remote Access: SSH, API and CLI]]
+- [[Remote Access: SSH, API and CLI|Remote-Access-SSH-API-CLI]]
+- [[Prometheus and Grafana]]
+- [[Tools: Devices, Simulator, Capture|Tools-Devices-Simulator-Capture]]
 - [[Plugins]]
 - [[Migrating from pfSense]]
 - [[Troubleshooting]]

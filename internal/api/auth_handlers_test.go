@@ -197,6 +197,48 @@ func TestReadonlyUser(t *testing.T) {
 	b.expect("POST", "/api/v1/auth/logout", nil, 200)
 }
 
+func TestReadonlySeesNoSecrets(t *testing.T) {
+	a := newAuthAPI(t)
+	cfg, _ := a.store.Running()
+	cfg.Feeds = []config.Feed{{Name: "paid", Type: "ip", URL: "https://feeds.example.net/x", Enabled: true, AuthHeader: "Authorization: Bearer feedsecret"}}
+	if _, err := a.store.SaveRevision(cfg, "test", "feed"); err != nil {
+		t.Fatal(err)
+	}
+	// secrets: password hashes and the feed's auth header
+	hashes := func(cfg map[string]any) (n int) {
+		for _, ad := range cfg["admins"].([]any) {
+			if h, _ := ad.(map[string]any)["password_hash"].(string); h != "" {
+				n++
+			}
+		}
+		if strings.Contains(jsonString(cfg), "feedsecret") {
+			n++
+		}
+		return n
+	}
+	viewer := a.browser()
+	viewer.login("viewer")
+	for _, p := range []string{"/api/v1/config/running", "/api/v1/config/candidate"} {
+		if n := hashes(viewer.expect("GET", p, nil, 200)); n != 0 {
+			t.Fatalf("readonly %s: %d secrets", p, n)
+		}
+	}
+	viewer.expect("GET", "/api/v1/system/backup", nil, 403)
+	_, _, resp := viewer.do("GET", "/api/v1/config/running", nil)
+	if resp.Header.Get("X-Frame-Options") != "SAMEORIGIN" || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("security headers missing: %v", resp.Header)
+	}
+
+	admin := a.browser()
+	admin.login("admin")
+	if n := hashes(admin.expect("GET", "/api/v1/config/running", nil, 200)); n != 3 {
+		t.Fatalf("admin running: %d secrets, want 3 (2 hashes + feed header)", n)
+	}
+	if code, _, _ := admin.do("GET", "/api/v1/system/backup", nil); code != 200 {
+		t.Fatalf("admin backup: %d", code)
+	}
+}
+
 func TestAPITokens(t *testing.T) {
 	a := newAuthAPI(t)
 	b := a.browser()

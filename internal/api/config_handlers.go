@@ -14,18 +14,35 @@ func (s *Server) getRunning(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, "read running config", err)
 		return
 	}
-	if _, ok := pluginFrom(r); ok {
+	if !s.seesSecrets(r) {
 		redactSecrets(cfg)
 	}
 	writeJSON(w, http.StatusOK, cfg)
 }
 
-// redactSecrets blanks what a plugin with config:read must not see:
-// password hashes and notification credentials (URLs can carry webhook
-// secrets).
+// seesSecrets reports whether the caller may read secrets in a config:
+// admins yes; read-only users and plugins no (a password hash can be
+// cracked offline into an admin password).
+func (s *Server) seesSecrets(r *http.Request) bool {
+	if _, ok := pluginFrom(r); ok {
+		return false
+	}
+	if s.Authn == nil {
+		return true
+	}
+	id, _ := IdentityFrom(r)
+	return id.CanWrite()
+}
+
+// redactSecrets blanks what a plugin or read-only user must not see:
+// password hashes, notification credentials (URLs can carry webhook
+// secrets) and feed download headers (API keys of paid feeds).
 func redactSecrets(cfg *config.Config) {
 	for i := range cfg.Admins {
 		cfg.Admins[i].PasswordHash = ""
+	}
+	for i := range cfg.Feeds {
+		cfg.Feeds[i].AuthHeader = ""
 	}
 	for i := range cfg.Notifications.Channels {
 		c := &cfg.Notifications.Channels[i]
@@ -38,6 +55,9 @@ func (s *Server) getCandidate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.internal(w, "read candidate config", err)
 		return
+	}
+	if !s.seesSecrets(r) {
+		redactSecrets(cfg)
 	}
 	writeJSON(w, http.StatusOK, cfg)
 }
@@ -154,6 +174,10 @@ func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.internal(w, "read candidate config", err)
 		return
+	}
+	if !s.seesSecrets(r) {
+		redactSecrets(running)
+		redactSecrets(candidate)
 	}
 	changes := config.Diff(running, candidate)
 	if changes == nil {

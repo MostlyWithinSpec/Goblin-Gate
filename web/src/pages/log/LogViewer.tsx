@@ -20,6 +20,20 @@ function cell(e: LogEvent, f: keyof LogEvent): React.ReactNode {
   return v === undefined || v === '' ? '' : String(v)
 }
 
+// Builds the /policy?simulate=1… query that opens the policy simulator with a
+// denied event's flow prefilled.
+function simulateQuery(e: LogEvent): string {
+  const q = new URLSearchParams()
+  q.set('simulate', '1')
+  if (e.src_ip) q.set('src_ip', e.src_ip)
+  if (e.dst_ip) q.set('dst_ip', e.dst_ip)
+  if (e.proto === 'tcp' || e.proto === 'udp' || e.proto === 'icmp') q.set('protocol', e.proto)
+  if (e.dst_port != null && e.dst_port > 0) q.set('dst_port', String(e.dst_port))
+  if (e.in_intf) q.set('src_intf', e.in_intf)
+  q.set('at', new Date(e.time * 1000).toISOString())
+  return q.toString()
+}
+
 export default function LogViewer() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -207,6 +221,11 @@ export default function LogViewer() {
           {detail.policy_id && /^\d+$/.test(detail.policy_id) && (
             <Link to={`/policy?edit=${detail.policy_id}`} className="mt-4 inline-block rounded bg-blue-600 px-3 py-1 text-sm text-white">
               Go to policy {detail.policy_id}
+            </Link>
+          )}
+          {detail.action === 'deny' && detail.src_ip && detail.dst_ip && (
+            <Link to={`/policy?${simulateQuery(detail)}`} className="mt-4 inline-block rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+              Why was this denied?
             </Link>
           )}
         </EditDrawer>

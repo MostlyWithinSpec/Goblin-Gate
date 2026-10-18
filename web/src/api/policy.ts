@@ -107,6 +107,47 @@ export function savePolicies(policies: Policy[]): Promise<SaveResult> {
   })
 }
 
+// --- policy simulator (POST /api/v1/policy/simulate, task 072) ---
+
+export type SimProtocol = 'tcp' | 'udp' | 'icmp' | 'any'
+
+export interface SimulateRequest {
+  src_ip: string
+  dst_ip: string
+  protocol: SimProtocol
+  dst_port?: number // required for tcp/udp; omitted for icmp/any
+  src_port?: number
+  src_intf?: string // config interface name; "" = derived from src_ip
+  at?: string // RFC 3339; omitted = now
+  config?: 'running' | 'candidate'
+}
+
+export interface SimStep {
+  id: number
+  name: string
+  matched: boolean
+  reason: string
+}
+
+export interface SimulateResult {
+  verdict: 'accept' | 'deny'
+  reason: string
+  chain: 'forward' | 'input'
+  src_intf: string
+  dst_intf?: string // absent for the input chain
+  policy: { id: number; name: string } | null
+  nat: boolean
+  gateway?: string
+  profiles?: Record<string, string> // ips / webfilter / dnsfilter / appctrl
+  blocked_by?: { kind: 'temp_block' | 'feed'; name: string }
+  translated?: string
+  steps: SimStep[]
+  notes?: string[]
+}
+
+export const simulatePolicy = (body: SimulateRequest) =>
+  apiClient<SimulateResult>('/api/v1/policy/simulate', { method: 'POST', body: JSON.stringify(body) })
+
 // Hit counters arrive with task 024; until then the table shows "—".
 export async function getPolicyHits(): Promise<Record<number, number> | null> {
   try {

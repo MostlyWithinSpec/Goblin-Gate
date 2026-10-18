@@ -18,7 +18,10 @@
         "name": "admin-1",
         "key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f admin@example.test"
       }
-    ]
+    ],
+    "metrics": {
+      "enabled": false
+    }
   },
   "interfaces": [
     {

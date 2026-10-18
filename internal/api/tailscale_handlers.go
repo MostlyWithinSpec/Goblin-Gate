@@ -40,7 +40,11 @@ func (s *Server) tailscaleStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"available": false, "error": err.Error()})
 		return
 	}
-	out := map[string]any{"available": true, "backend_state": st.BackendState, "auth_url": st.AuthURL, "ips": st.TailscaleIPs}
+	out := map[string]any{"available": true, "backend_state": st.BackendState, "ips": st.TailscaleIPs}
+	if s.seesSecrets(r) {
+		// whoever opens the login link adds the box to their tailnet
+		out["auth_url"] = st.AuthURL
+	}
 	if st.Self != nil {
 		out["hostname"] = st.Self.HostName
 		out["approved_routes"] = st.Self.PrimaryRoutes

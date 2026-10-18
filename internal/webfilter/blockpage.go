@@ -143,7 +143,8 @@ func (b *BlockPage) cont(w http.ResponseWriter, r *http.Request, client netip.Ad
 	b.Filter.Grant(client, match)
 	// logged as allowed, with the category that warned
 	b.Filter.record(client, domain, Decision{Action: ActionMonitor, Category: d.Category, Match: match}, s)
-	if !strings.HasSuffix(domain, match) || strings.ContainsAny(domain, "/\\@") {
+	// only back to the warned name or a name under it (no open redirect)
+	if (domain != match && !strings.HasSuffix(domain, "."+match)) || strings.ContainsAny(domain, "/\\@:?#") {
 		domain = match
 	}
 	http.Redirect(w, r, "http://"+domain+"/", http.StatusSeeOther)

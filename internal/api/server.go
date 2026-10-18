@@ -14,9 +14,12 @@ import (
 	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
+	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
@@ -66,6 +69,8 @@ type Server struct {
 	// UPnPLeaseFile is miniupnpd's lease file (task 059); "" = the box's
 	// default (internal/render/upnp.LeaseFile).
 	UPnPLeaseFile string
+	// DHCPLeaseFile is Kea's lease file; "" = internal/render/kea.LeaseFile.
+	DHCPLeaseFile string
 
 	// Logs, Policies and System serve the stats and log endpoints; nil
 	// answers 503.
@@ -88,6 +93,9 @@ type Server struct {
 	WireGuardKeyDir string
 	WireGuardStats  func(ctx context.Context, dev string) (map[string]wireguard.PeerStat, error)
 
+	// Devices keeps the device inventory (task 070); nil answers 503.
+	Devices *devices.Store
+
 	// Blocks keeps temporary blocks; nil = not available (dev).
 	Blocks *blocks.Manager
 	// LiveAddrs returns run-time addresses that must never be blocked
@@ -97,6 +105,10 @@ type Server struct {
 	// Plugins runs the optional plugins and checks their tokens; nil = no
 	// plugin support (dev).
 	Plugins *plugins.Manager
+	// Capture runs packet captures (task 076); nil answers 503 (dev mode).
+	Capture *capture.Manager
+	// Flows samples the connection table (task 078); nil answers 503.
+	Flows *flows.Sampler
 
 	started time.Time
 	setupMu sync.Mutex
@@ -127,6 +139,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/v1/setup", s.setup)
 	mux.Handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
 	mux.HandleFunc("GET /plugin-ui/{name}/{path...}", s.pluginUI)
+	// Prometheus scrapers have no session: /metrics checks its own allow
+	// list and API tokens.
+	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such API endpoint", nil)
 	})
@@ -145,15 +160,25 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("PATCH /api/v1/config/candidate", s.patchCandidate)
 	handle("POST /api/v1/config/validate", s.validate)
 	handle("GET /api/v1/config/diff", s.diff)
+	handle("POST /api/v1/policy/simulate", s.simulatePolicy)
 	handle("POST /api/v1/commit", s.commit)
 	handle("POST /api/v1/commit/confirm", s.confirm)
 	handle("POST /api/v1/commit/discard", s.discard)
 	handle("GET /api/v1/revisions", s.revisions)
 	handle("POST /api/v1/revisions/{rev}/rollback", s.rollback)
 	handle("GET /api/v1/system/status", s.status)
+	handle("GET /api/v1/system/generated", s.generatedList)
+	handle("GET /api/v1/system/generated/file", s.generatedFile)
+	handle("GET /api/v1/system/generated/diff", s.generatedDiff)
 	handle("GET /api/v1/system/info", s.systemInfo)
 	handle("GET /api/v1/system/backup", s.backup)
 	handle("POST /api/v1/system/restore", s.restore)
+	handle("GET /api/v1/dhcp/leases", s.dhcpLeases)
+	handle("GET /api/v1/snapshots", s.listSnapshots)
+	handle("POST /api/v1/snapshots", s.createSnapshot)
+	handle("GET /api/v1/snapshots/{name}", s.getSnapshot)
+	handle("POST /api/v1/snapshots/{name}/restore", s.restoreSnapshot)
+	handle("DELETE /api/v1/snapshots/{name}", s.deleteSnapshot)
 	handle("GET /api/v1/admins", s.listAdmins)
 	handle("POST /api/v1/admins", s.createAdmin)
 	handle("PATCH /api/v1/admins/{name}", s.updateAdmin)
@@ -190,9 +215,19 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/auth/tokens", s.listTokens)
 	handle("POST /api/v1/auth/tokens", s.createToken)
 	handle("DELETE /api/v1/auth/tokens/{id}", s.deleteToken)
+	handle("GET /api/v1/flows", s.listFlows)
+	handle("GET /api/v1/flows/devices", s.flowDevices)
+	handle("POST /api/v1/capture", s.startCapture)
+	handle("GET /api/v1/capture/{id}", s.captureStatus)
+	handle("GET /api/v1/capture/{id}/live", s.captureLive)
+	handle("GET /api/v1/capture/{id}/pcap", s.capturePcap)
+	handle("DELETE /api/v1/capture/{id}", s.stopCapture)
 	handle("GET /api/v1/blocks", s.listBlocks)
 	handle("POST /api/v1/blocks", s.addBlock)
 	handle("DELETE /api/v1/blocks/{ip}", s.removeBlock)
+	handle("GET /api/v1/devices", s.listDevices)
+	handle("PATCH /api/v1/devices/{mac}", s.patchDevice)
+	handle("DELETE /api/v1/devices/{mac}", s.deleteDevice)
 	handle("GET /api/v1/plugins", s.listPlugins)
 	handle("POST /api/v1/plugins/{name}/enable", s.enablePlugin)
 	handle("POST /api/v1/plugins/{name}/disable", s.disablePlugin)
@@ -200,11 +235,15 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("/api/v1/plugins/{name}/api/{path...}", s.pluginAPI)
 }
 
-// middleware adds request logging (no bodies), body limits and content-type
-// checks.
+// middleware adds request logging (no bodies), body limits, content-type
+// checks and the security headers.
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		h := w.Header()
+		h.Set("X-Frame-Options", "SAMEORIGIN") // only the UI may frame its pages (plugin UIs)
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		// uploads are the non-JSON bodies: a backup (zip) and a pfSense
 		// config.xml, raw or as a form
@@ -253,6 +292,10 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
 }
+
+// Unwrap lets http.ResponseController reach the real writer (flushing of
+// event streams).
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 func (s *Server) user(r *http.Request) string {
 	if s.UserFrom != nil {

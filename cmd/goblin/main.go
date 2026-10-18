@@ -572,6 +572,7 @@ func (s *interactiveShell) printHelp() {
 	fmt.Println("  discard             Discard candidate config")
 	fmt.Println("  history           Show commit history")
 	fmt.Println("  rollback N          Rollback to revision N")
+	fmt.Println("  diagnose policy SRC DST [tcp|udp|icmp|any] [PORT]   Would this connection pass, and why")
 	fmt.Println("  get system status     Show system status")
 	fmt.Println("  execute backup        Backup configuration")
 	fmt.Println("  execute restore     Restore configuration")

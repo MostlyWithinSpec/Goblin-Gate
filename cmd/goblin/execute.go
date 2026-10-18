@@ -34,12 +34,16 @@ func (s *interactiveShell) executeLine(line string) error {
 		return s.handleHistory()
 	case strings.HasPrefix(lower, "rollback"):
 		return s.handleRollback(trimmed)
+	case strings.HasPrefix(lower, "diagnose policy"):
+		return s.handleDiagnosePolicy(trimmed)
 	case strings.HasPrefix(lower, "get system status") || lower == "status":
 		return s.handleSystemStatus()
 	case strings.HasPrefix(lower, "config ") || lower == "config":
 		return s.executeConfigBlock(trimmed)
 	case strings.HasPrefix(lower, "show "):
 		return s.executeShow(trimmed)
+	case strings.HasPrefix(lower, "snapshot"):
+		return s.handleSnapshot(trimmed)
 	default:
 		return fmt.Errorf("unknown command %q (try help)", firstWord(trimmed))
 	}
@@ -250,4 +254,96 @@ func firstWord(s string) string {
 		return s
 	}
 	return s[:i]
+}
+
+// handleSnapshot dispatches snapshot sub-commands: save, restore, list.
+func (s *interactiveShell) handleSnapshot(line string) error {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return fmt.Errorf("usage: snapshot save <name> [comment] | snapshot restore <name> | snapshot list")
+	}
+	switch fields[1] {
+	case "save":
+		if len(fields) < 3 {
+			return fmt.Errorf("snapshot save requires a name")
+		}
+		name := fields[2]
+		comment := strings.Join(fields[3:], " ")
+		body := map[string]any{"name": name, "comment": comment, "from": "running"}
+		resp, err := s.client.doRequest(http.MethodPost, "/api/v1/snapshots", body)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode/100 != 2 {
+			return apiError("snapshot save", resp, b)
+		}
+		var out struct {
+			Name string `json:"name"`
+		}
+		json.Unmarshal(b, &out)
+		fmt.Printf("Snapshot %q saved.\n", out.Name)
+	case "restore":
+		if len(fields) < 3 {
+			return fmt.Errorf("snapshot restore requires a name")
+		}
+		name := fields[2]
+		resp, err := s.client.doRequest(http.MethodPost, "/api/v1/snapshots/"+name+"/restore", nil)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode/100 != 2 {
+			return apiError("snapshot restore", resp, b)
+		}
+		var out struct {
+			Status  string `json:"status"`
+			Changes int    `json:"changes"`
+		}
+		json.Unmarshal(b, &out)
+		fmt.Printf("Snapshot %q loaded as candidate (%d change(s)). Review the diff and commit.\n", name, out.Changes)
+	case "list":
+		resp, err := s.client.doRequest(http.MethodGet, "/api/v1/snapshots", nil)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode/100 != 2 {
+			return apiError("snapshot list", resp, b)
+		}
+		var out struct {
+			Snapshots []struct {
+				Name      string `json:"name"`
+				Comment   string `json:"comment"`
+				Created   string `json:"created"`
+				CreatedBy string `json:"created_by"`
+				Revision  int    `json:"revision"`
+			} `json:"snapshots"`
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			return fmt.Errorf("decode snapshot list: %w", err)
+		}
+		if len(out.Snapshots) == 0 {
+			fmt.Println("No snapshots.")
+			return nil
+		}
+		for _, sn := range out.Snapshots {
+			fmt.Printf("%-20s  %-12s  rev %d  %s  %s\n", sn.Name, sn.CreatedBy, sn.Revision, sn.Created, sn.Comment)
+		}
+	default:
+		return fmt.Errorf("unknown snapshot sub-command %q (save, restore, list)", fields[1])
+	}
+	return nil
 }

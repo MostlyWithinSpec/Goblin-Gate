@@ -270,8 +270,12 @@ func TestBlockPage(t *testing.T) {
 		rest := body[i+len(`name="`+name+`" value="`):]
 		return rest[:strings.Index(rest, `"`)]
 	}
-	post := func(token string) *httptest.ResponseRecorder {
-		form := url.Values{"domain": {"social.example"}, "match": {field("match")}, "expires": {field("expires")}, "token": {token}}
+	post := func(token string, domain ...string) *httptest.ResponseRecorder {
+		d := "social.example"
+		if len(domain) > 0 {
+			d = domain[0]
+		}
+		form := url.Values{"domain": {d}, "match": {field("match")}, "expires": {field("expires")}, "token": {token}}
 		r := httptest.NewRequest("POST", "http://social.example/__goblin/continue", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.RemoteAddr = "127.0.0.9:5555"
@@ -285,6 +289,15 @@ func TestBlockPage(t *testing.T) {
 	w = post(field("token"))
 	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "http://social.example/" {
 		t.Fatalf("continue: %d %v", w.Code, w.Header())
+	}
+	// no open redirect: a name that merely ends like the match goes to the match
+	for _, d := range []string{"evilsocial.example", "social.example:8080", "x.social.example@evil.example"} {
+		if w := post(field("token"), d); w.Header().Get("Location") != "http://social.example/" {
+			t.Errorf("continue with domain %q redirects to %q", d, w.Header().Get("Location"))
+		}
+	}
+	if w := post(field("token"), "www.social.example"); w.Header().Get("Location") != "http://www.social.example/" {
+		t.Errorf("subdomain redirect: %q", w.Header().Get("Location"))
 	}
 	if !forwarded(e.ask(t, "social.example", typeA)) {
 		t.Fatal("continue did not grant access")

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle } from 'lucide-react'
-import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device } from '../api/objects'
+import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device, type MetricsSettings } from '../api/objects'
 import { inputClass, NAME_RE, omitEmpty } from '../components/ConfigList'
 import { getConfigDiff, type DiffResponse } from '../api/config'
 import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry } from '../api/system'
@@ -62,6 +62,10 @@ const System: React.FC = () => {
           <span className="font-semibold text-blue-700 dark:text-blue-300">Updates</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channel, available version and update history</span>
         </Link>
+        <Link to="/system/generated" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+          <span className="font-semibold text-blue-700 dark:text-blue-300">Generated config</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-300">Renderer output: running vs candidate, with diff</span>
+        </Link>
       </div>
     </div>
   )
@@ -103,6 +107,7 @@ const GeneralTab: React.FC = () => {
   const set = (patch: Partial<SystemSettings>) => setForm((f) => ({ ...f, ...patch }))
 
   return (
+    <>
     <form onSubmit={save} className="max-w-xl space-y-4">
       {saved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">Saved. Use the commit bar to apply.</div>}
       {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
@@ -130,6 +135,49 @@ const GeneralTab: React.FC = () => {
         <textarea aria-label="DNS servers" rows={3} className={inputClass + ' font-mono text-xs'} value={(form.dns_servers ?? []).join('\n')} onChange={(e) => set({ dns_servers: e.target.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean) })} placeholder="1.1.1.1" />
       </label>
       <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save</button>
+    </form>
+    <MetricsSection initial={cfg.system?.metrics} />
+    </>
+  )
+}
+
+// Prometheus metrics: saved on its own to candidate system.metrics.
+const MetricsSection: React.FC<{ initial?: MetricsSettings }> = ({ initial }) => {
+  const [enabled, setEnabled] = useState(initial?.enabled ?? false)
+  const [allow, setAllow] = useState((initial?.allow ?? []).join('\n'))
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const save = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    setSaved(false)
+    const list = allow.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+    try {
+      await patchSection('system.metrics', list.length > 0 ? { enabled, allow: list } : { enabled })
+      setSaved(true)
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="mt-8 max-w-xl space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Metrics</h3>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Prometheus metrics at <code>/metrics</code> on the admin port. Scrapers from the allow list need nothing else; others need an API token (System → API Tokens, read-only is enough).
+      </p>
+      {saved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">Saved. Use the commit bar to apply.</div>}
+      {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" aria-label="Enable metrics" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        Enable /metrics
+      </label>
+      <label className="block text-sm">
+        Allowed without a token (one CIDR per line)
+        <textarea aria-label="Metrics allow list" rows={3} className={inputClass + ' font-mono text-xs'} value={allow} onChange={(e) => setAllow(e.target.value)} placeholder="192.168.1.10/32" />
+      </label>
+      <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save metrics</button>
     </form>
   )
 }

@@ -6,7 +6,7 @@ commands on the box.
 
 ## Install
 
-As root on the box (see [[Remote Access: SSH, API and CLI]]):
+As root on the box (see [[Remote Access: SSH, API and CLI|Remote-Access-SSH-API-CLI]]):
 
 ```sh
 apt-get update && apt-get install goblin-gate-plugin-sentry

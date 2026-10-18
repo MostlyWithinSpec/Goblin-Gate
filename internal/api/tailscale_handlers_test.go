@@ -67,3 +67,20 @@ func TestTailscaleEndpoints(t *testing.T) {
 		t.Fatalf("candidate %+v", cand.VPN)
 	}
 }
+
+// The login link adds the box to whoever opens it: admins only.
+func TestTailscaleAuthURLAdminsOnly(t *testing.T) {
+	a := newAuthAPI(t)
+	a.server.Tailscale = fakeTailscaled(t)
+	admin := a.browser()
+	admin.login("admin")
+	admin.expect("POST", "/api/v1/vpn/tailscale/login", nil, 200)
+	if out := admin.expect("GET", "/api/v1/vpn/tailscale/status", nil, 200); out["auth_url"] != "https://login.tailscale.com/a/abc" {
+		t.Fatalf("admin status: %v", out)
+	}
+	viewer := a.browser()
+	viewer.login("viewer")
+	if out := viewer.expect("GET", "/api/v1/vpn/tailscale/status", nil, 200); out["auth_url"] != nil || out["backend_state"] != "NeedsLogin" {
+		t.Fatalf("readonly status: %v", out)
+	}
+}

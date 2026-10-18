@@ -100,6 +100,14 @@ func safeMethod(m string) bool {
 	return m == http.MethodGet || m == http.MethodHead || m == http.MethodOptions
 }
 
+// readOnlyPosts are POST endpoints that change nothing (they take a body
+// too large or structured for a query string), so readonly users may call
+// them. Sessions still need the CSRF header.
+var readOnlyPosts = map[string]bool{
+	"/api/v1/config/validate": true,
+	"/api/v1/policy/simulate": true,
+}
+
 // authenticate is the Server.Auth middleware when Authn is set.
 func (s *Server) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +154,8 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" {
+		if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" &&
+			!(r.Method == http.MethodPost && readOnlyPosts[r.URL.Path]) {
 			writeError(w, http.StatusForbidden, "forbidden", "read-only users cannot change anything", nil)
 			return
 		}

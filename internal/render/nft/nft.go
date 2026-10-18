@@ -104,13 +104,24 @@ type ruleset struct {
 	dnsFwd   []string // forward: no DNS-over-TLS around the filter
 	pre      []string // goblin_nat prerouting
 	route    render.RoutingPlan
-	routePol []string // chain route_policies (task 049)
+	routePol []string       // chain route_policies (task 049)
+	owner    map[int]uint32 // index in forward -> id of the policy it belongs to
 }
 
 type counterDecl struct{ name, comment string }
 
 func build(cfg *config.Config) ([]byte, error) {
-	r := &ruleset{cfg: cfg, devs: render.Devices(cfg), names: newNamer()}
+	r, err := prepare(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return r.write(), nil
+}
+
+// prepare collects every rule and set of the ruleset (write lays them out;
+// the policy simulator evaluates them).
+func prepare(cfg *config.Config) (*ruleset, error) {
+	r := &ruleset{cfg: cfg, devs: render.Devices(cfg), names: newNamer(), owner: map[int]uint32{}}
 	objs, err := resolveObjects(cfg, r.names)
 	if err != nil {
 		return nil, err
@@ -133,7 +144,7 @@ func build(cfg *config.Config) ([]byte, error) {
 	if err := r.policies(); err != nil {
 		return nil, err
 	}
-	return r.write(), nil
+	return r, nil
 }
 
 // FeedNames maps each enabled IP threat feed to its set (feed_<name>) and

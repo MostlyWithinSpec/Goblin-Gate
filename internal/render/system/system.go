@@ -61,6 +61,7 @@ const header = "# Managed by Goblin Gate (goblind): changes here are overwritten
 const sshdConfig = header + `PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
+X11Forwarding no
 AuthorizedKeysFile .ssh/authorized_keys ` + AuthorizedKeyDir + `%u
 `
 

@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/netip"
-	"strings"
 )
 
 // Gateway is a next hop to the internet (task 049): a WAN interface's
@@ -173,7 +172,7 @@ func (v *validator) checkRouting() {
 		if !validWGKey(w.PeerPublicKey) {
 			v.add(p+".peer_public_key", "want the provider's public key (base64, 32 bytes)")
 		}
-		if host, port, ok := strings.Cut(w.Endpoint, ":"); !ok || host == "" || port == "" {
+		if !validHostPort(w.Endpoint) {
 			v.add(p+".endpoint", "want host:port, e.g. se-sto-wg-001.example.net:51820")
 		}
 		if w.MTU != 0 && (w.MTU < 1280 || w.MTU > 1500) {

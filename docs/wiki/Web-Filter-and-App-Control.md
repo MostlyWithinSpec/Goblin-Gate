@@ -19,4 +19,4 @@ sites show a block page. The page has a lookup box: "which category is example.c
 ...) or whole groups (Gaming, Streaming, Social), recognized by their domains. An app setting overrides its
 group. Blocked attempts show in Log & Report with the app's name.
 
-Use a [[Firewall Policies|schedule]] on the policy for "no games after 22:00".
+Use a [[schedule|Firewall-Policies]] on the policy for "no games after 22:00".

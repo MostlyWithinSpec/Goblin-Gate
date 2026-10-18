@@ -57,3 +57,26 @@ func TestStore(t *testing.T) {
 		t.Fatalf("failed to run retention: %v", err)
 	}
 }
+
+func TestCountByAction(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now().Unix()
+	store.InsertBatch([]*Event{
+		{Time: now - 100, Kind: "ips", Action: "alert"}, // before since
+		{Time: now, Kind: "ips", Action: "alert"},
+		{Time: now, Kind: "ips", Action: "alert"},
+		{Time: now, Kind: "ips", Action: "drop"},
+		{Time: now, Kind: "traffic", Action: "deny"},
+	})
+	got, err := store.CountByAction("ips", now-10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got["alert"] != 2 || got["drop"] != 1 {
+		t.Fatalf("counts %v", got)
+	}
+}

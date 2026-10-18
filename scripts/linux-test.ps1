@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host 'Docker engine is not running - start Dock
 $script = @'
 set -eo pipefail
 apt-get update -qq >/dev/null
-apt-get install -y -qq nftables kea-dhcp4-server unbound dnsutils iproute2 >/dev/null 2>&1
+apt-get install -y -qq nftables kea-dhcp4-server unbound dnsutils iproute2 tcpdump >/dev/null 2>&1
 # what unbound.service's start helper does: the DNSSEC anchor from dns-root-data
 install -o unbound -m644 /usr/share/dns/root.key /var/lib/unbound/root.key
 echo "nft: $(nft --version)  kea: $(kea-dhcp4 -v)  kernel: $(uname -r)"
