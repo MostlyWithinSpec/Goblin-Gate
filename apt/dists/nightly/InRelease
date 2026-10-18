@@ -4,27 +4,27 @@ Hash: SHA256
 Architectures: amd64
 Codename: nightly
 Components: main
-Date: Sun, 18 Oct 2026 04:10:17 +0000
+Date: Sun, 18 Oct 2026 13:15:40 +0000
 Description: Goblin Gate packages (nightly channel)
 Label: Goblin Gate
 Origin: Goblin Gate
 Suite: nightly
 MD5Sum:
- e76e510889581fe34cb158058e00ec93            10775 main/binary-amd64/Packages
- 1f3491bab7d6313b72c0418880561850             2699 main/binary-amd64/Packages.gz
+ 264c24163fbd104b219dd623a57d3ab6            11275 main/binary-amd64/Packages
+ eab801fa8224cf45e340394babfceea2             2717 main/binary-amd64/Packages.gz
 SHA1:
- 288c29d8e34826fe660db97c1ea84c0ee5af22b6            10775 main/binary-amd64/Packages
- 90fc2a54525a1d34172b2d9ce8c14eeac9214dbb             2699 main/binary-amd64/Packages.gz
+ 33cace2dcca6a97f985f8f2368ace35260b72460            11275 main/binary-amd64/Packages
+ 287b1740d0b999c387d2d33691383fb8fc44bd93             2717 main/binary-amd64/Packages.gz
 SHA256:
- cede461647f2d010e3084b7a23ef2e03b039da543df412de5302b0b840dc9fe4            10775 main/binary-amd64/Packages
- 6ac5663d00ddc62494655cbd7152759a0f2b883caebc44b85fe17c0b6c90b628             2699 main/binary-amd64/Packages.gz
+ bfaed57b172061dd6d6c3759e603cdc48818aa5b7c87957f31c596cb87163845            11275 main/binary-amd64/Packages
+ 57e4bd5d0b93155c563bbacc907e6f1daaa1e25783b1a935153c6663baa45012             2717 main/binary-amd64/Packages.gz
 SHA512:
- 618f4065e4f969fc694ef7c7534161469316fb2568a54c4df25de2f3239f0b4d1710ad3b2ff3beb0afffaa7d4ea16292f7a4a1348e5856fadb47da2056796895            10775 main/binary-amd64/Packages
- 1141caeb2a1824c6a974c52479b394e8fbdfd6d28d5480d58a6ab1d8c080c87e7ed5baafbec7a3f6f62c3c0dfce0c78955ce401337b16dd13c97ab1cea824606             2699 main/binary-amd64/Packages.gz
+ 8ed01e76abab3b53dab39a86ebdcbfab1c59b3741ce530c95ff5b33318db0760ad89703d2344f6ed22365e7e48d70419ea7106ac1fbd0736fc2f5791632a3bb0            11275 main/binary-amd64/Packages
+ 13da8539ebf6e4a8d926eba265b13c01169958712b6fd208d1490c68f9ae44b97a1529bdf2a06191328460417955dbce7214dfa57b433aada70e120260323af5             2717 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYIAB0WIQR8M/7Pm12lbd4WFhTaRArFtFPtegUCatRGqQAKCRDaRArFtFPt
-eg6BAQDqlmg5AgdoRUqJDs49rj45QvYOCG/h2cCQqOFlTobRnAEAz3TqTB3cpJx+
-rmermDiHVGSy4Qibo/1GrNyX1z96yA8=
-=H71f
+iHUEARYIAB0WIQR8M/7Pm12lbd4WFhTaRArFtFPtegUCatTGfAAKCRDaRArFtFPt
+emniAQDuWMl6NBv0DcMHxaOP6v/DUNdf+nlw3L8DMN7/obhMiQEAk7ft74m4VWiG
+zm4r/Fm7gr4yggZM5nvWOoI0bgIm4A0=
+=g1uy
 -----END PGP SIGNATURE-----
