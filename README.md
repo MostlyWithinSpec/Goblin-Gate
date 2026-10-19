@@ -43,22 +43,27 @@ nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware
 | | |
 |---|---|
 | 🧱 **A proper firewall** | Interfaces and VLANs, address and service objects, ordered policies (first match wins, everything else is denied), NAT and port forwards. Schedules limit a policy to certain hours. IPv4 and IPv6 alike. |
+| 🌍 **Country rules** | Allow or block by country (GeoIP), in policies or on a port forward: "my Plex server, but only from home". The free DB-IP database downloads and refreshes itself. |
+| 🧪 **Ask before you break it** | The policy simulator answers "would this reach that?" without sending a packet, and every denied connection in the log has a "why was this denied?" button. |
 | 🧩 **Security profiles per policy** | Build an IPS, web filter, DNS filter or app control profile once, attach it to any policy. The kids' Wi-Fi and your lab VLAN can play by different rules. |
-| 📜 **Config you can trust** | Changes pile up in a candidate config. See the diff, commit, and if the change locks you out, it **reverts itself**. Every commit is a revision you can roll back to, and backups are one click. |
+| 📜 **Config you can trust** | Changes pile up in a candidate config. See the diff, commit, and if the change locks you out, it **reverts itself**. Every commit is a revision you can roll back to, named snapshots let you experiment, and every commit can also land in your own git repository (secrets left out). |
 | 🛡️ **Intrusion prevention** | Suricata inline with the ET Open rules: bad traffic gets blocked, not just written down. |
 | 🚦 **Web and DNS filtering** | Block by category, filter DNS, and decide which apps get through (application control). It also closes the usual DNS-over-HTTPS and private-relay side doors on filtered networks. |
 | 🗑️ **Threat feeds and temporary blocks** | Known-bad IP and domain lists, kept fresh automatically. Block any address for a minute or a week; the block lifts itself. |
 | 🌐 **IPv6 and multi-WAN** | DHCPv6 with prefix delegation, a /64 per LAN and VLAN. Several internet links with health checks, failover and load sharing, and a gateway per policy (send one VLAN through a VPN provider, with a kill switch). |
-| 🏠 **Network services** | DHCP (Kea) and a DNS resolver (Unbound), with local names for DHCP clients, split DNS, and UPnP if you want it (off by default). |
+| 🏠 **Network services** | DHCP (Kea) and a DNS resolver (Unbound), with local names for DHCP clients, split DNS, DNS rebinding protection, dynamic DNS (Cloudflare, DuckDNS or any update URL), and UPnP if you want it (off by default). |
+| 🚀 **Smart queue** | CAKE traffic shaping keeps games and video calls smooth while someone else fills the line. |
 | 🔐 **VPN** | WireGuard with a QR code per phone or laptop, and Tailscale. |
-| 📊 **Eyes everywhere** | Dashboards built from widgets, logs you can drill into, and a chart builder for the questions nobody thought of. |
+| 📊 **Eyes everywhere** | Dashboards built from widgets, logs you can drill into, a chart builder, a device inventory, live traffic per device, packet capture in the browser (download the pcap for Wireshark), and ping, traceroute and DNS lookups from the box itself. |
+| 📤 **Plays well with others** | Prometheus metrics with a ready Grafana dashboard, and every log sent on to syslog or Grafana Loki. |
 | 🔔 **It tells you things** | Email, webhooks, Discord, ntfy or Telegram when a WAN goes down, an update is ready, and more. |
-| 🔄 **Updates that undo themselves** | Signed packages in stable, beta and nightly channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. |
+| 🔄 **Updates that undo themselves** | Signed packages in stable, beta and nightly channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. Debian security fixes install nightly on their own. |
+| 🔒 **Hardened by default** | Two-factor login, a list of your active sessions, anti-spoofing on every interface, and the IPS, DNS and DHCP services each locked in their own sandbox with only the rights they need. |
 | 🧳 **Moving in** | Import your old firewall's XML backup. A report lists every item as converted, approximated or skipped, and nothing goes live until you commit. |
 | 🖥️ **Three ways in, one config** | A web UI (light and dark), a REST API for everything, and a CLI. They all edit the same config, so whatever you can click, you can script. |
 | 💿 **Installs anywhere** | An offline installer ISO for bare metal (BIOS or UEFI, Secure Boot works), VMware ESXi, Proxmox and VirtualBox. A console menu handles the basics. |
 
-## New in beta 1: Goblin Sentry and G.O.B.L.I.N.
+## Plugins: Goblin Sentry and G.O.B.L.I.N.
 
 **Plugins** install as packages (`goblin-gate-plugin-<name>`) and live in a goblin-sized box: each runs as its own
 throwaway unprivileged user on a read-only system, capped at one CPU core and 512 MB. A plugin can only make the
@@ -96,7 +101,7 @@ click. It never blocks on its own.
 4. From a computer on the LAN port, open `https://<LAN address>` and run the setup wizard: admin password, WAN,
    LAN, security level, done.
 
-Already running an alpha? It updates itself from the beta channel: System → Updates.
+Already running an earlier beta? It updates itself from the beta channel: System → Updates.
 The VMware ESXi guide lives in [packaging/README.md](packaging/README.md).
 
 **The user guide is the [wiki](../../wiki)**: every page of the web UI, recipes (isolating a Wi-Fi VLAN,
@@ -143,8 +148,9 @@ Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/
 ## What's next
 
 - **Now:** beta testing, daily use as a home firewall, more real hardware, then the first stable release, 0.1.0.
-- **The tinkerer's firewall:** packet capture in the browser, a policy simulator ("would this reach that?"),
-  git-backed config, Prometheus and Grafana, device inventory, more plugins.
+- **In the works:** custom nftables rules for what policies can't express, a CrowdSec bouncer, API tokens
+  limited to what a script needs, a live event stream, and global search (Ctrl+K).
+- **Later:** a reverse proxy with Let's Encrypt, Home Assistant integration, more plugins.
 - **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
 
 The full roadmap lives on the [project page](https://networkgoblin.dev/gate/).
