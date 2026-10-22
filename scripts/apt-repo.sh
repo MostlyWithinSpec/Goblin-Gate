@@ -12,15 +12,12 @@
 set -euo pipefail
 REPO=$1 CHANNEL=$2
 shift 2
+# nightly: only the bridge for boxes still on the old channel (release.yml)
 case "$CHANNEL" in stable | beta | nightly) ;; *) echo "unknown channel $CHANNEL" >&2; exit 2 ;; esac
 [ -n "${APT_SIGNING_KEY:-}" ] || { echo "APT_SIGNING_KEY is not set" >&2; exit 2; }
 
 mkdir -p "$REPO/pool/$CHANNEL" "$REPO/dists/$CHANNEL/main/binary-amd64"
 for deb in "$@"; do cp -f "$deb" "$REPO/pool/$CHANNEL/"; done
-# nightly keeps only the newest 10 builds
-if [ "$CHANNEL" = nightly ]; then
-	ls -1t "$REPO/pool/nightly"/*.deb 2>/dev/null | tail -n +11 | xargs -r rm -f
-fi
 
 cd "$REPO"
 apt-ftparchive packages "pool/$CHANNEL" > "dists/$CHANNEL/main/binary-amd64/Packages"

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Download, Upload, Plus, Trash2, KeyRound, FileUp, AlertTriangle, LogOut, GitBranch, Copy, Check, RefreshCw, Info } from 'lucide-react'
 import { getCandidate, patchSection, getDevices, type Candidate, type SystemSettings, type SSHKey, type Device, type MetricsSettings } from '../api/objects'
 import { inputClass, NAME_RE, omitEmpty } from '../components/ConfigList'
@@ -21,7 +21,11 @@ const TIMEZONES = [
 ]
 
 const System: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('General')
+  // A Goblin Checks finding links here as /system?tab=Admins, so the tab it
+  // names opens straight away; an unknown or missing ?tab= opens General.
+  const [search] = useSearchParams()
+  const tabParam = search.get('tab')
+  const [tab, setTab] = useState<Tab>(TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'General')
 
   return (
     <div className="p-6">
@@ -31,6 +35,7 @@ const System: React.FC = () => {
           <button
             key={t}
             type="button"
+            aria-current={tab === t ? 'page' : undefined}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium rounded-t ${tab === t ? 'border border-b-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
           >
@@ -70,6 +75,10 @@ const System: React.FC = () => {
         <Link to="/system/diagnostics" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Diagnostics</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Ping, traceroute and DNS lookup from the box</span>
+        </Link>
+        <Link to="/system/ups" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+          <span className="font-semibold text-blue-700 dark:text-blue-300">UPS</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-300">Power state, battery runtime and clean shutdown</span>
         </Link>
       </div>
     </div>
@@ -1113,12 +1122,12 @@ const ImportTab: React.FC = () => {
         {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
         <div className="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm dark:border-yellow-800 dark:bg-yellow-900/20">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-yellow-600" />
-          <p className="text-yellow-800 dark:text-yellow-200">Importing a pfSense config <strong>replaces the current candidate</strong>. Nothing is committed until you review and commit.</p>
+          <p className="text-yellow-800 dark:text-yellow-200">Importing a pfSense or OPNsense config <strong>replaces the current candidate</strong>. Nothing is committed until you review and commit.</p>
         </div>
         <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed border-gray-300 p-6 text-sm hover:border-blue-400 dark:border-gray-600">
           <FileUp size={20} className="text-gray-400" />
-          <span>Upload pfSense config.xml</span>
-          <input type="file" accept=".xml" className="hidden" onChange={doUpload} disabled={busy} aria-label="Upload pfSense config" />
+          <span>Upload a pfSense or OPNsense config.xml</span>
+          <input type="file" accept=".xml" className="hidden" onChange={doUpload} disabled={busy} aria-label="Upload firewall config" />
         </label>
       </div>
     )
@@ -1130,10 +1139,10 @@ const ImportTab: React.FC = () => {
       <div className="max-w-3xl space-y-4">
         {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
         <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Assign devices to interfaces</h3>
-        <p className="text-xs text-gray-500">Select which physical device backs each pfSense interface. VLANs follow their parent.</p>
+        <p className="text-xs text-gray-500">Select which physical device backs each {result?.source ?? 'pfSense'} interface. VLANs follow their parent.</p>
         <table className="min-w-full text-sm">
           <thead className="text-left text-xs uppercase text-gray-500">
-            <tr><th className="px-3 py-2">pfSense</th><th className="px-3 py-2">Device (from pfSense)</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Assign to</th></tr>
+            <tr><th className="px-3 py-2">{result?.source ?? 'pfSense'}</th><th className="px-3 py-2">Device (from {result?.source ?? 'pfSense'})</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Assign to</th></tr>
           </thead>
           <tbody>
             {rows.map((iface) => (

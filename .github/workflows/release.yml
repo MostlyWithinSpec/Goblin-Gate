@@ -1,13 +1,13 @@
 # Releases (task 051). A tag vX.Y.Z or vX.Y.Z-alpha.N builds the .deb and the
 # installer ISO, publishes a GitHub Release and adds the .deb to the APT
 # repository on GitHub Pages (pre-releases -> beta; releases -> stable and beta).
-# A push to main builds a .deb for the nightly channel.
+# Only tagged builds are published: there is no nightly channel, untested
+# builds don't belong on a firewall.
 name: release
 
 on:
   push:
     tags: ['v*']
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -36,13 +36,12 @@ jobs:
       - name: version and channel
         id: v
         run: |
-          if [ "${GITHUB_REF_TYPE}" = tag ]; then
-            V="${GITHUB_REF_NAME#v}"
-            case "$V" in *-*) CH=beta ;; *) CH=stable ;; esac
-          else
-            V="$(git describe --tags --always | sed 's/^v//')"
-            CH=nightly
+          if [ "${GITHUB_REF_TYPE}" != tag ]; then
+            echo "only tags are released" >&2
+            exit 1
           fi
+          V="${GITHUB_REF_NAME#v}"
+          case "$V" in *-*) CH=beta ;; *) CH=stable ;; esac
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "channel=$CH" >> "$GITHUB_OUTPUT"
           echo "Building $V for the $CH channel"
@@ -100,6 +99,9 @@ jobs:
             "apt-get update -qq >/dev/null && apt-get install -y -qq apt-utils gnupg >/dev/null 2>&1 && bash scripts/apt-repo.sh pages/apt $1 $DEBS"; }
           run "$CHANNEL"
           [ "$CHANNEL" = stable ] && run beta # beta always carries the newest release too
+          # bridge for boxes still on the old nightly suite: they get this release,
+          # which moves them to beta (config.Load); drop after 0.1.0
+          run nightly
           cd pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

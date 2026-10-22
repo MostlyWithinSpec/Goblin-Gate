@@ -16,6 +16,11 @@ func Load(r io.Reader) (*Config, error) {
 	if err := dec.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("config load: %w", err)
 	}
+	// There is no nightly channel any more: untested builds don't belong on
+	// a firewall. Boxes that followed it now follow beta.
+	if cfg.System.UpdateChannel == "nightly" {
+		cfg.System.UpdateChannel = "beta"
+	}
 	return &cfg, nil
 }
 

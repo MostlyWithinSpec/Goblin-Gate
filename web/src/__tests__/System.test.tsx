@@ -51,6 +51,8 @@ const cfg: Candidate = {
 
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>)
 
+const wrapAt = (path: string) => render(<MemoryRouter initialEntries={[path]}><System /></MemoryRouter>)
+
 beforeEach(() => {
   vi.mocked(api.getCandidate).mockResolvedValue(structuredClone(cfg))
   vi.mocked(api.patchSection).mockReset().mockResolvedValue({ status: 'ok', validation_errors: null })
@@ -377,5 +379,26 @@ describe('API Tokens tab', () => {
     expect(later).not.toHaveTextContent(/expired/)
     expect(later.className).not.toContain('text-red-600')
     expect(lastUsed('all')).toHaveTextContent(new Date('2026-10-20T08:30:00Z').toLocaleString())
+  })
+})
+
+describe('Initial tab from the query (task 109)', () => {
+  test('a Goblin Checks link opens the tab it names', async () => {
+    wrapAt('/system?tab=Admins')
+    expect(await screen.findByText('Admins')).toHaveAttribute('aria-current', 'page')
+    // the General tab (the default) is not rendered
+    expect(screen.queryByText('Hostname')).not.toBeInTheDocument()
+  })
+
+  test('the Backup tab opens from ?tab=Backup', async () => {
+    wrapAt('/system?tab=Backup')
+    expect(await screen.findByText('Backup')).toBeInTheDocument()
+    expect(screen.getByText('Backup')).toHaveAttribute('aria-current', 'page')
+  })
+
+  test('an unknown tab falls back to General', async () => {
+    wrapAt('/system?tab=nope')
+    expect(await screen.findByText('Hostname')).toBeInTheDocument()
+    expect(screen.getByText('General')).toHaveAttribute('aria-current', 'page')
   })
 })

@@ -48,6 +48,10 @@ type Config struct {
 	CustomRules []CustomRule `json:"custom_rules,omitempty"`
 	// CrowdSec bans from a CrowdSec Local API (task 104).
 	CrowdSec CrowdSec `json:"crowdsec,omitzero"`
+	// UPS is power monitoring and clean shutdown through NUT (task 112).
+	UPS UPS `json:"ups,omitzero"`
+	// IPS holds box-wide IPS settings: the ET Pro code (task 114).
+	IPS IPSSettings `json:"ips,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not
@@ -66,8 +70,8 @@ type System struct {
 	// SSHKeys may log in as root over SSH (where allow_access has ssh);
 	// SSH password login is off.
 	SSHKeys []SSHKey `json:"ssh_keys,omitempty"`
-	// UpdateChannel picks the Goblin Gate package channel: stable, beta or
-	// nightly (task 051). "" = beta until 1.0, then stable.
+	// UpdateChannel picks the Goblin Gate package channel: stable or beta
+	// (task 051; the feature channel). "" = beta until 1.0, then stable.
 	UpdateChannel string `json:"update_channel,omitempty"`
 	// UpdateURL replaces the Goblin Gate APT repository (a mirror, an
 	// air-gapped network, tests); "" = the official repository.

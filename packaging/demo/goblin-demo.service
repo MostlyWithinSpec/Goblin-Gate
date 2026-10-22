@@ -1,0 +1,24 @@
+# The public demo (goblind --demo). Not part of the package: copy it to
+# /etc/systemd/system on the demo host. See docs/dev/DEMO.md.
+[Unit]
+Description=Goblin Gate public demo
+After=network-online.target
+
+[Service]
+# --demo: fake applier, no login, a seeded home network, synthetic events, no
+# outside connections. It exits every hour and starts again from the seed.
+ExecStart=/usr/sbin/goblind --demo --demo-reset 1h --listen 127.0.0.1:8090 --web-dir /usr/share/goblin-gate/web --log-sources=
+Restart=always
+RestartSec=2
+DynamicUser=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

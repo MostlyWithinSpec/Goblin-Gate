@@ -1,0 +1,446 @@
+<?xml version="1.0"?>
+<!-- A made-up OPNsense 26.x home config for the importer tests (task 115),
+     written from OPNsense's model definitions (src/opnsense/mvc/app/models).
+     The *-SHOULD-NOT-APPEAR values are secrets the importer must never carry
+     over. -->
+<opnsense>
+  <theme>opnsense</theme>
+  <system>
+    <hostname>gate</hostname>
+    <domain>home.arpa</domain>
+    <timezone>America/Chicago</timezone>
+    <timeservers>0.opnsense.pool.ntp.org 1.opnsense.pool.ntp.org</timeservers>
+    <dnsserver>9.9.9.9</dnsserver>
+    <user>
+      <name>root</name>
+      <scope>system</scope>
+      <password>$2y$10$HASH-SHOULD-NOT-APPEAR</password>
+      <uid>0</uid>
+      <otp_seed>OTPSEED-SHOULD-NOT-APPEAR</otp_seed>
+      <apikeys>
+        <item>
+          <key>APIKEY-SHOULD-NOT-APPEAR</key>
+          <secret>APISECRET-SHOULD-NOT-APPEAR</secret>
+        </item>
+      </apikeys>
+      <authorizedkeys>c3NoLWVkMjU1MTkgQUFBQUMzTnphQzFsWkRJMU5URTVBQUFBSUVEU2thQXdZK3ZkUXlDbUZKMVJyMVJwN3JvYmJpWkxJMEtDMHlVSUZBUlEgYWRtaW5AbGFwdG9w</authorizedkeys>
+    </user>
+  </system>
+  <interfaces>
+    <wan>
+      <enable>1</enable>
+      <if>igc0</if>
+      <descr>Fiber</descr>
+      <ipaddr>dhcp</ipaddr>
+      <blockpriv>1</blockpriv>
+      <blockbogons>1</blockbogons>
+    </wan>
+    <lan>
+      <enable>1</enable>
+      <if>igc1</if>
+      <descr>LAN</descr>
+      <ipaddr>192.168.10.1</ipaddr>
+      <subnet>24</subnet>
+    </lan>
+    <opt1>
+      <enable>1</enable>
+      <if>vlan0.20</if>
+      <descr>IoT</descr>
+      <ipaddr>192.168.20.1</ipaddr>
+      <subnet>24</subnet>
+      <blockpriv>0</blockpriv>
+    </opt1>
+    <opt2>
+      <enable>1</enable>
+      <if>igc2</if>
+      <descr>Cable</descr>
+      <ipaddr>100.64.5.2</ipaddr>
+      <subnet>30</subnet>
+      <gateway>CABLE_GW</gateway>
+    </opt2>
+    <opt3>
+      <enable>0</enable>
+      <if>igc3</if>
+      <descr>Spare</descr>
+    </opt3>
+  </interfaces>
+  <vlans>
+    <vlan uuid="0b7e1d3a-1111-4c8e-9a51-000000000001">
+      <if>igc1</if>
+      <tag>20</tag>
+      <pcp>0</pcp>
+      <descr>IoT VLAN</descr>
+      <vlanif>vlan0.20</vlanif>
+    </vlan>
+  </vlans>
+  <nat>
+    <rule uuid="5f2a0000-0000-4000-8000-000000000001">
+      <sequence>1</sequence>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>any</network>
+      </source>
+      <destination>
+        <network>wanip</network>
+        <port>32400</port>
+      </destination>
+      <target>192.168.10.20</target>
+      <local-port>32400</local-port>
+      <descr>Plex</descr>
+    </rule>
+    <rule uuid="5f2a0000-0000-4000-8000-000000000002">
+      <sequence>2</sequence>
+      <disabled>1</disabled>
+      <interface>wan</interface>
+      <protocol>tcp</protocol>
+      <source>
+        <network>any</network>
+      </source>
+      <destination>
+        <network>wanip</network>
+        <port>2222</port>
+      </destination>
+      <target>192.168.10.30</target>
+      <local-port>22</local-port>
+      <descr>old ssh</descr>
+    </rule>
+    <outbound>
+      <mode>hybrid</mode>
+    </outbound>
+  </nat>
+  <filter>
+    <rule>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <source>
+        <network>lan</network>
+      </source>
+      <destination>
+        <any>1</any>
+      </destination>
+      <descr>Legacy LAN to any</descr>
+    </rule>
+  </filter>
+  <gateways>
+    <gateway_group>
+      <name>WAN_FAILOVER</name>
+      <item>FIBER_GW|1</item>
+      <item>CABLE_GW|2</item>
+      <trigger>down</trigger>
+      <descr>fiber first</descr>
+    </gateway_group>
+  </gateways>
+  <staticroutes>
+    <route uuid="aa000000-0000-4000-8000-000000000001">
+      <network>10.50.0.0/16</network>
+      <gateway>CABLE_GW</gateway>
+      <descr>lab via cable</descr>
+      <enabled>1</enabled>
+    </route>
+    <route uuid="aa000000-0000-4000-8000-000000000002">
+      <network>10.60.0.0/16</network>
+      <gateway>CABLE_GW</gateway>
+      <descr>old lab</descr>
+      <enabled>0</enabled>
+    </route>
+  </staticroutes>
+  <dnsmasq>
+    <enable>0</enable>
+    <port>53053</port>
+  </dnsmasq>
+  <ca>
+    <refid>6500aa</refid>
+    <descr>Home CA</descr>
+    <prv>PRIVATEKEY-SHOULD-NOT-APPEAR</prv>
+  </ca>
+  <OPNsense>
+    <Firewall>
+      <Alias version="1.0.1">
+        <geoip>
+          <url/>
+        </geoip>
+        <aliases>
+          <alias uuid="a1000000-0000-4000-8000-000000000001">
+            <enabled>1</enabled>
+            <name>NAS</name>
+            <type>host</type>
+            <content>192.168.10.20</content>
+            <description>NAS box</description>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000002">
+            <enabled>1</enabled>
+            <name>Trusted</name>
+            <type>network</type>
+            <content>192.168.10.0/24
+10.8.0.0/24</content>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000003">
+            <enabled>1</enabled>
+            <name>Servers</name>
+            <type>networkgroup</type>
+            <content>NAS
+Trusted</content>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000004">
+            <enabled>1</enabled>
+            <name>WebPorts</name>
+            <type>port</type>
+            <content>80
+443</content>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000005">
+            <enabled>1</enabled>
+            <name>Spamhaus</name>
+            <type>urltable</type>
+            <content>https://www.spamhaus.org/drop/drop.txt</content>
+            <updatefreq>1</updatefreq>
+            <username>feeduser</username>
+            <password>ALIASPW-SHOULD-NOT-APPEAR</password>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000006">
+            <enabled>1</enabled>
+            <name>Home_Countries</name>
+            <type>geoip</type>
+            <content>US
+CA</content>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000007">
+            <enabled>1</enabled>
+            <name>Kid_Tablets</name>
+            <type>mac</type>
+            <content>aa:bb:cc:00:11:22</content>
+          </alias>
+          <alias uuid="a1000000-0000-4000-8000-000000000008">
+            <enabled>0</enabled>
+            <name>Old_Stuff</name>
+            <type>host</type>
+            <content>192.168.10.99</content>
+          </alias>
+        </aliases>
+      </Alias>
+      <Filter version="1.0.4">
+        <settings>
+          <nat>
+            <snat_mode>hybrid</snat_mode>
+          </nat>
+        </settings>
+        <rules>
+          <rule uuid="f1000000-0000-4000-8000-000000000003">
+            <enabled>1</enabled>
+            <sequence>30</sequence>
+            <action>pass</action>
+            <quick>1</quick>
+            <interface>wan</interface>
+            <direction>in</direction>
+            <ipprotocol>inet</ipprotocol>
+            <protocol>TCP</protocol>
+            <source_net>Home_Countries</source_net>
+            <source_not>0</source_not>
+            <destination_net>NAS</destination_net>
+            <destination_not>0</destination_not>
+            <destination_port>443</destination_port>
+            <log>1</log>
+            <description>NAS from home countries</description>
+          </rule>
+          <rule uuid="f1000000-0000-4000-8000-000000000001">
+            <enabled>1</enabled>
+            <sequence>10</sequence>
+            <action>block</action>
+            <quick>1</quick>
+            <interface>opt1</interface>
+            <direction>in</direction>
+            <ipprotocol>inet</ipprotocol>
+            <protocol>any</protocol>
+            <source_net>opt1</source_net>
+            <source_not>0</source_not>
+            <destination_net>lan</destination_net>
+            <destination_not>0</destination_not>
+            <log>0</log>
+            <description>IoT may not reach LAN</description>
+          </rule>
+          <rule uuid="f1000000-0000-4000-8000-000000000002">
+            <enabled>1</enabled>
+            <sequence>20</sequence>
+            <action>pass</action>
+            <quick>1</quick>
+            <interface>opt1</interface>
+            <direction>in</direction>
+            <ipprotocol>inet</ipprotocol>
+            <protocol>any</protocol>
+            <source_net>opt1</source_net>
+            <source_not>0</source_not>
+            <destination_net>any</destination_net>
+            <destination_not>0</destination_not>
+            <gateway>WAN_FAILOVER</gateway>
+            <description>IoT to internet</description>
+          </rule>
+          <rule uuid="f1000000-0000-4000-8000-000000000004">
+            <enabled>0</enabled>
+            <sequence>40</sequence>
+            <action>pass</action>
+            <interface>lan</interface>
+            <protocol>TCP/UDP</protocol>
+            <source_net>192.168.10.5,192.168.10.6</source_net>
+            <destination_net>any</destination_net>
+            <destination_port>WebPorts</destination_port>
+            <description>disabled test rule</description>
+          </rule>
+          <rule uuid="f1000000-0000-4000-8000-000000000005">
+            <enabled>1</enabled>
+            <sequence>50</sequence>
+            <action>match</action>
+            <interface>lan</interface>
+            <source_net>any</source_net>
+            <destination_net>any</destination_net>
+            <description>tag for shaper</description>
+          </rule>
+        </rules>
+        <snatrules>
+          <rule uuid="5a000000-0000-4000-8000-000000000001">
+            <enabled>1</enabled>
+            <nonat>0</nonat>
+            <sequence>1</sequence>
+            <interface>opt2</interface>
+            <source_net>opt1</source_net>
+            <target>opt2ip</target>
+            <description>IoT out the cable line</description>
+          </rule>
+        </snatrules>
+      </Filter>
+    </Firewall>
+    <Gateways version="1.0.0">
+      <gateway_item uuid="9a000000-0000-4000-8000-000000000001">
+        <disabled>0</disabled>
+        <name>FIBER_GW</name>
+        <interface>wan</interface>
+        <ipprotocol>inet</ipprotocol>
+        <gateway>dynamic</gateway>
+        <defaultgw>1</defaultgw>
+        <monitor_disable>0</monitor_disable>
+        <monitor>1.1.1.1</monitor>
+        <priority>255</priority>
+        <weight>1</weight>
+      </gateway_item>
+      <gateway_item uuid="9a000000-0000-4000-8000-000000000002">
+        <disabled>0</disabled>
+        <name>CABLE_GW</name>
+        <interface>opt2</interface>
+        <ipprotocol>inet</ipprotocol>
+        <gateway>100.64.5.1</gateway>
+        <monitor_disable>0</monitor_disable>
+        <monitor>8.8.4.4</monitor>
+      </gateway_item>
+      <gateway_item uuid="9a000000-0000-4000-8000-000000000003">
+        <disabled>1</disabled>
+        <name>OLD_GW</name>
+        <interface>opt2</interface>
+        <ipprotocol>inet</ipprotocol>
+        <gateway>100.64.5.9</gateway>
+      </gateway_item>
+    </Gateways>
+    <unboundplus version="1.0.10">
+      <general>
+        <enabled>1</enabled>
+        <port>53</port>
+        <dnssec>1</dnssec>
+        <regdhcp>1</regdhcp>
+      </general>
+      <forwarding>
+        <enabled>0</enabled>
+      </forwarding>
+      <hosts>
+        <host uuid="b0000000-0000-4000-8000-000000000001">
+          <enabled>1</enabled>
+          <hostname>nas</hostname>
+          <domain>home.arpa</domain>
+          <rr>A</rr>
+          <server>192.168.10.20</server>
+          <description>NAS</description>
+        </host>
+        <host uuid="b0000000-0000-4000-8000-000000000002">
+          <enabled>1</enabled>
+          <hostname>mail</hostname>
+          <domain>home.arpa</domain>
+          <rr>MX</rr>
+          <mxprio>10</mxprio>
+          <mx>nas.home.arpa</mx>
+        </host>
+      </hosts>
+      <dots>
+        <dot uuid="c0000000-0000-4000-8000-000000000001">
+          <enabled>1</enabled>
+          <type>dot</type>
+          <server>1.1.1.1</server>
+          <port>853</port>
+          <verify>cloudflare-dns.com</verify>
+        </dot>
+        <dot uuid="c0000000-0000-4000-8000-000000000002">
+          <enabled>1</enabled>
+          <type>forward</type>
+          <domain>corp.example</domain>
+          <server>10.8.0.53</server>
+        </dot>
+      </dots>
+    </unboundplus>
+    <Kea>
+      <dhcp4 version="1.0.4">
+        <general>
+          <enabled>1</enabled>
+          <interfaces>lan,opt1</interfaces>
+          <valid_lifetime>4000</valid_lifetime>
+        </general>
+        <subnets>
+          <subnet4 uuid="d0000000-0000-4000-8000-000000000001">
+            <subnet>192.168.10.0/24</subnet>
+            <pools>192.168.10.100 - 192.168.10.199</pools>
+            <ddns_domain_key_secret>DDNSKEY-SHOULD-NOT-APPEAR</ddns_domain_key_secret>
+            <description>LAN</description>
+          </subnet4>
+          <subnet4 uuid="d0000000-0000-4000-8000-000000000002">
+            <subnet>192.168.20.0/24</subnet>
+            <valid_lifetime>7200</valid_lifetime>
+            <pools>192.168.20.128/25</pools>
+            <description>IoT</description>
+          </subnet4>
+          <subnet4 uuid="d0000000-0000-4000-8000-000000000003">
+            <subnet>172.16.0.0/24</subnet>
+            <pools>172.16.0.10 - 172.16.0.20</pools>
+            <description>gone</description>
+          </subnet4>
+        </subnets>
+        <reservations>
+          <reservation uuid="e0000000-0000-4000-8000-000000000001">
+            <subnet>d0000000-0000-4000-8000-000000000001</subnet>
+            <ip_address>192.168.10.20</ip_address>
+            <hw_address>00:11:32:AA:BB:CC</hw_address>
+            <hostname>nas</hostname>
+          </reservation>
+          <reservation uuid="e0000000-0000-4000-8000-000000000002">
+            <subnet>d0000000-0000-4000-8000-000000000002</subnet>
+            <ip_address>192.168.20.50</ip_address>
+            <hw_address>de:ad:be:ef:00:01</hw_address>
+            <hostname>thermostat</hostname>
+          </reservation>
+        </reservations>
+      </dhcp4>
+    </Kea>
+    <IDS version="1.1.0">
+      <general>
+        <enabled>1</enabled>
+      </general>
+    </IDS>
+    <wireguard>
+      <server version="1.0.0">
+        <servers>
+          <server uuid="f0000000-0000-4000-8000-000000000001">
+            <name>wg0</name>
+            <privkey>WGPRIVATE-SHOULD-NOT-APPEAR</privkey>
+          </server>
+        </servers>
+      </server>
+    </wireguard>
+  </OPNsense>
+</opnsense>

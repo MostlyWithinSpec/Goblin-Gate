@@ -4,5 +4,7 @@ suricata
 suricata-update
 tailscale
 miniupnpd-nftables
+nut-client
+nut-server
 openssh-server
 open-vm-tools

@@ -59,3 +59,19 @@ func TestLoadRejectsInvalidJSON(t *testing.T) {
 		t.Fatal("Load accepted invalid JSON, want error")
 	}
 }
+
+// The nightly channel is gone: a config that still names it follows beta.
+func TestLoadMovesNightlyToBeta(t *testing.T) {
+	c, err := Load(strings.NewReader(`{"schema_version":1,"system":{"hostname":"gg","timezone":"UTC","admin_port":443,"update_channel":"nightly"},"nat":{},"dns":{},"profiles":{},"admins":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.System.UpdateChannel != "beta" {
+		t.Fatalf("channel %q, want beta", c.System.UpdateChannel)
+	}
+	c.System.UpdateChannel = "nightly"
+	c.AllowNoAdmin = true
+	if errs := Validate(c); len(errs) == 0 {
+		t.Fatal("nightly still accepted by validation")
+	}
+}

@@ -1,0 +1,55 @@
+aliases | skipped | Old_Stuff | disabled in OPNsense
+system | converted | hostname | gate
+system | converted | domain | home.arpa
+system | converted | time zone | America/Chicago
+system | converted | NTP servers | 0.opnsense.pool.ntp.org 1.opnsense.pool.ntp.org
+system | converted | DNS servers | 1 server(s)
+system | converted | SSH keys | 1 public key(s) of OPNsense users may log in as root over SSH
+system | skipped | users | 1 OPNsense user(s) not imported: their password hashes use another scheme. Your Goblin Gate admins stay as they are
+interfaces | converted | wan | wan (igc0) → "fiber" on eth0
+interfaces | skipped | wan | "block private/bogon networks" has no switch here: Goblin Gate drops unsolicited WAN traffic anyway; add a bogon threat feed for the rest
+interfaces | converted | lan | lan (igc1) → "lan" on eth1
+interfaces | converted | opt2 | opt2 (igc2) → "cable" on eth2
+interfaces | converted | opt3 | opt3 (igc3) → "spare" on eth3
+interfaces | converted | opt1 | VLAN 20 on lan → "iot"
+aliases | converted | NAS | host 192.168.10.20
+aliases | converted | Trusted | group of 2
+aliases | converted | Servers | group of 2
+aliases | converted | WebPorts | port alias: becomes services where rules use it
+aliases | approximated | Spamhaus | URL alias → IP threat feed "spamhaus-feed" (refreshed daily); rules using it are converted to feed blocking where possible
+aliases | converted | Home_Countries | country object US, CA
+aliases | skipped | Kid_Tablets | alias type "mac" is not supported
+aliases | converted | opn-list | group of 2
+gateways | skipped | OLD_GW | disabled in OPNsense: not imported
+routes | skipped | 10.60.0.0/16 | disabled in OPNsense: not imported
+gateways | converted | FIBER_GW | multi-WAN gateway "fiber_gw": dhcp on fiber
+gateways | converted | CABLE_GW | multi-WAN gateway "cable_gw": 100.64.5.1 on cable
+gateways | converted | WAN_FAILOVER | gateway group "wan_failover" with 2 member(s)
+routes | converted | 10.50.0.0/16 | via cable_gw
+nat | converted | Plex | tcp 32400 → 192.168.10.20
+nat | skipped | old ssh | disabled in OPNsense
+rules | converted | Legacy LAN to any | policy 1 "legacy-lan-to-any"
+rules | converted | IoT may not reach LAN | policy 2 "iot-may-not-reach-lan"
+rules | converted | IoT to internet | policy 3 "iot-to-internet"
+rules | converted | NAS from home countries | policy 4 "nas-from-home-countries"
+rules | converted | disabled test rule | policy 5 "disabled-test-rule"
+nat | converted | outbound NAT | hybrid mode: 3 policy(ies) from internal interfaces masquerade traffic that leaves through a WAN
+nat | converted | IoT out the cable line | masquerades to opt2's address: the NAT switch of the policies from its sources
+dhcp | converted | lan | 192.168.10.100-192.168.10.199, 1 static mapping(s)
+dhcp | converted | opt1 | 192.168.20.129-192.168.20.254, 1 static mapping(s)
+dns | converted | forwarding | forwarding to 1 server(s) from the resolver's forwarding entries
+dns | converted | nas.home.arpa | host override → 192.168.10.20
+dns | converted | corp.example | domain override → 1 server(s)
+system | skipped | certificates | 1 CA(s)/certificate(s) and their private keys are never imported
+aliases | approximated | Spamhaus | the download's username/password were not imported: add them to the threat feed as an auth header
+rules | skipped | tag for shaper | "match" rules (tagging, shaping) have no counterpart
+dns | skipped | mail.home.arpa | MX records are not supported (A and AAAA only)
+dns | approximated | DNS over TLS 1.1.1.1 | forwarded over plain DNS: DNS over TLS forwarding is not supported yet
+dhcp | skipped | Kea subnet 172.16.0.0/24 | no interface has this network
+packages | skipped | IDS | OPNsense's IDS settings have no counterpart that the importer knows
+packages | skipped | wireguard | OPNsense's wireguard settings have no counterpart that the importer knows
+interface wan (igc0) -> fiber role=wan vlan=false device="eth0"
+interface lan (igc1) -> lan role=lan vlan=false device="eth1"
+interface opt2 (igc2) -> cable role=wan vlan=false device="eth2"
+interface opt3 (igc3) -> spare role=lan vlan=false device="eth3"
+interface opt1 (vlan0.20) -> iot role=lan vlan=true device="(VLAN 20 on lan)"

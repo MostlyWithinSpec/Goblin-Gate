@@ -172,6 +172,14 @@ func (m *Manager) Check(ctx context.Context, maxAge time.Duration) Status {
 	return st
 }
 
+// Cached returns the result of the last check without running one; the
+// zero Status when none ran yet.
+func (m *Manager) Cached() Status {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cache
+}
+
 // newer reports whether version a sorts after b in Debian order.
 func (m *Manager) newer(ctx context.Context, a, b string) (bool, error) {
 	if b == "" {
@@ -182,7 +190,7 @@ func (m *Manager) newer(ctx context.Context, a, b string) (bool, error) {
 }
 
 // ReleaseURL is the GitHub release page of a package version
-// (0.1.0~alpha.2 → tag v0.1.0-alpha.2). Nightly builds have none.
+// (0.1.0~alpha.2 → tag v0.1.0-alpha.2). Untagged builds have none.
 func ReleaseURL(version string) string {
 	if strings.Contains(version, "+") {
 		return ""

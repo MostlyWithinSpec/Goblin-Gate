@@ -18,7 +18,7 @@ type secretRenderer struct{}
 
 func (secretRenderer) Name() string { return "test" }
 func (secretRenderer) Render(cfg *config.Config) (map[string][]byte, error) {
-	return map[string][]byte{"/etc/test.conf": []byte("[Peer]\nPrivateKey = aGVsbG8=\nPresharedKey=c2VjcmV0\npassword: hunter2\nauth-key = tskey-abc\nPrivateKeyFile=/etc/keys/wg0.key\nhost = " + cfg.System.Hostname + "\n")}, nil
+	return map[string][]byte{"/etc/test.conf": []byte("[Peer]\nPrivateKey = aGVsbG8=\nPresharedKey=c2VjcmV0\npassword: hunter2\nauth-key = tskey-abc\nMONITOR apc@nas:3493 1 mon \"nut-pass\" secondary\nMONITOR ups@localhost 1 goblin-monitor bare-pass primary\nPrivateKeyFile=/etc/keys/wg0.key\nhost = " + cfg.System.Hostname + "\n")}, nil
 }
 
 func newGeneratedAPI(t *testing.T) *testAPI {
@@ -42,7 +42,7 @@ func TestGeneratedConfig(t *testing.T) {
 
 	f := a.expect("GET", "/api/v1/system/generated/file?path=/etc/test.conf", nil, 200)
 	content := f["content"].(string)
-	for _, secret := range []string{"aGVsbG8=", "c2VjcmV0", "hunter2", "tskey-abc"} {
+	for _, secret := range []string{"aGVsbG8=", "c2VjcmV0", "hunter2", "tskey-abc", "nut-pass", "bare-pass"} {
 		if strings.Contains(content, secret) {
 			t.Fatalf("secret %q not redacted:\n%s", secret, content)
 		}

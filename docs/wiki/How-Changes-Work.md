@@ -48,3 +48,24 @@ curl -k -X POST https://192.168.1.1/api/v1/commit/confirm -H "Authorization: Bea
 
 The revision history keeps the full config of every commit, so "what did it look like last Tuesday" is one
 click away. Backups (see [[Updates and Backups]]) include the history.
+
+## Templates
+
+**Policy & Objects → Templates** sets up common things in one go. Each template asks a few questions, shows
+the changes it would make, and saves them to the candidate like any other edit; nothing goes live until you
+commit.
+
+| Template | What it creates |
+|---|---|
+| Guest network | A VLAN with its own DHCP pool and a policy to the internet only (optionally with a DNS filter profile). Your own networks stay out of reach. |
+| IoT network | The same, plus a policy that lets one of your networks (usually `lan`) reach the IoT devices, but not the other way round. |
+| Port forward for some places only | A port forward limited to the countries and networks you list, with the address objects for them. |
+| Network through a VPN provider | A policy sending one network through a VPN provider tunnel, with the kill switch on. If you had no gateways yet, your WAN gets one and stays the default route, so other traffic never fails over into the tunnel. |
+| Bedtime for some devices | A schedule, an address group of the devices and a deny policy at the top that cuts their internet access at night. |
+
+A template never overwrites anything: if a name it would create already exists, it asks for another one. To
+undo a template before committing, discard the candidate; after committing, roll back the revision.
+
+Over the API: `GET /api/v1/templates` lists them with their questions,
+`POST /api/v1/templates/<id>/preview {"values": {...}}` shows the changes, and `.../apply` saves them to the
+candidate.

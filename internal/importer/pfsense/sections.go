@@ -146,7 +146,10 @@ func (im *importer) dns() {
 	}
 	dns.DNSSEC = u.DNSSEC != nil
 	dns.Forwarders = nil // pfSense decides: forwarding to its DNS servers, or resolving itself
-	if u.Forwarding != nil {
+	if len(im.forwardTo) > 0 {
+		dns.Forwarders = im.forwardTo
+		im.add("dns", "forwarding", Converted, "forwarding to %d server(s) from the resolver's forwarding entries", len(dns.Forwarders))
+	} else if u.Forwarding != nil {
 		for _, a := range im.cfg.System.DNSServers {
 			if a.Is4() {
 				dns.Forwarders = append(dns.Forwarders, a)
@@ -209,6 +212,10 @@ func (im *importer) gateways() {
 	var v4 []gw
 	used := map[string]bool{}
 	for _, g := range im.pf.Gateways.Items {
+		if g.Disabled != nil {
+			im.add("gateways", g.Name, Skipped, "disabled in pfSense: not imported")
+			continue
+		}
 		if g.IPProtocol == "inet6" {
 			im.add("gateways", g.Name, Converted, "IPv6 gateway: IPv6 follows router advertisements and the default route")
 			continue
@@ -228,7 +235,15 @@ func (im *importer) gateways() {
 	for _, r := range im.pf.Filter {
 		ruleGW = ruleGW || r.Gateway != ""
 	}
-	multi := len(v4) > 1 || len(im.pf.Gateways.Groups) > 0 || len(im.pf.Routes) > 0 || ruleGW
+	var routes []pfRoute
+	for _, r := range im.pf.Routes {
+		if r.Disabled != nil {
+			im.add("routes", r.Network, Skipped, "disabled in pfSense: not imported")
+			continue
+		}
+		routes = append(routes, r)
+	}
+	multi := len(v4) > 1 || len(im.pf.Gateways.Groups) > 0 || len(routes) > 0 || ruleGW
 	if !multi {
 		for _, g := range v4 {
 			im.add("gateways", g.pfName, Converted, "%s on %s (single WAN: part of the interface)", g.addr, g.iface)
@@ -288,7 +303,7 @@ func (im *importer) gateways() {
 			im.cfg.DefaultGateway = ours
 		}
 	}
-	for _, r := range im.pf.Routes {
+	for _, r := range routes {
 		dst, err := netip.ParsePrefix(r.Network)
 		ours, ok := names[r.Gateway]
 		_, isGroup := im.cfg.GatewayTarget(ours)

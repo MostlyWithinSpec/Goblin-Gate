@@ -3,7 +3,9 @@ package apply
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -33,6 +35,10 @@ type group struct {
 	// content goes from old to new (old nil = created, new nil = removed);
 	// nil = nothing to run. Its failure is logged, not fatal.
 	prepare func(file string, old, new []byte) []string
+	// mode is the files' permission (0 = 0644); fileGroup, when set, is the
+	// system group that owns them, for files that hold a daemon's password.
+	mode      os.FileMode
+	fileGroup string
 }
 
 // groups lists every directory the applier may write to. Renderers that add
@@ -225,6 +231,32 @@ var groups = []group{
 		},
 	},
 	{
+		// UPS through NUT (task 112). The files hold upsd/upsmon passwords:
+		// root and the nut group only. A driver or upsd that can't start (no
+		// UPS plugged in yet) doesn't fail the commit: the UPS page shows it.
+		// upsmon must run, or the box would never shut down on battery.
+		name:      "nut",
+		prefix:    "/etc/nut/",
+		mode:      0o640,
+		fileGroup: "nut",
+		activate: func(files []string) [][]string {
+			has := func(name string) bool {
+				return slices.Contains(files, "/etc/nut/"+name)
+			}
+			switch {
+			case len(files) == 0:
+				return [][]string{ifUnit(nutMonitor, "disable --now"), ifUnit(nutServer, "disable --now")}
+			case has("upsd.conf"): // USB: driver, upsd and upsmon on the box
+				return [][]string{
+					{"sh", "-c", "systemctl restart nut-driver-enumerator.service >/dev/null 2>&1; systemctl enable " + nutServer + " && systemctl restart " + nutServer + " || true"},
+					{"systemctl", "enable", nutMonitor}, {"systemctl", "restart", nutMonitor},
+				}
+			default: // remote NUT server: upsmon only
+				return [][]string{ifUnit(nutServer, "disable --now"), {"systemctl", "enable", nutMonitor}, {"systemctl", "restart", nutMonitor}}
+			}
+		},
+	},
+	{
 		// Smart queue: a script of tc commands (CAKE on WAN devices). Last,
 		// so the devices exist; goblin-sqm.service runs it again at boot.
 		name:   "sqm",
@@ -238,6 +270,12 @@ var groups = []group{
 		},
 	},
 }
+
+// NUT's units (Debian's nut-server and nut-client packages).
+const (
+	nutServer  = "nut-server.service"
+	nutMonitor = "nut-monitor.service"
+)
 
 // upnpUnit runs miniupnpd (internal/render/upnp.Unit).
 const upnpUnit = "goblin-miniupnpd.service"

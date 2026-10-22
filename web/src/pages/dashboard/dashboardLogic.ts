@@ -7,7 +7,7 @@ import { bucketFor, rangeToFrom } from '../../api/stats'
 export interface Builtin {
   type: string
   title: string
-  chart: ChartType | 'system' | 'feeds' | 'policies' | 'gateways' | 'live-talkers'
+  chart: ChartType | 'system' | 'feeds' | 'policies' | 'gateways' | 'live-talkers' | 'checks' | 'ups'
   size: { w: number; h: number }
   // the stats query for a time range (query-based widgets only)
   query?: (r: TimeRange) => StatsQuery
@@ -17,6 +17,8 @@ export interface Builtin {
 
 export const BUILTINS: Builtin[] = [
   { type: 'system', title: 'System', chart: 'system', size: { w: 4, h: 3 } },
+  { type: 'checks', title: 'Goblin Checks', chart: 'checks', size: { w: 4, h: 3 } },
+  { type: 'ups', title: 'UPS', chart: 'ups', size: { w: 4, h: 3 } },
   {
     type: 'bandwidth', title: 'Bandwidth by interface', chart: 'line', size: { w: 8, h: 4 },
     query: (r) => ({ metric: 'bytes', group_by: ['in_intf'], bucket: bucketFor(r), from: rangeToFrom(r), limit: 2000 }),
@@ -108,7 +110,7 @@ export function queryFor(w: Widget): StatsQuery | undefined {
   return builtin(w.type)?.query?.(w.range)
 }
 
-export function chartFor(w: Widget): ChartType | 'system' | 'feeds' | 'policies' | 'gateways' | 'live-talkers' {
+export function chartFor(w: Widget): ChartType | 'system' | 'feeds' | 'policies' | 'gateways' | 'live-talkers' | 'checks' | 'ups' {
   if (w.type === 'custom') return w.chart ?? 'table'
   return builtin(w.type)?.chart ?? 'table'
 }

@@ -24,3 +24,14 @@ prevent. Or keep detect mode and let [[Goblin Sentry]] turn alerts into temporar
 - Alerts and drops show in **Log & Report** (kind `ips`); from an alert you can suppress its rule.
 - The rule set updates daily.
 - IPS costs CPU: on a 2-core box, inspect the internet policies, not LAN-to-LAN traffic.
+
+## ET Pro rules
+
+By default the IPS uses the free **ET Open** rules. If you have an **ET Pro** subscription from Proofpoint,
+paste its code under **Security → IPS → Rules** and commit: the rules download again right away from ET Pro,
+which includes ET Open plus the paid rules. *Remove code* (and commit) goes back to ET Open.
+
+The code is a secret: read-only users and limited API tokens can't see it, it never appears on a command
+line, in logs or in error messages, and the file suricata-update reads it from is readable by root only.
+The page shows which rule set is in use, how many rules it has, and why the last download failed if it did
+(a wrong or expired code shows up there as a download error).

@@ -26,10 +26,13 @@ import {
   Puzzle,
   Inbox,
   ScrollText,
+  ShieldCheck,
   ListOrdered,
   Ban,
   Camera,
-  Search
+  Search,
+  Wand2,
+  BatteryCharging
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
 import { PageErrorBoundary } from './PageErrorBoundary'
@@ -83,6 +86,18 @@ const mdQuery = `(max-width: ${mdPx - 1}px)`
 function isPhone(): boolean {
   if (typeof window.matchMedia === 'function') return window.matchMedia(mdQuery).matches
   return window.innerWidth < mdPx
+}
+
+// DemoBanner tells visitors of the public demo what they are looking at.
+export const DemoBanner: React.FC = () => {
+  const q = useQuery({ queryKey: ['system', 'status', 'badge'], queryFn: getSystemStatus, refetchInterval: 15000, retry: false })
+  if (!q.data?.demo) return null
+  return (
+    <div role="note" className="flex-shrink-0 bg-violet-600 px-4 py-1.5 text-center text-xs text-white md:text-sm">
+      Demo: try anything, nothing here is real and it all resets every hour. Accounts, uploads and outside connections are off.{' '}
+      <a className="font-semibold underline" href="https://github.com/MostlyWithinSpec/Goblin-Gate#summoning-a-goblin">Install Goblin Gate</a>
+    </div>
+  )
 }
 
 const Layout: React.FC = () => {
@@ -165,6 +180,7 @@ const Layout: React.FC = () => {
       icon: Home,
       group: 'Dashboard'
     },
+    { name: 'Goblin Checks', path: '/checks', icon: ShieldCheck, group: 'Dashboard' },
     {
       name: 'Network',
       path: '/network',
@@ -179,6 +195,7 @@ const Layout: React.FC = () => {
     },
     { name: 'Schedules', path: '/policy/schedules', icon: Clock, group: 'Policy & Objects' },
     { name: 'Custom Rules', path: '/policy/custom-rules', icon: Terminal, group: 'Policy & Objects' },
+    { name: 'Templates', path: '/templates', icon: Wand2, group: 'Policy & Objects' },
     {
       name: 'Security Profiles',
       path: '/security',
@@ -211,6 +228,7 @@ const Layout: React.FC = () => {
     { name: 'Notifications', path: '/system/notifications', icon: Bell, group: 'System' },
     { name: 'Plugins', path: '/system/plugins', icon: Puzzle, group: 'System' },
     { name: 'Updates', path: '/system/updates', icon: Download, group: 'System' },
+    { name: 'UPS', path: '/system/ups', icon: BatteryCharging, group: 'System' },
     { name: 'Snapshots', path: '/system/snapshots', icon: Camera, group: 'System' }
   ]
 
@@ -380,6 +398,8 @@ const Layout: React.FC = () => {
             <CommitBar />
           </div>
         </div>
+
+        <DemoBanner />
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-transparent">

@@ -15,6 +15,7 @@ import (
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
+	"github.com/networkgoblinlabs/goblin-gate/internal/checks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/crowdsec"
@@ -26,6 +27,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
+	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
@@ -33,6 +35,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/updates"
+	"github.com/networkgoblinlabs/goblin-gate/internal/ups"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
 	"github.com/networkgoblinlabs/goblin-gate/internal/webfilter"
 	"github.com/networkgoblinlabs/goblin-gate/internal/wireguard"
@@ -74,6 +77,16 @@ type Server struct {
 	GitBackup *gitbackup.Manager
 	// CrowdSec is the bouncer (task 104); nil answers 503.
 	CrowdSec *crowdsec.Manager
+	// Dismissed holds the Goblin Checks findings an admin dismissed (task
+	// 108); nil lists every finding and refuses dismissals.
+	Dismissed *checks.Dismissals
+	// UPS watches the UPS through NUT (task 112); nil answers 503.
+	UPS *ups.Manager
+	// Demo marks the public demo (task 116): the status says so and the UI
+	// shows a banner.
+	Demo bool
+	// IPSRules reports the IPS rule download (task 114); nil answers 503.
+	IPSRules interface{ Status() ips.UpdateStatus }
 	// LogExport forwards events to remote syslog / Loki (task 096); nil
 	// answers 503.
 	LogExport *logexport.Exporter
@@ -246,6 +259,14 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/stats/custom-rules", s.customRuleStats)
 	handle("GET /api/v1/events", s.events)
 	handle("GET /api/v1/crowdsec", s.crowdSecStatus)
+	handle("GET /api/v1/checks", s.checks)
+	handle("GET /api/v1/ups", s.upsStatus)
+	handle("GET /api/v1/ips/rules", s.ipsRules)
+	handle("GET /api/v1/templates", s.listTemplates)
+	handle("POST /api/v1/templates/{id}/preview", s.previewTemplate)
+	handle("POST /api/v1/templates/{id}/apply", s.applyTemplate)
+	handle("POST /api/v1/checks/dismiss", s.dismissFinding)
+	handle("DELETE /api/v1/checks/dismiss/{key}", s.restoreFinding)
 	handle("GET /api/v1/logs", s.listLogs)
 	handle("GET /api/v1/ui/dashboards", s.getDashboards)
 	handle("PUT /api/v1/ui/dashboards", s.putDashboards)
@@ -419,6 +440,9 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	// a kernel (or libc, systemd) security update waits for a restart
 	resp["reboot_required"], resp["reboot_packages"] = rebootRequired()
+	if s.Demo {
+		resp["demo"] = true
+	}
 	if deadline, ok := s.Commit.PendingConfirm(); ok {
 		resp["pending_confirm"] = map[string]any{"deadline": deadline.UTC().Format(time.RFC3339)}
 	} else {

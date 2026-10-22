@@ -150,7 +150,7 @@ export interface NotifyRule {
 }
 
 // The events a rule can name (config.NotifyEvents).
-export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'plugin', 'block_added', 'new_device', 'test'] as const
+export const NOTIFY_EVENTS = ['commit', 'login_failed', 'ips_block', 'feed_error', 'wan_down', 'wan_up', 'update_available', 'plugin', 'block_added', 'new_device', 'test', 'ups_on_battery', 'ups_back', 'ups_low'] as const
 
 // Schedules (task 057): weekly time windows a policy can be limited to.
 // Times are in system.timezone. End before Start runs overnight; "24:00" is
@@ -175,7 +175,7 @@ export interface SystemSettings {
   ntp_servers?: string[]
   dns_servers?: string[]
   ssh_keys?: SSHKey[]
-  update_channel?: 'stable' | 'beta' | 'nightly'
+  update_channel?: 'stable' | 'beta'
   update_url?: string
   security_updates?: 'auto' | 'manual'
   metrics?: MetricsSettings
@@ -265,6 +265,9 @@ export interface Candidate {
   dhcp?: { interface: string; static_leases?: { mac: string; ip?: string; hostname?: string }[] }[]
   custom_rules?: CustomRule[]
   crowdsec?: CrowdSecSettings
+  ups?: UPSSettings
+  // box-wide IPS settings; etpro_code is a secret ("" for callers that may not see it)
+  ips?: { etpro_code?: string }
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -513,3 +516,47 @@ export interface CrowdSecStatus {
 }
 
 export const getCrowdSecStatus = () => apiClient<CrowdSecStatus>('/api/v1/crowdsec')
+
+// UPS (task 113). The settings are one object in the candidate at "ups";
+// password comes back empty for callers that may not see secrets, so it is
+// left out of a save to keep the stored value.
+export interface UPSSettings {
+  enabled: boolean
+  mode?: 'usb' | 'remote' | ''
+  host?: string
+  port?: number
+  name?: string
+  username?: string
+  password?: string
+  shutdown_percent?: number
+  shutdown_runtime?: number
+}
+
+export type UPSState = 'online' | 'on_battery' | 'low_battery' | 'unknown'
+
+export interface UPSStatus {
+  enabled: boolean
+  mode?: 'usb' | 'remote'
+  connected: boolean
+  state: UPSState
+  flags?: string[]
+  charge?: number
+  runtime_seconds?: number
+  load?: number
+  model?: string
+  last_update?: string
+  last_event?: { kind: string; time: string }
+  last_error?: string
+}
+
+export const getUPSStatus = () => apiClient<UPSStatus>('/api/v1/ups')
+// IPS rule download (task 114): which rule set is in use and how the last
+// download went.
+export interface IPSRulesStatus {
+  ruleset: 'ET Open' | 'ET Pro'
+  last_update?: string
+  rules?: number
+  last_error?: string
+}
+
+export const getIPSRules = () => apiClient<IPSRulesStatus>('/api/v1/ips/rules')

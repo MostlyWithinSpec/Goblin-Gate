@@ -429,6 +429,15 @@ func (m *Manager) ForgetHostKey() error {
 	return nil
 }
 
+// PushState reports the last successful push and the last error, without
+// the side effects of Status (no deploy key is created).
+func (m *Manager) PushState() (lastPush time.Time, lastError string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.init()
+	return m.st.LastPush, m.st.LastError
+}
+
 // Status reports the history and the push state for live's settings. The
 // deploy key is created here when needed, so it can be added to the
 // remote before the first commit.

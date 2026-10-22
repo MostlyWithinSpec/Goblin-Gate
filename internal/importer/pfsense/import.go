@@ -1,4 +1,5 @@
-// Package pfsense converts a pfSense backup (Diagnostics → Backup & Restore
+// Package pfsense converts a pfSense backup (and an OPNsense one, task 115;
+// see opnsense.go) (Diagnostics → Backup & Restore
 // → config.xml, CE 2.7 / Plus 24.x) into a Goblin Gate candidate config plus
 // a report of what was converted, approximated or skipped (task 061).
 // Nothing is lost silently: every section the importer knows of ends up in
@@ -66,6 +67,7 @@ type Options struct {
 // assignment and the candidate's validation errors (to fix before commit).
 type Result struct {
 	Config     *config.Config           `json:"-"`
+	Source     string                   `json:"source"` // "pfSense" or "OPNsense"
 	Report     []Entry                  `json:"report"`
 	Interfaces []InterfaceMap           `json:"interfaces"`
 	Errors     []config.ValidationError `json:"validation_errors,omitempty"`
@@ -86,16 +88,23 @@ type importer struct {
 	feeds        map[string]string // url alias -> feed name
 	schedOK      map[string]bool
 	gatewayNames map[string]string // pfSense gateway/group -> multi-WAN name (task 049)
+	product      string            // "pfSense" or "OPNsense"
+	opnNotes     []Entry           // report lines from reading OPNsense's models
+	forwardTo    []netip.Addr      // OPNsense Unbound's own forwarders, instead of the system DNS servers
 }
 
 // Import converts config.xml.
 func Import(data []byte, opts Options) (*Result, error) {
 	var pf pfConfig
 	if err := xml.Unmarshal(data, &pf); err != nil {
-		return nil, fmt.Errorf("not a pfSense config.xml: %w", err)
+		return nil, fmt.Errorf("not a pfSense or OPNsense config.xml: %w", err)
+	}
+	product := map[string]string{"pfsense": "pfSense", "opnsense": "OPNsense"}[pf.XMLName.Local]
+	if product == "" {
+		return nil, fmt.Errorf("not a pfSense or OPNsense config.xml (the document is <%s>)", pf.XMLName.Local)
 	}
 	if len(pf.Interfaces.Items) == 0 {
-		return nil, fmt.Errorf("not a pfSense config.xml: no interfaces")
+		return nil, fmt.Errorf("not a %s config.xml: no interfaces", product)
 	}
 	base := opts.Base
 	if base == nil {
@@ -113,6 +122,10 @@ func Import(data []byte, opts Options) (*Result, error) {
 	im := &importer{pf: &pf, opts: opts, cfg: cfg, byPf: map[string]*InterfaceMap{}, byDev: map[string]string{},
 		names: map[string]bool{"all": true, "any": true}, aliases: map[string]pfAlias{}, feeds: map[string]string{}, schedOK: map[string]bool{}}
 	im.opts.Base = base
+	im.product = product
+	if product == "OPNsense" {
+		im.normalizeOPN()
+	}
 
 	im.system()
 	im.interfaces()
@@ -128,8 +141,21 @@ func Import(data []byte, opts Options) (*Result, error) {
 	im.ids()
 	im.pfBlocker()
 	im.unsupported()
+	im.report = append(im.report, im.opnNotes...)
+	if product != "pfSense" {
+		// the conversion speaks pfSense; the report names the real source
+		for k := range im.report {
+			im.report[k].Detail = strings.ReplaceAll(im.report[k].Detail, "pfSense", product)
+		}
+		for k := range cfg.Profiles.IPS {
+			cfg.Profiles.IPS[k].Comment = strings.ReplaceAll(cfg.Profiles.IPS[k].Comment, "pfSense", product)
+		}
+		for k := range cfg.Profiles.DNSFilter {
+			cfg.Profiles.DNSFilter[k].Comment = strings.ReplaceAll(cfg.Profiles.DNSFilter[k].Comment, "pfSense", product)
+		}
+	}
 
-	res := &Result{Config: cfg, Report: im.report, Interfaces: im.ifmap, Summary: map[string]int{}}
+	res := &Result{Config: cfg, Source: product, Report: im.report, Interfaces: im.ifmap, Summary: map[string]int{}}
 	for _, e := range im.report {
 		res.Summary[e.Status]++
 	}

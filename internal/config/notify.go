@@ -55,6 +55,9 @@ var NotifyEvents = []string{
 	"block_added",      // an address was blocked temporarily (POST /api/v1/blocks)
 	"new_device",       // a new MAC address appeared on the network (device inventory, task 070)
 	"test",             // sent by POST /api/v1/notifications/test
+	"ups_on_battery",   // the UPS lost mains power (task 112)
+	"ups_back",         // mains power is back
+	"ups_low",          // the UPS battery is low: the box shuts down
 }
 
 func (v *validator) checkNotifications() {

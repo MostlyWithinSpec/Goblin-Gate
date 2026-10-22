@@ -4,6 +4,9 @@ import { X } from 'lucide-react'
 import { getFeedStats, getPolicyStats, getSystemStats, statsQuery, type TimeRange, type Widget } from '../../api/stats'
 import { getGatewayStatus } from '../../api/gateways'
 import { formatRate, listFlowDevices } from '../../api/flows'
+import { countBySeverity, getChecks, scoreTone } from '../../api/checks'
+import { getUPSStatus } from '../../api/objects'
+import { ChargeBar, StateBadge, runtimeText } from '../system/UPS'
 import Chart from './Chart'
 import { builtin, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
 
@@ -126,6 +129,67 @@ function LiveTalkersBody() {
   )
 }
 
+// ChecksBody is the "Goblin Checks" widget (task 109): the score and how many
+// high findings there are, clicking the tile opens the checks page.
+function ChecksBody() {
+  const navigate = useNavigate()
+  const q = useQuery({ queryKey: ['checks'], queryFn: getChecks, refetchInterval: 60_000, retry: false })
+  if (q.isLoading) return <Empty text="Loading…" />
+  if (q.isError || !q.data) return <Empty text="The checks are not available." />
+  const report = q.data
+  const high = countBySeverity(report.findings, 'high')
+  const tone = scoreTone(report.score)
+  const colour =
+    tone === 'success'
+      ? 'text-green-600 dark:text-green-400'
+      : tone === 'warning'
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-red-600 dark:text-red-400'
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/checks')}
+      className="flex h-full w-full flex-col items-start justify-center gap-1 p-1 text-left"
+    >
+      <span className={`text-4xl font-bold ${colour}`} data-testid="widget-checks-score">
+        {report.score}
+      </span>
+      <span className="text-sm text-gray-600 dark:text-gray-300" data-testid="widget-checks-high">
+        {high === 0 ? 'No high findings' : `${high} high finding${high === 1 ? '' : 's'}`}
+      </span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {report.findings.length} finding{report.findings.length === 1 ? '' : 's'} in total · open Goblin Checks
+      </span>
+    </button>
+  )
+}
+
+// UpsBody is the UPS tile: the power state, the charge bar and the runtime left,
+// reading the same endpoint and badge as the System → UPS page.
+function UpsBody() {
+  const navigate = useNavigate()
+  const q = useQuery({ queryKey: ['ups-status'], queryFn: getUPSStatus, refetchInterval: 15_000, retry: false })
+  if (q.isLoading) return <Empty text="Loading…" />
+  if (q.isError || !q.data) return <Empty text="The UPS status is not available." />
+  const s = q.data
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/system/ups')}
+      className="flex h-full w-full flex-col items-start justify-center gap-2 p-1 text-left"
+    >
+      <StateBadge state={s.state} connected={s.connected} enabled={s.enabled} />
+      <div className="w-full">
+        <ChargeBar charge={s.charge} state={s.state} />
+      </div>
+      <span className="text-xs text-gray-500 dark:text-gray-400" data-testid="widget-ups-runtime">
+        Runtime {runtimeText(s.runtime_seconds)}
+        {typeof s.load === 'number' ? ` · load ${Math.round(s.load)} %` : ''}
+      </span>
+    </button>
+  )
+}
+
 function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
   const navigate = useNavigate()
   const query = queryFor(widget)
@@ -169,7 +233,7 @@ function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
 export default function WidgetView({ widget, onChange, onRemove }: { widget: Widget; onChange: (patch: Partial<Widget>) => void; onRemove: () => void }) {
   const dark = useDark()
   const chart = chartFor(widget)
-  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways' || chart === 'live-talkers'
+  const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways' || chart === 'live-talkers' || chart === 'checks' || chart === 'ups'
   return (
     <div className="flex h-full flex-col rounded-lg bg-white p-3 shadow dark:bg-gray-800" data-testid={`widget-${widget.type}`}>
       <div className="widget-drag mb-2 flex cursor-move items-center gap-2">
@@ -190,7 +254,7 @@ export default function WidgetView({ widget, onChange, onRemove }: { widget: Wid
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
-        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : chart === 'gateways' ? <GatewayBody /> : chart === 'live-talkers' ? <LiveTalkersBody /> : <QueryBody widget={widget} dark={dark} />}
+        {chart === 'system' ? <SystemBody /> : chart === 'feeds' ? <FeedBody dark={dark} /> : chart === 'policies' ? <PolicyBody /> : chart === 'gateways' ? <GatewayBody /> : chart === 'live-talkers' ? <LiveTalkersBody /> : chart === 'checks' ? <ChecksBody /> : chart === 'ups' ? <UpsBody /> : <QueryBody widget={widget} dark={dark} />}
       </div>
     </div>
   )

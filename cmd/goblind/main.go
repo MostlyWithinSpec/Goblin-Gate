@@ -29,6 +29,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
+	"github.com/networkgoblinlabs/goblin-gate/internal/checks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/crowdsec"
@@ -49,6 +50,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
+	nutrender "github.com/networkgoblinlabs/goblin-gate/internal/render/nut"
 	sqmrender "github.com/networkgoblinlabs/goblin-gate/internal/render/sqm"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/suricata"
 	sysrender "github.com/networkgoblinlabs/goblin-gate/internal/render/system"
@@ -59,6 +61,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/upnp"
+	"github.com/networkgoblinlabs/goblin-gate/internal/ups"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
 	"github.com/networkgoblinlabs/goblin-gate/internal/webfilter"
 	"github.com/networkgoblinlabs/goblin-gate/internal/wireguard"
@@ -71,6 +74,8 @@ type options struct {
 	version   bool
 	webDir    string
 	logSrc    string
+	demo      bool          // task 116: public, self-resetting showcase (implies dev)
+	demoReset time.Duration // exit after this long in demo mode; 0 = never
 }
 
 func main() {
@@ -139,6 +144,8 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&o.version, "version", false, "print version and exit")
 	fs.StringVar(&o.webDir, "web-dir", "", "directory to serve web UI from (for development)")
 	fs.StringVar(&o.logSrc, "log-sources", defaultLogSources(), "log files to ingest: comma-separated nftables=PATH and suricata=PATH; empty = none")
+	fs.BoolVar(&o.demo, "demo", false, "public demo: --dev with a seeded network, synthetic events, no outside connections, no account changes")
+	fs.DurationVar(&o.demoReset, "demo-reset", time.Hour, "in demo mode, exit after this long so the service restarts from the seed (0 = never)")
 	if err := fs.Parse(args); err != nil {
 		return o, err
 	}
@@ -153,7 +160,11 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 // the listening address once the server accepts connections (used by tests).
 func serve(ctx context.Context, o options, ready chan<- string) error {
 	// Load settings from JSON file if present
-	settings, err := LoadSettingsFile("/etc/goblingate/goblind.json")
+	settingsFile := "/etc/goblingate/goblind.json"
+	if o.demo {
+		settingsFile = "" // the demo host is not a firewall: its settings don't apply
+	}
+	settings, err := LoadSettingsFile(settingsFile)
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -164,6 +175,22 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	if o.configDir != config.DefaultDir {
 		settings.ConfigDir = o.configDir
+	}
+	if o.demo {
+		o.dev = true
+		tmp, err := os.MkdirTemp("", "goblin-demo-*")
+		if err != nil {
+			return fmt.Errorf("demo: %w", err)
+		}
+		defer os.RemoveAll(tmp)
+		settings.ConfigDir = tmp
+		settings.DataDir = filepath.Join(tmp, "data")
+		blockOutbound()
+		if o.demoReset > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, o.demoReset)
+			defer cancel()
+		}
 	}
 
 	var logger *slog.Logger
@@ -197,6 +224,18 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if err != nil {
 		return err
 	}
+	// workerConfig is the running config as the background workers see it;
+	// in demo mode without anything that would contact another host.
+	workerConfig := store.Running
+	if o.demo {
+		workerConfig = func() (*config.Config, error) {
+			c, err := store.Running()
+			if err != nil {
+				return nil, err
+			}
+			return demoScrub(c), nil
+		}
+	}
 	// Threat feeds: downloaded on their schedules into data_dir/feeds. The
 	// nft sets (task 028) and the DNS filter zones (task 029) are filled
 	// from them at runtime; a ruleset load empties the sets, so both
@@ -204,6 +243,11 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	dataDir := settings.DataDir
 	if o.dev && dataDir == DefaultSettings().DataDir {
 		dataDir = filepath.Join(dir, "data")
+	}
+	if o.demo {
+		if err := seedDemo(store, dataDir, time.Now()); err != nil {
+			return fmt.Errorf("demo: %w", err)
+		}
 	}
 	feedMgr := &feeds.Manager{Dir: filepath.Join(dataDir, "feeds"), Logger: logger}
 	feedSync := &feeds.NFTSync{Logger: logger}
@@ -230,7 +274,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, sqmrender.Renderer{}}
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, sqmrender.Renderer{},
+		nutrender.Renderer{Secret: nutSecret(filepath.Join(dataDir, "nut", "monitor.secret"))}}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
 	// Web filter (task 033): goblind answers the DNS of web-filtered
@@ -292,13 +337,13 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		engine.AfterSave = func(live *config.Config, _ int) { gitMgr.Sync(ctx, live) }
 		go gitMgr.Run(ctx)
 		go func() { // catch up on revisions recorded before a restart
-			if cfg, err := store.Running(); err == nil {
+			if cfg, err := workerConfig(); err == nil {
 				gitMgr.Sync(ctx, cfg)
 			}
 		}()
 	}
 	go geoMgr.Run(ctx, func() *config.Config {
-		cfg, err := store.Running()
+		cfg, err := workerConfig()
 		if err != nil {
 			return nil
 		}
@@ -306,7 +351,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	})
 	// DHCP client names in DNS (task 055): kept in Unbound at runtime.
 	dhcpNames := &dhcpdns.Syncer{LeaseFile: kea.LeaseFile, Logger: logger, Settings: func() (dhcpdns.Settings, error) {
-		cfg, err := store.Running()
+		cfg, err := workerConfig()
 		if err != nil {
 			return dhcpdns.Settings{}, err
 		}
@@ -335,7 +380,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	// CrowdSec bouncer (task 104): same sets-after-apply pattern
 	csMgr := &crowdsec.Manager{Logger: logger,
 		Config: func() (config.CrowdSec, error) {
-			cfg, err := store.Running()
+			cfg, err := workerConfig()
 			if err != nil {
 				return config.CrowdSec{}, err
 			}
@@ -361,7 +406,20 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if !o.dev && runtime.GOOS == "linux" {
 		flowSampler = &flows.Sampler{Logger: logger}
 	}
+	// the rule updater (started below) fetches ET Pro instead of ET Open
+	// while the running config has a code; a commit that changes it updates now
+	ipsUpd := &ips.Updater{Paths: ips.DefaultPaths, Logger: logger, ETProCode: func() string {
+		if cfg, err := workerConfig(); err == nil {
+			return cfg.IPS.ETProCode
+		}
+		return ""
+	}}
+	lastETPro := ipsUpd.ETProCode()
 	engine.AfterApply = func(live *config.Config) {
+		if live.IPS.ETProCode != lastETPro {
+			lastETPro = live.IPS.ETProCode
+			ipsUpd.Kick()
+		}
 		blockMgr.Resync(ctx)
 		csMgr.Resync(ctx)
 		if pluginMgr != nil {
@@ -391,7 +449,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		LeaseFile: kea.LeaseFile,
 		Logger:    logger,
 		Interfaces: func() map[string]string {
-			cfg, err := store.Running()
+			cfg, err := workerConfig()
 			if err != nil {
 				return nil
 			}
@@ -420,6 +478,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	apiServer.GeoIP = geoMgr
 	apiServer.CheckCustom = checkCustom
 	apiServer.CrowdSec = csMgr
+	apiServer.Dismissed = &checks.Dismissals{Path: filepath.Join(dataDir, "checks", "dismissed.json")}
 	apiServer.GitBackup = gitMgr
 	apiServer.Logger = logger
 
@@ -429,14 +488,14 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	notifier := &notify.Dispatcher{
 		Logger: logger,
 		Config: func() (config.Notifications, error) {
-			cfg, err := store.Running()
+			cfg, err := workerConfig()
 			if err != nil {
 				return config.Notifications{}, err
 			}
 			return cfg.Notifications, nil
 		},
 		Hostname: func() string {
-			if cfg, err := store.Running(); err == nil {
+			if cfg, err := workerConfig(); err == nil {
 				return cfg.System.Hostname
 			}
 			return ""
@@ -457,12 +516,38 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	devStore.Notify = func(kind, key, title, message string) {
 		notifier.Publish(notify.Event{Kind: kind, Key: key, Title: title, Message: message})
 	}
+	// UPS (task 112): status, power notifications, and the shutdown at the
+	// owner's thresholds for a remote NUT server
+	upsMgr := &ups.Manager{Logger: logger,
+		Config: func() (config.UPS, error) {
+			cfg, err := workerConfig()
+			if err != nil {
+				return config.UPS{}, err
+			}
+			return cfg.UPS, nil
+		},
+		Publish: func(kind, title, message string) {
+			notifier.Publish(notify.Event{Kind: kind, Key: "ups", Title: title, Message: message})
+		},
+	}
+	if o.dev {
+		upsMgr.Shutdown = func(context.Context) error {
+			logger.Warn("ups: would shut down now (dev mode: not really)")
+			return nil
+		}
+	}
+	go upsMgr.Run(ctx)
+	apiServer.UPS = upsMgr
 	apiServer.Gateways = gwMon
 	apiServer.Plugins = pluginMgr
 	apiServer.Blocks = blockMgr
 	if !o.dev {
 		apiServer.Devices = devStore // dev mode: no store, the API answers 503
 		apiServer.LiveAddrs = blocks.LiveAddrs
+	}
+	if o.demo {
+		apiServer.Devices = devStore // the seeded inventory, never refreshed
+		apiServer.Demo = true
 	}
 	if !o.dev && runtime.GOOS == "linux" {
 		// the last capture's pcap stays here until the next one (task 076)
@@ -515,13 +600,15 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		}()
 	}
 
-	// IPS: refresh ET Open daily and reload the Suricata instances.
+	// IPS: refresh the rules (ET Open, or ET Pro with a code, task 114)
+	// daily and reload the Suricata instances.
 	if !o.dev {
-		go (&ips.Updater{Paths: ips.DefaultPaths, Logger: logger}).Run(ctx)
+		go ipsUpd.Run(ctx)
+		apiServer.IPSRules = ipsUpd
 	}
 
 	go feedMgr.Run(ctx, func() ([]config.Feed, error) {
-		cfg, err := store.Running()
+		cfg, err := workerConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -531,7 +618,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 
 	if ddnsMgr != nil {
 		go ddnsMgr.Run(ctx, func() []config.DDNS {
-			cfg, err := store.Running()
+			cfg, err := workerConfig()
 			if err != nil {
 				return nil
 			}
@@ -542,7 +629,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 
 	if logExporter != nil {
 		go logExporter.Run(ctx, func() []config.LogExport {
-			cfg, err := store.Running()
+			cfg, err := workerConfig()
 			if err != nil {
 				return nil
 			}
@@ -558,6 +645,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	logStore, err = logs.NewStore(filepath.Join(dataDir, "logs.db"))
 	if err != nil {
 		return err
+	}
+	if o.demo {
+		go runDemoEvents(ctx, logStore)
 	}
 	defer logStore.Close()
 	go runLogMaintenance(ctx, logStore, logger)
@@ -624,7 +714,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	var tlsCfg *tls.Config
 	if !o.dev {
 		apiServer.Authn = api.NewAuthenticator(filepath.Join(dataDir, "tokens.json"), filepath.Join(dataDir, "audit.log"))
-		running, err := store.Running()
+		running, err := workerConfig()
 		if err != nil {
 			return err
 		}
@@ -642,6 +732,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
 	}
 	handler := apiServer.Routes()
+	if o.demo {
+		handler = demoGuard(handler)
+	}
 
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {

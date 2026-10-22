@@ -27,6 +27,9 @@ type Paths struct {
 	Classification string
 	Dir            string // rendered per-profile files (suricata.Dir)
 	RulesDir       string // per-profile rules (suricata.RulesDir)
+	// UpdateDir is suricata-update's state (sources, index cache); "" =
+	// leave the rule sources alone.
+	UpdateDir string
 }
 
 // DefaultPaths are the Debian locations.
@@ -35,6 +38,7 @@ var DefaultPaths = Paths{
 	Classification: "/etc/suricata/classification.config",
 	Dir:            suricata.Dir,
 	RulesDir:       suricata.RulesDir,
+	UpdateDir:      "/var/lib/suricata/update",
 }
 
 // BuildRules writes the rules of one instance (`goblind ips-rules
@@ -110,6 +114,11 @@ type Updater struct {
 	// writes only Suricata's own rules when it cannot reach the rule
 	// servers, e.g. at first boot before the WAN is up.
 	MinRules int
+	// ETProCode returns the ET Pro code of the running config ("" = ET
+	// Open); nil leaves the rule sources alone.
+	ETProCode func() string
+
+	state updaterState
 }
 
 // DefaultMinRules: ET Open has tens of thousands of rules.
@@ -190,6 +199,7 @@ func (u *Updater) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
+		case <-u.kicks():
 		}
 		if err := u.UpdateOnce(ctx); err != nil {
 			u.logger().Warn("ips: rule update failed", "error", err, "retry_in", backoff.String())
@@ -203,19 +213,21 @@ func (u *Updater) Run(ctx context.Context) {
 
 // UpdateOnce downloads the rules and reloads every instance.
 func (u *Updater) UpdateOnce(ctx context.Context) error {
-	uctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-	defer cancel()
-	if err := u.exec(uctx, "suricata-update", "--no-test", "--no-reload", "-o", filepath.Dir(u.Paths.Source)); err != nil {
+	ruleset := u.wantRuleset()
+	code, n, err := u.download(ctx)
+	err = scrub(err, code)
+	u.setStatus(func(st *UpdateStatus) {
+		st.Ruleset = ruleset
+		if err != nil {
+			st.LastError = err.Error()
+			return
+		}
+		st.LastError, st.LastUpdate, st.Rules = "", time.Now(), n
+	})
+	if err != nil {
 		return err
 	}
-	n, err := usableRules(u.Paths.Source)
-	if err != nil {
-		return fmt.Errorf("read downloaded rules: %w", err)
-	}
-	if n < u.minRules() {
-		return fmt.Errorf("the download has only %d usable rules (are the rule servers reachable?)", n)
-	}
-	u.logger().Info("ips: rule download done", "rules", n)
+	u.logger().Info("ips: rule download done", "ruleset", ruleset, "rules", n)
 	insts, err := Instances(u.Paths)
 	if err != nil {
 		return err
@@ -233,6 +245,28 @@ func (u *Updater) UpdateOnce(ctx context.Context) error {
 		u.logger().Info("ips: rules updated", "instance", inst, "drop", st.Drop, "alert", st.Alert)
 	}
 	return nil
+}
+
+// download fetches the rules with suricata-update and counts them; it
+// returns the ET Pro code in use so errors can be scrubbed of it.
+func (u *Updater) download(ctx context.Context) (string, int, error) {
+	uctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	code, err := u.syncSource(uctx)
+	if err != nil {
+		return code, 0, err
+	}
+	if err := u.exec(uctx, "suricata-update", "--no-test", "--no-reload", "-o", filepath.Dir(u.Paths.Source)); err != nil {
+		return code, 0, err
+	}
+	n, err := usableRules(u.Paths.Source)
+	if err != nil {
+		return code, 0, fmt.Errorf("read downloaded rules: %w", err)
+	}
+	if n < u.minRules() {
+		return code, n, fmt.Errorf("the download has only %d usable rules (are the rule servers reachable?)", n)
+	}
+	return code, n, nil
 }
 
 func lastLines(s string, n int) string {

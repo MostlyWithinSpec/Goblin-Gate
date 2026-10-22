@@ -11,9 +11,27 @@ import (
 	"sort"
 )
 
-// fileMode is the permission of every written file. Nothing rendered so far
-// holds secrets; a group for secrets (wireguard keys) will need 0600.
+// fileMode is the permission of a managed file unless its group sets one.
 const fileMode = 0o644
+
+// privateMode is the permission of everything else the applier writes: the
+// staged copies for checks, the backup of the previous files and the
+// manifest. They can hold a copy of a secret file and only root reads them.
+const privateMode = 0o600
+
+// modeFor returns the permission and owning group name ("" = leave it)
+// of a file written at p.
+func modeFor(p string) (os.FileMode, string) {
+	gi, err := groupFor(p)
+	if err != nil {
+		return privateMode, ""
+	}
+	g := groups[gi]
+	if g.mode == 0 {
+		return fileMode, g.fileGroup
+	}
+	return g.mode, g.fileGroup
+}
 
 // read returns the content of p and whether it exists.
 func (h *Host) read(p string) ([]byte, bool, error) {
@@ -56,8 +74,18 @@ func (h *Host) writeAtomic(p string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("write %s: %w", p, err)
 	}
-	if err := os.Chmod(tmp, fileMode); err != nil {
+	mode, owner := modeFor(p)
+	if err := os.Chmod(tmp, mode); err != nil {
 		return fmt.Errorf("write %s: %w", p, err)
+	}
+	if owner != "" {
+		// a missing group (the daemon's package is not installed) leaves the
+		// file root's: the daemon can't read it, but nothing leaks
+		if gid, ok := groupID(owner); ok {
+			if err := os.Chown(tmp, -1, gid); err != nil {
+				return fmt.Errorf("write %s: %w", p, err)
+			}
+		}
 	}
 	if err := os.Rename(tmp, full); err != nil {
 		return fmt.Errorf("write %s: %w", p, err)

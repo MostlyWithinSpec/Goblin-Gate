@@ -34,8 +34,8 @@ func (v *validator) checkSystemSettings() {
 			v.add(fmt.Sprintf("system.ntp_servers[%d]", i), "invalid NTP server %q: want a hostname or IP address", n)
 		}
 	}
-	if s.UpdateChannel != "" && !oneOf(s.UpdateChannel, "stable", "beta", "nightly") {
-		v.add("system.update_channel", "unknown update channel %q: want stable, beta or nightly", s.UpdateChannel)
+	if s.UpdateChannel != "" && !oneOf(s.UpdateChannel, "stable", "beta") {
+		v.add("system.update_channel", "unknown update channel %q: want stable or beta", s.UpdateChannel)
 	}
 	if s.SecurityUpdates != "" && !oneOf(s.SecurityUpdates, "auto", "manual") {
 		v.add("system.security_updates", "want auto or manual, not %q", s.SecurityUpdates)

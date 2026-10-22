@@ -6,7 +6,7 @@ import type { Candidate } from '../api/objects'
 // Mock the API modules: no network. The pure helpers stay real.
 vi.mock('../api/objects', async (orig) => {
   const real = await orig<typeof import('../api/objects')>()
-  return { ...real, getCandidate: vi.fn(), patchSection: vi.fn() }
+  return { ...real, getCandidate: vi.fn(), patchSection: vi.fn(), getIPSRules: vi.fn() }
 })
 vi.mock('../api/stats', async (orig) => {
   const real = await orig<typeof import('../api/stats')>()
@@ -14,7 +14,7 @@ vi.mock('../api/stats', async (orig) => {
 })
 import * as api from '../api/objects'
 import * as stats from '../api/stats'
-import IPS from '../pages/security/IPS'
+import IPS, { RuleSource } from '../pages/security/IPS'
 import { addSuppress, groupBySignature, parseSignature, validateIPS } from '../pages/security/profileLogic'
 
 const cfg: Candidate = {
@@ -35,6 +35,7 @@ beforeEach(() => {
   vi.mocked(api.getCandidate).mockImplementation(async () => structuredClone(cfg))
   vi.mocked(api.patchSection).mockReset().mockResolvedValue({ status: 'ok', validation_errors: null })
   vi.mocked(stats.listLogs).mockResolvedValue({ events, next_cursor: 0 })
+  vi.mocked(api.getIPSRules).mockResolvedValue({ ruleset: 'ET Open', rules: 48000, last_update: '2026-10-22T03:00:00Z' })
 })
 
 describe('IPS logic', () => {
@@ -103,5 +104,39 @@ describe('IPS page', () => {
     await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
     expect(lastPatch()).toEqual(['profiles.ips', [{ name: 'home' }, { ...cfg.profiles!.ips![1], suppress: [{ sid: 1, track: 'by_src', ip: '192.168.1.9' }, { sid: 2010935, track: 'by_src', ip: '203.0.113.9' }] }]])
     expect(await screen.findByRole('status')).toHaveTextContent('Exception for rule 2010935 added to strict')
+  })
+})
+
+describe('IPS rule source (ET Pro)', () => {
+  test('shows the rule set and saves a typed code', async () => {
+    render(<RuleSource />)
+    expect(await screen.findByText('ET Open')).toBeTruthy()
+    expect(screen.getByTestId('ips-ruleset').textContent).toContain('48,000 rules')
+    expect(screen.queryByRole('button', { name: 'Remove code' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('ET Pro code'), { target: { value: ' 0123456789abcdef ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save code' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledWith('ips', { etpro_code: '0123456789abcdef' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Commit to switch to ET Pro')
+    expect((screen.getByLabelText('ET Pro code') as HTMLInputElement).value).toBe('')
+  })
+
+  test('a stored code shows "unchanged" and can be removed', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ ips: { etpro_code: 'abcdef0123456789' } })
+    render(<RuleSource />)
+    await waitFor(() => expect((screen.getByLabelText('ET Pro code') as HTMLInputElement).placeholder).toBe('unchanged'))
+    // the code itself is never put in the page
+    expect(document.body.innerHTML).not.toContain('abcdef0123456789')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove code' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledWith('ips', {}))
+  })
+
+  test('a refused code and a failed download are shown', async () => {
+    vi.mocked(api.getIPSRules).mockResolvedValue({ ruleset: 'ET Pro', last_error: 'suricata-update: 403 Forbidden' })
+    vi.mocked(api.patchSection).mockResolvedValue({ status: 'ok', validation_errors: [{ path: 'ips.etpro_code', message: 'want the ET Pro code' }] })
+    render(<RuleSource />)
+    expect(await screen.findByText(/Last download failed: suricata-update: 403/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('ET Pro code'), { target: { value: 'bad code' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save code' }))
+    expect(await screen.findByText('want the ET Pro code')).toBeTruthy()
   })
 })

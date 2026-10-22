@@ -13,5 +13,8 @@ func NewSystem(*slog.Logger) (Applier, error) {
 	return nil, errors.New("the system applier only runs on Linux; use --dev")
 }
 
+// groupID finds a system group; never on these systems.
+func groupID(string) (int, bool) { return 0, false }
+
 // syncDir is a no-op where directories cannot be fsynced (Windows).
 func syncDir(string) {}

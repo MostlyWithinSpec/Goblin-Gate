@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { Checklist, ConfigList, inputClass, omitEmpty } from '../../components/ConfigList'
 import { Badge } from '../../components/Badge'
 import { EditDrawer } from '../../components/EditDrawer'
-import { getCandidate, patchSection, type IPSProfile } from '../../api/objects'
+import { getCandidate, getIPSRules, patchSection, type IPSProfile, type IPSRulesStatus } from '../../api/objects'
 import { listLogs, type LogEvent } from '../../api/stats'
 import { ET_CATEGORIES, ET_DEFAULT_EXCLUDED, addSuppress, groupBySignature, parseSignature, validateIPS, type Suppress } from './profileLogic'
 
@@ -184,16 +184,104 @@ function SuppressList({ value, onChange }: { value: Suppress[]; onChange: (v: Su
   )
 }
 
+// RuleSource shows which rules the IPS uses and takes an ET Pro code: with a
+// code the daily download fetches ET Pro instead of ET Open (after commit).
+export function RuleSource() {
+  const [status, setStatus] = useState<IPSRulesStatus | null>(null)
+  const [stored, setStored] = useState(false)
+  const [code, setCode] = useState('')
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => {
+    getIPSRules().then(setStatus).catch(() => setStatus(null))
+    getCandidate()
+      .then((c) => setStored(!!c.ips?.etpro_code))
+      .catch(() => {})
+  }, [])
+  const save = async (value: { etpro_code?: string }, done: string) => {
+    try {
+      const res = await patchSection('ips', value)
+      const err = res.validation_errors?.find((e) => e.path.startsWith('ips'))
+      if (err) {
+        setMessage({ ok: false, text: err.message })
+        return
+      }
+      setStored(!!value.etpro_code)
+      setCode('')
+      setMessage({ ok: true, text: done })
+    } catch (e) {
+      setMessage({ ok: false, text: (e as Error).message })
+    }
+  }
+  return (
+    <section aria-label="Rule source" className="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white">Rules</h2>
+      <p className="mt-1 text-sm text-gray-600 dark:text-gray-300" data-testid="ips-ruleset">
+        {status ? (
+          <>
+            In use: <strong>{status.ruleset}</strong>
+            {status.rules ? `, ${status.rules.toLocaleString()} rules` : ''}
+            {status.last_update ? `, downloaded ${new Date(status.last_update).toLocaleString()}` : ''}
+          </>
+        ) : (
+          <>In use: {stored ? 'ET Pro' : 'ET Open'}</>
+        )}
+      </p>
+      {status?.last_error && (
+        <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+          Last download failed: {status.last_error}
+        </p>
+      )}
+      <form
+        className="mt-3 flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (code.trim()) save({ etpro_code: code.trim() }, 'Saved. Commit to switch to ET Pro; the rules download right after.')
+        }}
+      >
+        <label className="block text-sm">
+          ET Pro code
+          <input
+            type="password"
+            autoComplete="off"
+            aria-label="ET Pro code"
+            className={inputClass}
+            placeholder={stored ? 'unchanged' : 'optional'}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </label>
+        <button type="submit" disabled={!code.trim()} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+          Save code
+        </button>
+        {stored && (
+          <button type="button" onClick={() => save({}, 'Saved. Commit to go back to ET Open.')} className="rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600">
+            Remove code
+          </button>
+        )}
+      </form>
+      <p className="mt-1 text-xs text-gray-500">
+        With an ET Pro subscription from Proofpoint, paste its code to use ET Pro instead of the free ET Open rules.
+      </p>
+      {message && (
+        <p role={message.ok ? 'status' : 'alert'} className={`mt-2 text-sm ${message.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+          {message.text}
+        </p>
+      )}
+    </section>
+  )
+}
+
 export default function IPS() {
   return (
     <div className="p-6">
+      <RuleSource />
       <ConfigList<IPSProfile>
         title="Intrusion Prevention (IPS)"
         path="profiles.ips"
         newLabel="New IPS profile"
         intro={
           <>
-            Each profile in use runs its own Suricata with the ET Open rules (downloaded daily). <em>Prevent</em> drops traffic that matches rules at or above
+            Each profile in use runs its own Suricata with the ET Open (or ET Pro) rules, downloaded daily. <em>Prevent</em> drops traffic that matches rules at or above
             the blocking severity and only logs the rest; <em>detect</em> only logs. Pick a profile in a policy to inspect its traffic.
           </>
         }

@@ -57,6 +57,8 @@ export interface SystemStatus {
   // a Debian update (kernel, libc) waits for a restart
   reboot_required?: boolean
   reboot_packages?: string[] | null
+  // the public demo (goblind --demo): nothing is real, it resets every hour
+  demo?: boolean
 }
 
 export const getSystemStatus = (): Promise<SystemStatus> => apiClient<SystemStatus>('/api/v1/system/status')

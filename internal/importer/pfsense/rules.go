@@ -195,6 +195,20 @@ func (im *importer) outboundNAT() {
 		if r.StaticNATPort != nil && r.Disabled == nil {
 			static++
 		}
+		if r.Disabled != nil || mode == "automatic" {
+			continue
+		}
+		label := r.Descr
+		if label == "" {
+			label = "outbound rule on " + r.Interface
+		}
+		// masquerading to the outgoing interface's own address is what the
+		// policies' NAT switch does; any other translation address is not
+		if t := r.Target; t == "" || t == r.Interface+"ip" || t == "interface address" {
+			im.add("nat", label, Converted, "masquerades to %s's address: the NAT switch of the policies from its sources", r.Interface)
+		} else {
+			im.add("nat", label, Approximated, "translates to %s; here traffic is masqueraded to the outgoing interface's address instead", t)
+		}
 	}
 	if static > 0 {
 		im.add("nat", "static port", Converted, "%d static-port rule(s) need no setting: Linux keeps the source port unless two connections clash", static)

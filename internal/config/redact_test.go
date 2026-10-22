@@ -7,6 +7,8 @@ func TestKeepRedactedSecrets(t *testing.T) {
 	prev.DDNS = []DDNS{{Name: "home", Enabled: true, Provider: "duckdns", Hostname: "a.duckdns.org", Token: "duck"}}
 	prev.Feeds = []Feed{{Name: "paid", Type: "ip", URL: "https://feeds.example/x", Enabled: true, AuthHeader: "Authorization: Bearer f"}}
 	prev.CrowdSec = CrowdSec{Enabled: true, URL: "http://10.0.0.2:8080", APIKey: "cs"}
+	prev.IPS.ETProCode = "abcdef0123456789"
+	prev.UPS = UPS{Enabled: true, Mode: "remote", Host: "10.0.0.3", Name: "ups", Username: "mon", Password: "nut"}
 	prev.LogExport = []LogExport{{Name: "loki", Enabled: true, Type: "loki", URL: "https://loki.example/loki/api/v1/push", Token: "lk"}}
 
 	read := func() *Config { // what a caller without secrets sees
@@ -20,6 +22,12 @@ func TestKeepRedactedSecrets(t *testing.T) {
 	next.DDNS[0].Enabled = false
 	next.CrowdSec.Enabled = false
 	KeepRedactedSecrets(prev, next)
+	if next.IPS.ETProCode != "abcdef0123456789" {
+		t.Fatal("ET Pro code lost")
+	}
+	if next.UPS.Password != "nut" {
+		t.Fatal("unchanged UPS lost its password")
+	}
 	if next.DDNS[0].Token != "duck" || next.DDNS[0].Enabled || next.Feeds[0].AuthHeader == "" || next.CrowdSec.APIKey != "cs" || next.CrowdSec.Enabled || next.LogExport[0].Token != "lk" {
 		t.Fatalf("unchanged entries lost secrets: %+v %+v %+v", next.DDNS, next.Feeds, next.CrowdSec)
 	}
@@ -30,7 +38,11 @@ func TestKeepRedactedSecrets(t *testing.T) {
 	next.Feeds[0].URL = "https://attacker.example/x"
 	next.CrowdSec.URL = "http://attacker.example:8080"
 	next.LogExport[0].URL = "https://attacker.example/loki/api/v1/push"
+	next.UPS.Host = "attacker.example"
 	KeepRedactedSecrets(prev, next)
+	if next.UPS.Password != "" {
+		t.Fatal("UPS password followed a changed host")
+	}
 	if next.DDNS[0].Token != "" || next.Feeds[0].AuthHeader != "" || next.CrowdSec.APIKey != "" || next.LogExport[0].Token != "" {
 		t.Fatalf("secret followed a changed destination: %+v %+v %+v %+v", next.DDNS, next.Feeds, next.CrowdSec, next.LogExport)
 	}

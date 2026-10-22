@@ -29,6 +29,9 @@ export const EVENT_TYPES = [
   'block_added',
   'new_device',
   'test',
+  'ups_on_battery',
+  'ups_back',
+  'ups_low',
 ] as const
 
 export const eventsStreamURL = (types?: string[]) =>

@@ -6,7 +6,7 @@ import "encoding/xml"
 // Presence-only flags (<enable/>, <disabled/>) are *string: non-nil = set.
 
 type pfConfig struct {
-	XMLName     xml.Name      `xml:"pfsense"`
+	XMLName     xml.Name      // pfsense or opnsense (task 115)
 	Version     string        `xml:"version"`
 	System      pfSystem      `xml:"system"`
 	Interfaces  pfInterfaces  `xml:"interfaces"`
@@ -30,6 +30,7 @@ type pfConfig struct {
 	ShaperQueue []pfNamed     `xml:"shaper>queue"`
 	DNSMasq     *pfDNSMasq    `xml:"dnsmasq"`
 	Syslog      *pfAnyElement `xml:"syslog>remoteserver"`
+	OPN         *opnMVC       `xml:"OPNsense"` // OPNsense's newer models
 }
 
 type pfSystem struct {
@@ -192,10 +193,6 @@ type pfUnbound struct {
 	} `xml:"domainoverrides"`
 }
 
-type pfDNSMasq struct {
-	Enable *string `xml:"enable"`
-}
-
 type pfSchedule struct {
 	Name       string `xml:"name"`
 	Descr      string `xml:"descr"`
@@ -208,19 +205,22 @@ type pfSchedule struct {
 	} `xml:"timerange"`
 }
 
+type pfGatewayItem struct {
+	Interface  string  `xml:"interface"`
+	Gateway    string  `xml:"gateway"` // IP or "dynamic"
+	Name       string  `xml:"name"`
+	IPProtocol string  `xml:"ipprotocol"`
+	Descr      string  `xml:"descr"`
+	DefaultGW  *string `xml:"defaultgw"`
+	Monitor    string  `xml:"monitor"`
+	MonitorOff *string `xml:"monitor_disable"`
+	Disabled   *string `xml:"disabled"`
+}
+
 type pfGateways struct {
-	Items []struct {
-		Interface  string  `xml:"interface"`
-		Gateway    string  `xml:"gateway"` // IP or "dynamic"
-		Name       string  `xml:"name"`
-		IPProtocol string  `xml:"ipprotocol"`
-		Descr      string  `xml:"descr"`
-		DefaultGW  *string `xml:"defaultgw"`
-		Monitor    string  `xml:"monitor"`
-		MonitorOff *string `xml:"monitor_disable"`
-	} `xml:"gateway_item"`
-	DefaultGW4 string `xml:"defaultgw4"`
-	DefaultGW6 string `xml:"defaultgw6"`
+	Items      []pfGatewayItem `xml:"gateway_item"`
+	DefaultGW4 string          `xml:"defaultgw4"`
+	DefaultGW6 string          `xml:"defaultgw6"`
 	Groups     []struct {
 		Name  string   `xml:"name"`
 		Items []string `xml:"item"` // "GATEWAY|tier|virtual ip"
@@ -229,9 +229,11 @@ type pfGateways struct {
 }
 
 type pfRoute struct {
-	Network string `xml:"network"`
-	Gateway string `xml:"gateway"`
-	Descr   string `xml:"descr"`
+	Network  string  `xml:"network"`
+	Gateway  string  `xml:"gateway"`
+	Descr    string  `xml:"descr"`
+	Disabled *string `xml:"disabled"`
+	Enabled  string  `xml:"enabled"` // OPNsense: "0" = disabled
 }
 
 type pfOpenVPN struct {

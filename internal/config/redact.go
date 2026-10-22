@@ -36,6 +36,8 @@ func RedactSecrets(cfg *Config) {
 	cfg.System.UpdateURL = redactURL(cfg.System.UpdateURL)
 	cfg.GeoIP.SourceURL = redactURL(cfg.GeoIP.SourceURL)
 	cfg.CrowdSec.APIKey = ""
+	cfg.UPS.Password = ""
+	cfg.IPS.ETProCode = ""
 }
 
 // redactURL drops a URL's password and query (a mirror's token).
@@ -85,6 +87,15 @@ func KeepRedactedSecrets(prev, next *Config) {
 	n.Enabled = red.CrowdSec.Enabled
 	if n == red.CrowdSec {
 		next.CrowdSec.APIKey = prev.CrowdSec.APIKey
+	}
+	// the code goes to one fixed place (Proofpoint): keep it when left blank
+	if next.IPS.ETProCode == "" {
+		next.IPS.ETProCode = prev.IPS.ETProCode
+	}
+	u := next.UPS
+	u.Enabled = red.UPS.Enabled
+	if u == red.UPS {
+		next.UPS.Password = prev.UPS.Password
 	}
 }
 

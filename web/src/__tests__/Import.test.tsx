@@ -56,15 +56,15 @@ describe('Import tab', () => {
     wrap(<System />)
     // Click Import tab
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    expect(await screen.findByText(/Upload pfSense config\.xml/)).toBeInTheDocument()
+    expect(await screen.findByText(/Upload a pfSense or OPNsense config\.xml/)).toBeInTheDocument()
     expect(screen.getByText(/replaces the current candidate/i)).toBeInTheDocument()
-    expect(screen.getByLabelText('Upload pfSense config')).toBeInTheDocument()
+    expect(screen.getByLabelText('Upload firewall config')).toBeInTheDocument()
   })
 
   test('upload triggers importPfSense and shows assign step when unassigned interfaces exist', async () => {
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -81,11 +81,22 @@ describe('Import tab', () => {
     expect(screen.getByLabelText('Device for wan')).toBeInTheDocument()
   })
 
+  test('an OPNsense backup is named as such when assigning devices', async () => {
+    vi.mocked(systemApi.importPfSense).mockResolvedValue({ ...structuredClone(mockResult), source: 'OPNsense' })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    const input = await screen.findByLabelText('Upload firewall config')
+    fireEvent.change(input, { target: { files: [new File(['<xml/>'], 'config.xml', { type: 'application/xml' })] } })
+    await waitFor(() => expect(screen.getByText('Assign devices to interfaces')).toBeInTheDocument())
+    expect(screen.getByRole('columnheader', { name: 'OPNsense' })).toBeInTheDocument()
+    expect(screen.getByText(/backs each OPNsense interface/)).toBeInTheDocument()
+  })
+
   test('skips assign step when all interfaces are already assigned', async () => {
     vi.mocked(systemApi.importPfSense).mockResolvedValue(structuredClone(mockResultNoUnassigned))
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -97,7 +108,7 @@ describe('Import tab', () => {
     vi.mocked(systemApi.importPfSense).mockResolvedValue(structuredClone(mockResultNoUnassigned))
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -123,7 +134,7 @@ describe('Import tab', () => {
     vi.mocked(systemApi.importPfSense).mockResolvedValue(structuredClone(mockResultNoUnassigned))
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -139,7 +150,7 @@ describe('Import tab', () => {
   test('apply assignment calls importPfSense with device map', async () => {
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -166,7 +177,7 @@ describe('Import tab', () => {
     vi.mocked(systemApi.importPfSense).mockRejectedValue(new Error('HTTP 500'))
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -181,7 +192,7 @@ describe('Import tab', () => {
     vi.mocked(systemApi.importPfSense).mockResolvedValue(resultWithErrors)
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -195,7 +206,7 @@ describe('Import tab', () => {
     vi.mocked(systemApi.importPfSense).mockResolvedValue(structuredClone(mockResultNoUnassigned))
     wrap(<System />)
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const input = await screen.findByLabelText('Upload pfSense config')
+    const input = await screen.findByLabelText('Upload firewall config')
     const file = new File(['<xml/>'], 'config.xml', { type: 'application/xml' })
     fireEvent.change(input, { target: { files: [file] } })
 

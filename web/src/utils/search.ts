@@ -14,6 +14,7 @@ export interface SearchItem {
 // PAGES: every page reachable from the menu, with the words people use.
 const PAGES: { name: string; path: string; words?: string }[] = [
   { name: 'Dashboard', path: '/' },
+  { name: 'Goblin Checks', path: '/checks', words: 'score audit findings fix security health' },
   { name: 'Interfaces & VLANs', path: '/network/interfaces', words: 'wan lan vlan' },
   { name: 'Addresses', path: '/network/addresses', words: 'objects hosts subnets country geoip' },
   { name: 'Address groups', path: '/network/address-groups' },
@@ -31,6 +32,7 @@ const PAGES: { name: string; path: string; words?: string }[] = [
   { name: 'Firewall policies', path: '/policy', words: 'rules simulator' },
   { name: 'Schedules', path: '/policy/schedules' },
   { name: 'Custom rules', path: '/policy/custom-rules', words: 'nftables nft escape hatch' },
+  { name: 'Templates', path: '/templates', words: 'guest wifi iot bedtime port forward vpn wizard presets' },
   { name: 'Security profiles', path: '/security' },
   { name: 'Threat feeds', path: '/security/feeds', words: 'blocklists' },
   { name: 'DNS filter', path: '/security/dns-filter', words: 'ads blocking' },
@@ -52,6 +54,7 @@ const PAGES: { name: string; path: string; words?: string }[] = [
   { name: 'Plugins', path: '/system/plugins' },
   { name: 'Updates', path: '/system/updates' },
   { name: 'Diagnostics', path: '/system/diagnostics', words: 'ping traceroute dns lookup' },
+  { name: 'UPS', path: '/system/ups', words: 'power failure battery nut ups shut down runtime charge' },
   { name: 'Snapshots', path: '/system/snapshots' },
   { name: 'Generated config', path: '/system/generated' },
 ]

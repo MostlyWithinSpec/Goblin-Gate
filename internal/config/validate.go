@@ -79,6 +79,8 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkGitBackup()
 	v.checkCustomRules()
 	v.checkCrowdSec()
+	v.checkUPS()
+	v.checkIPSSettings()
 	v.checkLogExport()
 	return v.errs
 }

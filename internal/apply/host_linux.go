@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 )
 
 // ExecRunner runs commands on the real system.
@@ -28,6 +30,16 @@ func NewLinux(logger *slog.Logger) *Host {
 // NewSystem returns the applier for this OS: NewLinux on Linux.
 func NewSystem(logger *slog.Logger) (Applier, error) {
 	return NewLinux(logger), nil
+}
+
+// groupID finds a system group's id.
+func groupID(name string) (int, bool) {
+	g, err := user.LookupGroup(name)
+	if err != nil {
+		return 0, false
+	}
+	id, err := strconv.Atoi(g.Gid)
+	return id, err == nil
 }
 
 // syncDir fsyncs a directory so a rename survives a crash.

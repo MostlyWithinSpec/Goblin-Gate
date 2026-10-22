@@ -19,10 +19,11 @@ const (
 
 var routeScopes = map[string]string{
 	// read-only POSTs
-	"POST /api/v1/config/validate": auth.ScopeRead,
-	"POST /api/v1/policy/simulate": auth.ScopeRead,
-	"POST /api/v1/stats/query":     auth.ScopeRead,
-	"POST /api/v1/auth/logout":     auth.ScopeRead,
+	"POST /api/v1/config/validate":        auth.ScopeRead,
+	"POST /api/v1/templates/{id}/preview": auth.ScopeRead,
+	"POST /api/v1/policy/simulate":        auth.ScopeRead,
+	"POST /api/v1/stats/query":            auth.ScopeRead,
+	"POST /api/v1/auth/logout":            auth.ScopeRead,
 
 	"PATCH /api/v1/config/candidate": scopeCandidate,
 	"PUT /api/v1/config/candidate":   scopeAdmin, // the whole document
@@ -32,8 +33,10 @@ var routeScopes = map[string]string{
 	"POST /api/v1/commit/discard":           auth.ScopeCommit,
 	"POST /api/v1/revisions/{rev}/rollback": auth.ScopeCommit,
 
-	"POST /api/v1/snapshots":          auth.ScopeWriteSystem,
-	"DELETE /api/v1/snapshots/{name}": auth.ScopeWriteSystem,
+	"POST /api/v1/snapshots":              auth.ScopeWriteSystem,
+	"POST /api/v1/checks/dismiss":         auth.ScopeWriteSystem,
+	"DELETE /api/v1/checks/dismiss/{key}": auth.ScopeWriteSystem,
+	"DELETE /api/v1/snapshots/{name}":     auth.ScopeWriteSystem,
 
 	// actions: change no config, act on the box or ask it something
 	"POST /api/v1/blocks":               auth.ScopeActions,
@@ -65,6 +68,7 @@ var routeScopes = map[string]string{
 	"POST /api/v1/system/restore":                          scopeAdmin,
 	"POST /api/v1/snapshots/{name}/restore":                scopeAdmin,
 	"POST /api/v1/import/pfsense":                          scopeAdmin,
+	"POST /api/v1/templates/{id}/apply":                    scopeAdmin, // changes many sections at once
 	"POST /api/v1/system/updates/apply":                    scopeAdmin,
 	"POST /api/v1/plugins/{name}/enable":                   scopeAdmin,
 	"POST /api/v1/plugins/{name}/disable":                  scopeAdmin,
@@ -93,6 +97,8 @@ var sectionScopes = map[string]string{
 	"feeds": auth.ScopeWriteFirewall, "geoip": auth.ScopeWriteFirewall,
 	"upnp": auth.ScopeWriteFirewall, "custom_rules": auth.ScopeWriteFirewall,
 	"crowdsec": auth.ScopeWriteFirewall,
+	"ups":      auth.ScopeWriteSystem,
+	"ips":      auth.ScopeWriteFirewall,
 
 	"interfaces": auth.ScopeWriteNetwork, "vlans": auth.ScopeWriteNetwork,
 	"dhcp": auth.ScopeWriteNetwork, "dns": auth.ScopeWriteNetwork,

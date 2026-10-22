@@ -4,7 +4,7 @@ import { getCandidate, patchSection, type SystemSettings } from '../../api/objec
 import { inputClass } from '../../components/ConfigList'
 import { getUpdates, applyUpdate, type UpdatesStatus } from '../../api/system'
 
-const CHANNELS = ['stable', 'beta', 'nightly'] as const
+const CHANNELS = ['stable', 'beta'] as const
 type Channel = (typeof CHANNELS)[number]
 
 // Debian versions use "~" which is not friendly in a UI; show "-" instead.

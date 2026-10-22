@@ -57,7 +57,7 @@ nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware
 | 📊 **Eyes everywhere** | Dashboards built from widgets, logs you can drill into, a chart builder, a device inventory, live traffic per device, packet capture in the browser (download the pcap for Wireshark), and ping, traceroute and DNS lookups from the box itself. |
 | 📤 **Plays well with others** | Prometheus metrics with a ready Grafana dashboard, and every log sent on to syslog or Grafana Loki. |
 | 🔔 **It tells you things** | Email, webhooks, Discord, ntfy or Telegram when a WAN goes down, an update is ready, and more. |
-| 🔄 **Updates that undo themselves** | Signed packages in stable, beta and nightly channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. Debian security fixes install nightly on their own. |
+| 🔄 **Updates that undo themselves** | Signed packages in stable and beta channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. Debian security fixes install nightly on their own. |
 | 🔒 **Hardened by default** | Two-factor login, a list of your active sessions, anti-spoofing on every interface, and the IPS, DNS and DHCP services each locked in their own sandbox with only the rights they need. |
 | 🧳 **Moving in** | Import your old firewall's XML backup. A report lists every item as converted, approximated or skipped, and nothing goes live until you commit. |
 | 🖥️ **Three ways in, one config** | A web UI (light and dark), a REST API for everything, and a CLI. They all edit the same config, so whatever you can click, you can script. |

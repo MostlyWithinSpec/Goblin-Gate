@@ -45,6 +45,9 @@ GOBLIN_UNBOUND_E2E=1 go test -count=1 -run TestDNSFilterE2E -v ./internal/render
 GOBLIN_SQM_LOAD=1 go test -count=1 -run TestScriptLoads -v ./internal/render/sqm | grep -E "^(\s*--- |ok|FAIL|\s+sqm_linux)"
 # web filter proxy in front of the same unbound
 GOBLIN_WF_E2E=1 go test -count=1 -run TestWebFilterE2E -v ./internal/webfilter | grep -E "^(\s*--- |ok|FAIL|\s+e2e_linux)"
+# UPS: NUT with the rendered files, a dummy UPS and the status poller
+apt-get install -y -qq nut-server nut-client >/dev/null 2>&1
+GOBLIN_NUT_E2E=1 go test -count=1 -run TestNUTE2E -v ./internal/render/nut | grep -E "^(\s*--- |ok|FAIL|\s+e2e_linux)"
 # QR codes (WireGuard client configs) must decode in a real reader
 apt-get install -y -qq zbar-tools >/dev/null 2>&1
 mkdir -p /tmp/qr && QR_PNG_DIR=/tmp/qr go test -count=1 -run TestWritePNGs ./internal/qr >/dev/null

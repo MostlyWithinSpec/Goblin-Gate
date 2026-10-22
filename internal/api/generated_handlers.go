@@ -22,9 +22,14 @@ const maxGeneratedContent = 2 << 20
 // to), so this is a safety net for a future renderer.
 var secretLine = regexp.MustCompile(`(?im)^(\s*(?:private[-_ ]?key|preshared[-_ ]?key|psk|password|passwd|secret|auth[-_ ]?key|api[-_ ]?key)\s*[=:]\s*)(\S.*)$`)
 
+// monitorLine matches NUT's "MONITOR <ups> <power> <user> <password> <role>"
+// (upsmon.conf), whose password has no key of its own.
+var monitorLine = regexp.MustCompile(`(?im)^(\s*MONITOR\s+\S+\s+\S+\s+\S+\s+)("[^"\n]*"|\S+)`)
+
 // redact replaces secret values; it reports whether it changed anything.
 func redact(content string) (string, bool) {
 	out := secretLine.ReplaceAllString(content, "${1}<redacted>")
+	out = monitorLine.ReplaceAllString(out, "${1}<redacted>")
 	return out, out != content
 }
 

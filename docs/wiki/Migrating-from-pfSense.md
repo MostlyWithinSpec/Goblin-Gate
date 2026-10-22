@@ -19,6 +19,31 @@ Install Goblin Gate and run the setup wizard ([[First Setup]]), then **System �
 The importer never imports password hashes, private keys or certificates: you keep the admins you created
 in the wizard, and VPN keys are created fresh.
 
+### Coming from OPNsense
+
+The same import reads an OPNsense backup (System → Configuration → Backups → **Download configuration**;
+leave *encrypt* off). OPNsense keeps much of pfSense's format and adds newer sections; the importer reads
+both:
+
+- **Firewall rules** from either place (the older rule list and the newer one), in OPNsense's order.
+  *Match* rules (tagging and shaping) have no counterpart and are listed as skipped.
+- **Aliases**: hosts, networks, network groups and ports as objects; URL tables as threat feeds (a download
+  username/password is not imported: add it to the feed as an auth header); **GeoIP** aliases become
+  country objects. MAC, ASN and dynamic IPv6 aliases are skipped.
+- **Outbound NAT**: hybrid and manual rules that translate to the interface address map to the policies'
+  NAT switch; rules that translate to another address are approximated.
+- **Gateways**, gateway groups and static routes (disabled ones stay out).
+- **DHCP** from Kea, dnsmasq or the older ISC server, with static reservations.
+- **Unbound**: DNSSEC, host overrides (A/AAAA), domain overrides and its forwarding servers (DNS over TLS
+  servers are used over plain DNS for now).
+
+Other OPNsense modules (IDS, WireGuard, the traffic shaper, plugins) are listed in the report so nothing is
+lost silently. As with pfSense, password hashes, API keys, two-factor seeds, certificates and private keys
+are never imported.
+
+The OPNsense import is new. If something in your backup is converted wrongly, an issue with the report
+line (and the matching part of the XML, without secrets) helps a lot.
+
 ## 3. What to check after the import
 
 These came up on real migrations:

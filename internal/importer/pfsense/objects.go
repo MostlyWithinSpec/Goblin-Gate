@@ -23,6 +23,14 @@ func (im *importer) aliasObjects() {
 			im.addrAlias(a)
 		case "port":
 			im.add("aliases", a.Name, Converted, "port alias: becomes services where rules use it")
+		case "geoip": // OPNsense: country codes, one per line
+			countries := strings.Fields(strings.ToUpper(a.Address))
+			if len(countries) == 0 {
+				im.add("aliases", a.Name, Skipped, "empty country alias")
+				continue
+			}
+			im.cfg.Addresses = append(im.cfg.Addresses, config.Address{Name: a.Name, Type: "country", Value: strings.Join(countries, ",")})
+			im.add("aliases", a.Name, Converted, "country object %s", strings.Join(countries, ", "))
 		case "url", "urltable":
 			url := a.URL
 			if url == "" && len(a.AliasURL) > 0 {
@@ -165,7 +173,7 @@ func (im *importer) ruleAddr(a pfAddr) addrRef {
 	v := a.Address
 	if al, ok := im.aliases[v]; ok {
 		switch al.Type {
-		case "host", "network":
+		case "host", "network", "geoip":
 			return addrRef{refs: []string{v}}
 		case "url", "urltable":
 			if f, ok := im.feeds[v]; ok {

@@ -19,6 +19,7 @@
 - [[IPS]]
 - [[Web Filter and App Control]]
 - [[Goblin Sentry]]
+- [[Goblin Checks]]
 
 **System**
 - [[Updates and Backups]]

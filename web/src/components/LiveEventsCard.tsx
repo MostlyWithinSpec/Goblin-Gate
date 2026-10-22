@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  BatteryCharging,
+  BatteryWarning,
   CheckCircle2,
   GitCommitHorizontal,
   LogIn,
@@ -39,6 +41,9 @@ const KIND_STYLE: Record<string, { icon: LucideIcon; color: string }> = {
   block_added: { icon: PlusCircle, color: 'text-red-600 dark:text-red-400' },
   new_device: { icon: UserPlus, color: 'text-green-600 dark:text-green-400' },
   test: { icon: Radio, color: 'text-gray-500 dark:text-gray-400' },
+  ups_on_battery: { icon: BatteryWarning, color: 'text-orange-600 dark:text-orange-400' },
+  ups_back: { icon: BatteryCharging, color: 'text-green-600 dark:text-green-400' },
+  ups_low: { icon: BatteryWarning, color: 'text-red-600 dark:text-red-400' },
 }
 
 const fallbackStyle = { icon: Radio, color: 'text-gray-500 dark:text-gray-400' }

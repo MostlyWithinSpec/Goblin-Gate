@@ -18,7 +18,7 @@ export const EditDrawer: React.FC<EditDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
       <div className="absolute inset-y-0 right-0 flex max-w-full">
         {/* full width on a phone, a capped panel from sm up */}

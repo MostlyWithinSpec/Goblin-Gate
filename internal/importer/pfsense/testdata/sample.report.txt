@@ -48,6 +48,7 @@ rules | approximated | IoT ping | policy 11 "iot-ping": ICMP type echoreq became
 rules | converted | IoT out | policy 12 "iot-out"
 rules | skipped | OpenVPN clients | interface "openvpn" (VPN, interface group or unassigned) is not converted
 nat | converted | outbound NAT | hybrid mode: 6 policy(ies) from internal interfaces masquerade traffic that leaves through a WAN
+nat | converted | console static port | masquerades to wan's address: the NAT switch of the policies from its sources
 nat | converted | static port | 1 static-port rule(s) need no setting: Linux keeps the source port unless two connections clash
 dhcp | approximated | lan | 192.168.10.100-192.168.10.199, 1 static mapping(s); static mapping aa:bb:cc:00:00:06 without an IP address (pfSense only registers its name) was left out
 dhcp | approximated | opt1 | 192.168.30.100-192.168.30.150, 0 static mapping(s); its own domain iot.example is not supported (one LAN domain: DNS → local domain)

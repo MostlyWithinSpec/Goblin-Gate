@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "system": {
+    "hostname": "gate",
+    "domain": "home.arpa",
+    "timezone": "America/Chicago",
+    "admin_port": 443,
+    "ntp_servers": [
+      "0.opnsense.pool.ntp.org",
+      "1.opnsense.pool.ntp.org"
+    ],
+    "dns_servers": [
+      "9.9.9.9"
+    ],
+    "ssh_keys": [
+      {
+        "name": "root-1",
+        "key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEDSkaAwY+vdQyCmFJ1Rr1Rp7robbiZLI0KC0yUIFARQ admin@laptop"
+      }
+    ],
+    "metrics": {
+      "enabled": false
+    }
+  },
+  "interfaces": [
+    {
+      "name": "fiber",
+      "device": "eth0",
+      "role": "wan",
+      "mode": "dhcp",
+      "enabled": true,
+      "description": "Fiber"
+    },
+    {
+      "name": "lan",
+      "device": "eth1",
+      "role": "lan",
+      "mode": "static",
+      "address": "192.168.10.1/24",
+      "enabled": true,
+      "description": "LAN",
+      "allow_access": [
+        "ping",
+        "https",
+        "ssh"
+      ]
+    },
+    {
+      "name": "cable",
+      "device": "eth2",
+      "role": "wan",
+      "mode": "static",
+      "address": "100.64.5.2/30",
+      "gateway": "100.64.5.1",
+      "enabled": true,
+      "description": "Cable"
+    },
+    {
+      "name": "spare",
+      "device": "eth3",
+      "role": "lan",
+      "mode": "none",
+      "enabled": false,
+      "description": "Spare",
+      "allow_access": [
+        "ping",
+        "https",
+        "ssh"
+      ]
+    }
+  ],
+  "vlans": [
+    {
+      "name": "iot",
+      "parent": "lan",
+      "vlan_id": 20,
+      "mode": "static",
+      "address": "192.168.20.1/24",
+      "enabled": true,
+      "description": "IoT",
+      "allow_access": [
+        "ping"
+      ]
+    }
+  ],
+  "addresses": [
+    {
+      "name": "NAS",
+      "type": "host",
+      "value": "192.168.10.20"
+    },
+    {
+      "name": "Trusted-1",
+      "type": "subnet",
+      "value": "192.168.10.0/24"
+    },
+    {
+      "name": "Trusted-2",
+      "type": "subnet",
+      "value": "10.8.0.0/24"
+    },
+    {
+      "name": "Home_Countries",
+      "type": "country",
+      "value": "US,CA"
+    },
+    {
+      "name": "opn-list-1",
+      "type": "host",
+      "value": "192.168.10.5"
+    },
+    {
+      "name": "opn-list-2",
+      "type": "host",
+      "value": "192.168.10.6"
+    },
+    {
+      "name": "lan-net",
+      "type": "subnet",
+      "value": "192.168.10.0/24"
+    },
+    {
+      "name": "iot-net",
+      "type": "subnet",
+      "value": "192.168.20.0/24"
+    }
+  ],
+  "address_groups": [
+    {
+      "name": "Trusted",
+      "members": [
+        "Trusted-1",
+        "Trusted-2"
+      ]
+    },
+    {
+      "name": "Servers",
+      "members": [
+        "NAS",
+        "Trusted"
+      ]
+    },
+    {
+      "name": "opn-list",
+      "members": [
+        "opn-list-1",
+        "opn-list-2"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "name": "tcp-443",
+      "protocol": "tcp",
+      "ports": "443"
+    },
+    {
+      "name": "tcp-webports",
+      "protocol": "tcp",
+      "ports": "80,443"
+    },
+    {
+      "name": "udp-webports",
+      "protocol": "udp",
+      "ports": "80,443"
+    }
+  ],
+  "policies": [
+    {
+      "id": 1,
+      "name": "legacy-lan-to-any",
+      "enabled": true,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "lan-net"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true
+    },
+    {
+      "id": 2,
+      "name": "iot-may-not-reach-lan",
+      "enabled": true,
+      "src_intf": [
+        "iot"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "iot-net"
+      ],
+      "dst_addr": [
+        "lan-net"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "deny"
+    },
+    {
+      "id": 3,
+      "name": "iot-to-internet",
+      "enabled": true,
+      "src_intf": [
+        "iot"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "iot-net"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "all"
+      ],
+      "action": "accept",
+      "nat": true,
+      "gateway": "wan_failover"
+    },
+    {
+      "id": 4,
+      "name": "nas-from-home-countries",
+      "enabled": true,
+      "src_intf": [
+        "fiber"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "Home_Countries"
+      ],
+      "dst_addr": [
+        "NAS"
+      ],
+      "service": [
+        "tcp-443"
+      ],
+      "action": "accept",
+      "log": "all"
+    },
+    {
+      "id": 5,
+      "name": "disabled-test-rule",
+      "enabled": false,
+      "src_intf": [
+        "lan"
+      ],
+      "dst_intf": [
+        "all"
+      ],
+      "src_addr": [
+        "opn-list"
+      ],
+      "dst_addr": [
+        "all"
+      ],
+      "service": [
+        "tcp-webports",
+        "udp-webports"
+      ],
+      "action": "accept",
+      "nat": true
+    }
+  ],
+  "nat": {
+    "port_forwards": [
+      {
+        "name": "plex",
+        "in_intf": "fiber",
+        "ext_port": "32400",
+        "protocol": "tcp",
+        "to_addr": "192.168.10.20",
+        "to_port": ""
+      }
+    ]
+  },
+  "dhcp": [
+    {
+      "interface": "lan",
+      "range_start": "192.168.10.100",
+      "range_end": "192.168.10.199",
+      "lease_seconds": 4000,
+      "static_leases": [
+        {
+          "mac": "00:11:32:aa:bb:cc",
+          "ip": "192.168.10.20",
+          "hostname": "nas"
+        }
+      ]
+    },
+    {
+      "interface": "iot",
+      "range_start": "192.168.20.129",
+      "range_end": "192.168.20.254",
+      "lease_seconds": 7200,
+      "static_leases": [
+        {
+          "mac": "de:ad:be:ef:00:01",
+          "ip": "192.168.20.50",
+          "hostname": "thermostat"
+        }
+      ]
+    }
+  ],
+  "dns": {
+    "forwarders": [
+      "1.1.1.1"
+    ],
+    "dnssec": true,
+    "local_records": {
+      "nas.home.arpa": "192.168.10.20"
+    },
+    "local_domain": "home.arpa",
+    "domain_forwards": [
+      {
+        "domain": "corp.example",
+        "servers": [
+          "10.8.0.53"
+        ]
+      }
+    ]
+  },
+  "profiles": {},
+  "feeds": [
+    {
+      "name": "spamhaus-feed",
+      "type": "ip",
+      "url": "https://www.spamhaus.org/drop/drop.txt",
+      "refresh_minutes": 1440,
+      "enabled": true
+    }
+  ],
+  "admins": [
+    {
+      "username": "admin",
+      "role": "admin"
+    }
+  ],
+  "gateways": [
+    {
+      "name": "fiber_gw",
+      "interface": "fiber",
+      "address": "dhcp",
+      "monitor": {
+        "ip": "1.1.1.1"
+      }
+    },
+    {
+      "name": "cable_gw",
+      "interface": "cable",
+      "address": "100.64.5.1",
+      "monitor": {
+        "ip": "8.8.4.4"
+      }
+    }
+  ],
+  "gateway_groups": [
+    {
+      "name": "wan_failover",
+      "members": [
+        {
+          "gateway": "fiber_gw",
+          "tier": 1
+        },
+        {
+          "gateway": "cable_gw",
+          "tier": 2
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "destination": "10.50.0.0/16",
+      "gateway": "cable_gw",
+      "comment": "lab via cable"
+    }
+  ],
+  "default_gateway": "fiber_gw"
+}

@@ -5,7 +5,7 @@ Maintainer: Network Goblin Labs <goblin@localhost>
 Section: net
 Priority: optional
 Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates, iputils-ping, tcpdump, traceroute, unattended-upgrades, git
-Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables
+Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables, nut-client, nut-server
 Conflicts: ifupdown2, network-manager, systemd-resolved
 Description: Goblin Gate firewall
  A home and small-office firewall and router: nftables policies, DHCP

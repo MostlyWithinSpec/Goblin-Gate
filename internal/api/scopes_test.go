@@ -3,12 +3,14 @@ package api
 import (
 	"bufio"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
+	"github.com/networkgoblinlabs/goblin-gate/internal/checks"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 )
@@ -122,6 +124,19 @@ func TestScopedTokens(t *testing.T) {
 	near := token(map[string]any{"name": "near", "allowed_from": []string{"127.0.0.0/8"}})
 	near.expect("GET", "/api/v1/config/running", nil, 200)
 
+	// templates: anyone who reads may preview; applying is for full admins
+	tpl := map[string]any{"values": map[string]string{"devices": "192.168.1.50"}}
+	ha.expect("POST", "/api/v1/templates/bedtime/preview", tpl, 200)
+	ha.expect("POST", "/api/v1/templates/bedtime/apply", tpl, 403)
+
+	// Goblin Checks: read lists, write:system dismisses
+	a.server.Dismissed = &checks.Dismissals{Path: filepath.Join(t.TempDir(), "dismissed.json")}
+	ha.expect("GET", "/api/v1/checks", nil, 200)
+	ha.expect("POST", "/api/v1/checks/dismiss", map[string]any{"key": "upnp:on"}, 403)
+	sys := token(map[string]any{"name": "sys", "scopes": []string{"read", "write:system"}})
+	sys.expect("POST", "/api/v1/checks/dismiss", map[string]any{"key": "upnp:on"}, 200)
+	sys.expect("DELETE", "/api/v1/checks/dismiss/upnp:on", nil, 200)
+
 	// a token without read cannot even look
 	commitOnly := token(map[string]any{"name": "c", "scopes": []string{"commit"}})
 	commitOnly.expect("GET", "/api/v1/config/running", nil, 403)
@@ -179,5 +194,45 @@ func TestEventStream(t *testing.T) {
 	}
 	if lines[0] != "event: wan_down" || !strings.Contains(lines[1], `"title":"Gateway wan1 is down"`) {
 		t.Fatalf("stream: %q", lines)
+	}
+}
+
+// A stream outlives nothing: revoking its token ends it at the next heartbeat.
+func TestEventStreamEndsWhenTokenRevoked(t *testing.T) {
+	old := eventHeartbeat
+	eventHeartbeat = 50 * time.Millisecond
+	t.Cleanup(func() { eventHeartbeat = old })
+	a := newAuthAPI(t)
+	a.server.Notify = &notify.Dispatcher{}
+	admin := a.browser()
+	admin.login("admin")
+	out := admin.expect("POST", "/api/v1/auth/tokens", map[string]any{"name": "ha", "scopes": []string{"read"}}, 201)
+	token := out["token"].(string)
+	id := out["info"].(map[string]any)["id"].(string)
+
+	req, _ := http.NewRequest("GET", a.srv.URL+"/api/v1/events", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("stream: %v %v", resp, err)
+	}
+	defer resp.Body.Close()
+	rd := bufio.NewReader(resp.Body)
+	rd.ReadString('\n') // ": connected"
+
+	admin.expect("DELETE", "/api/v1/auth/tokens/"+id, nil, 200)
+	done := make(chan error, 1)
+	go func() {
+		for {
+			if _, err := rd.ReadString('\n'); err != nil {
+				done <- err
+				return
+			}
+		}
+	}()
+	select {
+	case <-done: // the server closed the stream
+	case <-time.After(3 * time.Second):
+		t.Fatal("the stream outlived its revoked token")
 	}
 }

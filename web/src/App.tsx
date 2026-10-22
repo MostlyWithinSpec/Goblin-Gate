@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
+import ChecksPage from './pages/Checks'
 import Login from './pages/Login'
 import SetupWizard from './pages/setup/SetupWizard'
 import SetupGate from './components/SetupGate'
@@ -8,6 +9,7 @@ import Network from './pages/Network'
 import Policy from './pages/Policy'
 import Schedules from './pages/policy/Schedules'
 import CustomRules from './pages/policy/CustomRules'
+import Templates from './pages/policy/Templates'
 import Security from './pages/Security'
 import Log from './pages/Log'
 import PacketCapture from './pages/log/PacketCapture'
@@ -23,6 +25,7 @@ import Updates from './pages/system/Updates'
 import GeneratedConfigPage from './pages/system/GeneratedConfig'
 import Diagnostics from './pages/system/Diagnostics'
 import Snapshots from './pages/system/Snapshots'
+import UPS from './pages/system/UPS'
 import SentryQueue from './pages/plugins/sentry/Queue'
 import SentryIncidents from './pages/plugins/sentry/Incidents'
 import SentryIncidentDetail from './pages/plugins/sentry/IncidentDetail'
@@ -68,6 +71,7 @@ function App() {
             <Route path="/setup" element={<SetupWizard />} />
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
+              <Route path="/checks" element={<ChecksPage />} />
               <Route path="/network" element={<Network />}>
                 <Route index element={<Navigate to="interfaces" replace />} />
                 <Route path="interfaces" element={<Interfaces />} />
@@ -88,6 +92,7 @@ function App() {
               <Route path="/policy" element={<Policy />} />
               <Route path="/policy/schedules" element={<Schedules />} />
               <Route path="/policy/custom-rules" element={<CustomRules />} />
+              <Route path="/templates" element={<Templates />} />
               <Route path="/security" element={<Security />} />
               <Route path="/security/feeds" element={<ThreatFeeds />} />
               <Route path="/security/dns-filter" element={<DNSFilterProfiles />} />
@@ -111,6 +116,7 @@ function App() {
               <Route path="/system/updates" element={<Updates />} />
               <Route path="/system/generated" element={<GeneratedConfigPage />} />
               <Route path="/system/diagnostics" element={<Diagnostics />} />
+              <Route path="/system/ups" element={<UPS />} />
               <Route path="/system/snapshots" element={<Snapshots />} />
               <Route path="/plugins/sentry" element={<SentryQueue />} />
               <Route path="/plugins/sentry/incidents" element={<SentryIncidents />} />

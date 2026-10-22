@@ -145,6 +145,8 @@ export interface ImportedInterface {
 }
 
 export interface ImportResult {
+  // which firewall the backup came from
+  source?: 'pfSense' | 'OPNsense'
   report: ImportReportEntry[]
   interfaces: ImportedInterface[]
   summary: { converted: number; approximated: number; skipped: number }

@@ -193,6 +193,19 @@ func (s *Sessions) Lookup(cookie string) (Identity, bool) {
 	return ss.Identity, true
 }
 
+// Valid reports whether cookie names a live session, without counting this
+// as activity: a long-lived request (the event stream) re-checks with it, and
+// must not keep an idle session alive.
+func (s *Sessions) Valid(cookie string) bool {
+	if cookie == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ss, ok := s.byID[hashID(cookie)]
+	return ok && !s.expired(ss, s.now())
+}
+
 // Delete ends the session of id (logout).
 func (s *Sessions) Delete(id Identity) {
 	s.mu.Lock()
