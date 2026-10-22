@@ -4,27 +4,27 @@ Hash: SHA256
 Architectures: amd64
 Codename: beta
 Components: main
-Date: Thu, 22 Oct 2026 07:56:27 +0000
+Date: Thu, 22 Oct 2026 12:45:05 +0000
 Description: Goblin Gate packages (beta channel)
 Label: Goblin Gate
 Origin: Goblin Gate
 Suite: beta
 MD5Sum:
- c0210cc30135d09d6ec97984c59dffa5            14903 main/binary-amd64/Packages
- ab05e41687a8d0c989c5113577311aee             3657 main/binary-amd64/Packages.gz
+ c58d64dc7e68201a203ca791218a48ff            16868 main/binary-amd64/Packages
+ 084dd577eaa279fb0f6c8711645648c4             4048 main/binary-amd64/Packages.gz
 SHA1:
- f10c9f5436c6d6185366513c999f29d83b5766ec            14903 main/binary-amd64/Packages
- 14a154034d4103904b60955be7f40599ed8d00c1             3657 main/binary-amd64/Packages.gz
+ 7030aed55e55bd76d735bdcd367e072439af641e            16868 main/binary-amd64/Packages
+ 46d4adb67eab1eb6bd11d5e3a0871720c135b638             4048 main/binary-amd64/Packages.gz
 SHA256:
- cd8a634d6093a6201a26d89f8f51811f462387d3f1cea021965c52f1da0514a8            14903 main/binary-amd64/Packages
- 482b7ef93bbf4e131c53e1a8d8a23a1b7eca3dfceba10a26b848c88901800357             3657 main/binary-amd64/Packages.gz
+ 42800abdb38c5d3fe657600375f263a2aca9dc591c3dd6014df5a00b6f4f66ec            16868 main/binary-amd64/Packages
+ 355d8f284ed82f6ade28c0639355901364828d01eb7cf07e8182c65a19adf042             4048 main/binary-amd64/Packages.gz
 SHA512:
- 161a8d389a16730dea6dbc12e7272c1f661113357015fd27cac7e087230b1fc777620d4f5ec9789efbe5d6608e5590668f211c316a3bd2700720812a2d8c671e            14903 main/binary-amd64/Packages
- 571986141e70b7225c5bf2cc2aaa97f31ce20718b11087fe4730ae8d34b3ed97412f221b38228ccfae209805723af5dcbfbd8122a13b5cb785c822cd1b6d7bef             3657 main/binary-amd64/Packages.gz
+ 5f62f0f04abd0eee882929b117cf56f83f5444c5c723ae4b13f6ee207cd8aaccfacd26c7a2e5466201dcb1f65f3a6f9eee1c267bb45ebc3eab981c7685dcd0d8            16868 main/binary-amd64/Packages
+ 5a40d9ac5289d032dee98039b879e6d632968b101f4386c47f7aa12496f6ece389f678f7ff9c1c02e62de9502e0d821dc4e1399f7910dca0a76dc0fedc230d69             4048 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYIAB0WIQR8M/7Pm12lbd4WFhTaRArFtFPtegUCatnBqwAKCRDaRArFtFPt
-el2oAP0WCgxW5aoiaYis1zb5ASxoKxgKnFy2YEfgURVapVQP8gEAtMdYeUpjbbb7
-T1WxbfO22FEMYUmu+DoQaKEAaZgWUAM=
-=hOqF
+iHUEARYIAB0WIQR8M/7Pm12lbd4WFhTaRArFtFPtegUCatoFUQAKCRDaRArFtFPt
+erlQAPwM5de2C47H2F5YZ4TshHoRsa+4Ia6nHmf9QMG7mTyaoQEAiFJ0Ypun4Z9g
+aYriZ6jOTN40lNspmV9jlEq69J0jgQQ=
+=AyBx
 -----END PGP SIGNATURE-----
