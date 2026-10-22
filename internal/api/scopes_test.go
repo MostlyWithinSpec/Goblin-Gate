@@ -236,3 +236,31 @@ func TestEventStreamEndsWhenTokenRevoked(t *testing.T) {
 		t.Fatal("the stream outlived its revoked token")
 	}
 }
+
+// A kind that could break an SSE frame is never written.
+func TestEventStreamSkipsBadKinds(t *testing.T) {
+	d := &notify.Dispatcher{}
+	a := newTestAPIWith(t, func(s *Server) { s.Notify = d })
+	req, _ := http.NewRequest("GET", a.srv.URL+"/api/v1/events", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	rd := bufio.NewReader(resp.Body)
+	rd.ReadString('\n') // ": connected"
+	d.Publish(notify.Event{Kind: "test\ndata: forged", Title: "bad"})
+	d.Publish(notify.Event{Kind: "commit", Title: "good"})
+	for {
+		l, err := rd.ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(l, "forged") {
+			t.Fatalf("bad kind written: %q", l)
+		}
+		if strings.HasPrefix(l, "event: commit") {
+			return
+		}
+	}
+}

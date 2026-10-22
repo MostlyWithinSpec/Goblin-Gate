@@ -29,6 +29,10 @@ const (
 	argonThreads = 1
 	argonKeyLen  = 32
 	argonSaltLen = 16
+
+	maxArgonMemory  = 64 * 1024 // KiB
+	maxArgonTime    = 8
+	maxArgonThreads = 8
 )
 
 // ErrMismatch is returned by VerifyPassword for a wrong password.
@@ -78,7 +82,10 @@ func VerifyPassword(pw, hash string) error {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &mem, &time, &threads); err != nil {
 		return errors.New("auth: bad argon2 parameters")
 	}
-	if mem == 0 || mem > 1<<20 || time == 0 || time > 16 || threads == 0 {
+	// Stored hashes come only from admins, but a login must not cost
+	// whatever a hash asks for: at most 64 MiB, 8 passes, 8 lanes (new
+	// hashes use 19 MiB, 2 passes, 1 lane).
+	if mem == 0 || mem > maxArgonMemory || time == 0 || time > maxArgonTime || threads == 0 || threads > maxArgonThreads {
 		return errors.New("auth: argon2 parameters out of range")
 	}
 	salt, err := b64.DecodeString(parts[4])

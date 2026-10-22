@@ -82,6 +82,8 @@ type Server struct {
 	Dismissed *checks.Dismissals
 	// UPS watches the UPS through NUT (task 112); nil answers 503.
 	UPS *ups.Manager
+	// Reboot restarts the box (POST /api/v1/system/reboot); nil answers 503.
+	Reboot func() error
 	// Demo marks the public demo (task 116): the status says so and the UI
 	// shows a banner.
 	Demo bool
@@ -236,6 +238,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/upnp/mappings", s.upnpMappings)
 	handle("POST /api/v1/import/pfsense", s.importPfSense)
 	handle("GET /api/v1/gateways/status", s.gatewayStatus)
+	handle("GET /api/v1/wan/status", s.wanStatus)
 	handle("GET /api/v1/vpn/wireguard-clients/{name}/public-key", s.wireguardClientPublicKey)
 	handle("PUT /api/v1/vpn/wireguard-clients/{name}/private-key", s.wireguardClientSetKey)
 	handle("GET /api/v1/system/updates", s.updateStatus)
@@ -261,6 +264,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/crowdsec", s.crowdSecStatus)
 	handle("GET /api/v1/checks", s.checks)
 	handle("GET /api/v1/ups", s.upsStatus)
+	handle("POST /api/v1/system/reboot", s.reboot)
 	handle("GET /api/v1/ips/rules", s.ipsRules)
 	handle("GET /api/v1/templates", s.listTemplates)
 	handle("POST /api/v1/templates/{id}/preview", s.previewTemplate)

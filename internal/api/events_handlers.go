@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -20,6 +21,9 @@ var eventHeartbeat = 30 * time.Second
 const maxEventStreams = 32
 
 var openEventStreams atomic.Int32
+
+// eventKindRe: the kinds the stream writes into its "event:" lines.
+var eventKindRe = regexp.MustCompile(`^[a-z0-9_]{1,40}$`)
 
 // GET /api/v1/events?types=a,b → Server-Sent Events, one per published
 // event (task 102): "event: <kind>" and "data: {event, key, title, message,
@@ -68,8 +72,8 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			data, err := json.Marshal(ev)
-			if err != nil {
-				continue
+			if err != nil || !eventKindRe.MatchString(ev.Kind) {
+				continue // a kind that could break the frame is never written
 			}
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Kind, data)
 			rc.Flush()

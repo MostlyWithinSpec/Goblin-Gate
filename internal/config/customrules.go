@@ -73,6 +73,11 @@ func CheckCustomRuleText(rule string) string {
 	if !ok {
 		return "unbalanced quotes"
 	}
+	// nft has no single-quoted strings; refuse them here with a clear message
+	// (nft -c would too), so the word checks below never see a "quoted" word
+	if strings.ContainsRune(quoted, '\'') {
+		return "use double quotes (\"...\") for strings: nft has no single-quoted strings"
+	}
 	if strings.ContainsAny(quoted, ";#") {
 		return "one rule per entry: no ';' or '#' outside quotes"
 	}

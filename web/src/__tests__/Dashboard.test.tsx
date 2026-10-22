@@ -19,13 +19,19 @@ vi.mock('../api/stats', async (orig) => {
 vi.mock('../pages/dashboard/Chart', () => ({
   default: ({ option }: { option: { yAxis?: { data?: string[] } } }) => <div data-testid="chart">{(option.yAxis?.data ?? []).join(',')}</div>,
 }))
+vi.mock('../api/objects', async (orig) => {
+  const real = await orig<typeof import('../api/objects')>()
+  return { ...real, getCandidate: vi.fn() }
+})
 vi.mock('../api/gateways', () => ({
   getGatewayStatus: vi.fn(),
+  getWANStatus: vi.fn(),
   getWireGuardClientPublicKey: vi.fn(),
   setWireGuardClientPrivateKey: vi.fn(),
 }))
 import * as api from '../api/stats'
 import * as gatewaysApi from '../api/gateways'
+import * as objectsApi from '../api/objects'
 import Dashboard from '../pages/Dashboard'
 
 const renderPage = () =>
@@ -44,6 +50,8 @@ beforeEach(() => {
   vi.mocked(api.getSystemStats).mockResolvedValue({ cpu_percent: 12.5, mem_total_bytes: 2 * 1024 ** 3, mem_used_bytes: 1024 ** 3, uptime_seconds: 90061, sessions: 42 })
   vi.mocked(api.getFeedStats).mockResolvedValue({ feeds: [] })
   vi.mocked(api.getPolicyStats).mockResolvedValue({ policies: [{ id: 1, packets: 120, bytes: 9000 }] })
+  vi.mocked(objectsApi.getCandidate).mockResolvedValue({ policies: [{ id: 1, name: 'lan-to-internet' } as never] })
+  vi.mocked(gatewaysApi.getWANStatus).mockResolvedValue([{ name: 'wan1', device: 'ens192', up: true, addresses: ['24.101.68.119/24'], gateway: '24.101.68.1' }])
   vi.mocked(gatewaysApi.getGatewayStatus).mockResolvedValue({
     enabled: true,
     gateways: [
@@ -79,6 +87,21 @@ describe('Dashboard', () => {
     expect(within(tile).getByText('wan3')).toBeInTheDocument()
     expect(within(tile).getByText('unknown')).toBeInTheDocument()
     expect(gatewaysApi.getGatewayStatus).toHaveBeenCalled()
+  })
+
+  test('the policy leaderboard names the policies', async () => {
+    renderPage()
+    expect(await screen.findByText('#1')).toBeInTheDocument()
+    expect(await screen.findByText(/lan-to-internet/)).toBeInTheDocument()
+  })
+
+  test('a single WAN without gateways shows its link and next hop', async () => {
+    vi.mocked(gatewaysApi.getGatewayStatus).mockResolvedValue({ enabled: false, gateways: [], targets: [], default: { name: 'default', active: [], mode: 'default' } })
+    renderPage()
+    const tile = await screen.findByTestId('widget-gateways')
+    expect(await within(tile).findByText(/via 24\.101\.68\.1/)).toBeInTheDocument()
+    expect(within(tile).getByText('up')).toBeInTheDocument()
+    expect(within(tile).queryByText(/No gateways/)).toBeNull()
   })
 
   test('changing the time range re-queries, and changes are saved', async () => {

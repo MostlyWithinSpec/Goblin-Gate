@@ -30,6 +30,19 @@ beforeEach(() => {
 })
 
 describe('Updates page', () => {
+  test('a lagging plugin is offered as an update and named', async () => {
+    vi.mocked(sys.getUpdates).mockResolvedValue({
+      installed: '0.1.0~beta.8',
+      available: '0.1.0~beta.8',
+      checked: '2026-10-22T12:00:00Z',
+      plugins: [{ package: 'goblin-gate-plugin-sentry', installed: '0.1.0~beta.2', available: '0.1.0~beta.8' }],
+    })
+    wrap(<Updates />)
+    expect(await screen.findByText('plugin updates')).toBeInTheDocument()
+    expect(screen.getByTestId('plugin-updates')).toHaveTextContent('sentry: 0.1.0-beta.2 → 0.1.0-beta.8')
+    expect(screen.getByRole('button', { name: 'Update now' })).toBeInTheDocument()
+  })
+
   test('shows installed and available versions with release notes link', async () => {
     vi.mocked(sys.getUpdates).mockResolvedValue({
       ...baseStatus,

@@ -70,6 +70,7 @@ var routeScopes = map[string]string{
 	"POST /api/v1/import/pfsense":                          scopeAdmin,
 	"POST /api/v1/templates/{id}/apply":                    scopeAdmin, // changes many sections at once
 	"POST /api/v1/system/updates/apply":                    scopeAdmin,
+	"POST /api/v1/system/reboot":                           scopeAdmin,
 	"POST /api/v1/plugins/{name}/enable":                   scopeAdmin,
 	"POST /api/v1/plugins/{name}/disable":                  scopeAdmin,
 	"PUT /api/v1/plugins/{name}/settings":                  scopeAdmin,

@@ -555,6 +555,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		apiServer.Devices = devStore // dev mode: no store, the API answers 503
 		apiServer.LiveAddrs = blocks.LiveAddrs
 	}
+	if !o.dev {
+		apiServer.Reboot = func() error { return exec.Command("systemctl", "reboot").Run() }
+	}
 	if o.demo {
 		apiServer.Devices = devStore // the seeded inventory, never refreshed
 		apiServer.Demo = true
@@ -689,7 +692,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 			logExporter.Observe(ev)
 		}
 	}
-	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), OnEvent: onEvent}
+	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), InterfaceFor: interfaceForAddr(store), OnEvent: onEvent}
 	go ingester.Run(ctx, sources)
 	var counters interface {
 		stats.CounterSource

@@ -39,7 +39,7 @@ var demoDenied = []string{
 	"POST /api/v1/auth/tokens", "DELETE /api/v1/auth/tokens",
 	"POST /api/v1/auth/password", "POST /api/v1/auth/2fa", "DELETE /api/v1/auth/sessions",
 	"POST /api/v1/system/restore", "POST /api/v1/import/",
-	"POST /api/v1/system/updates/apply",
+	"POST /api/v1/system/updates/apply", "POST /api/v1/system/reboot",
 	"POST /api/v1/plugins/", "PUT /api/v1/plugins/",
 	"POST /api/v1/capture",
 	"POST /api/v1/diag/",

@@ -210,6 +210,8 @@ export interface UpdatesStatus {
   available?: string
   release_url?: string
   os_updates?: number
+  // installed first-party plugins with a newer version; they update with goblin-gate
+  plugins?: { package: string; installed: string; available: string }[]
   checked?: string // time of the last check; absent = never checked
   check_error?: string
   last?: UpdateLast
@@ -265,3 +267,6 @@ export const getGeneratedFile = (path: string, config?: GeneratedConfig) =>
 
 export const getGeneratedDiff = (path: string) =>
   apiClient<GeneratedDiffResponse>(`/api/v1/system/generated/diff?path=${encodeURIComponent(path)}`)
+
+// rebootBox restarts the box (full admins only); it answers before going down.
+export const rebootBox = () => apiClient<{ status: string }>('/api/v1/system/reboot', { method: 'POST' })

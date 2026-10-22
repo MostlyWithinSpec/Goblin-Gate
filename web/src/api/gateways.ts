@@ -48,3 +48,15 @@ export function setWireGuardClientPrivateKey(name: string, privateKey: string): 
     body: JSON.stringify({ private_key: privateKey }),
   })
 }
+
+// WAN interfaces as the kernel sees them: link, addresses and the default
+// route's next hop. What a single-WAN box shows instead of monitored gateways.
+export interface WANStatus {
+  name: string
+  device: string
+  up: boolean
+  addresses: string[]
+  gateway?: string
+}
+
+export const getWANStatus = () => apiClient<{ wans: WANStatus[] }>('/api/v1/wan/status').then((r) => r.wans ?? [])

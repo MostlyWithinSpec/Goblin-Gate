@@ -34,6 +34,10 @@ type Ingester struct {
 	// PolicyAction returns accept/deny for a policy id so traffic events get
 	// an action (nft log lines do not carry one); nil leaves it empty.
 	PolicyAction func(policyID string) string
+	// InterfaceFor names the interface whose network holds an address; it
+	// fills in the interface of events that come without one (the IPS's flow
+	// records). nil = left empty.
+	InterfaceFor func(ip string) string
 
 	// OnEvent, if set, sees every parsed event before it is stored
 	// (notifications watch IPS drops). It must not block.
@@ -113,6 +117,9 @@ func (in *Ingester) Run(ctx context.Context, sources []Source) {
 			}
 			if e.Kind == "traffic" && e.Action == "" && e.PolicyID != "" && in.PolicyAction != nil {
 				e.Action = in.PolicyAction(e.PolicyID)
+			}
+			if e.InIntf == "" && e.SrcIP != "" && in.InterfaceFor != nil {
+				e.InIntf = in.InterfaceFor(e.SrcIP)
 			}
 			if in.OnEvent != nil {
 				in.OnEvent(e)

@@ -50,3 +50,13 @@ func TestVerifyMalformed(t *testing.T) {
 		}
 	}
 }
+
+// A stored hash can't make a login arbitrarily expensive.
+func TestVerifyRefusesCostlyParameters(t *testing.T) {
+	for _, params := range []string{"m=1048576,t=2,p=1", "m=19456,t=16,p=1", "m=19456,t=2,p=64"} {
+		hash := "$argon2id$v=19$" + params + "$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g"
+		if err := VerifyPassword("whatever-password", hash); err == nil || err == ErrMismatch {
+			t.Errorf("%s: %v, want out of range", params, err)
+		}
+	}
+}

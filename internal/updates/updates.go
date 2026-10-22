@@ -41,13 +41,17 @@ type State struct {
 
 // Status answers GET /api/v1/system/updates.
 type Status struct {
-	Installed  string    `json:"installed"`
-	Available  string    `json:"available,omitempty"` // newer goblin-gate in the channel, "" = up to date
-	ReleaseURL string    `json:"release_url,omitempty"`
-	OSUpdates  int       `json:"os_updates"` // pending Debian package upgrades
-	Checked    time.Time `json:"checked,omitzero"`
-	CheckError string    `json:"check_error,omitempty"`
-	Last       *State    `json:"last,omitempty"`
+	Installed  string `json:"installed"`
+	Available  string `json:"available,omitempty"` // newer goblin-gate in the channel, "" = up to date
+	ReleaseURL string `json:"release_url,omitempty"`
+	OSUpdates  int    `json:"os_updates"` // pending Debian package upgrades
+	// Plugins are installed first-party plugins with a newer version; they
+	// update together with goblin-gate (Available is then at least the
+	// installed version, so a box whose only lag is a plugin can update).
+	Plugins    []PluginUpdate `json:"plugins,omitempty"`
+	Checked    time.Time      `json:"checked,omitzero"`
+	CheckError string         `json:"check_error,omitempty"`
+	Last       *State         `json:"last,omitempty"`
 }
 
 // Manager checks for and applies updates.
@@ -158,9 +162,13 @@ func (m *Manager) Check(ctx context.Context, maxAge time.Duration) Status {
 			}
 		}
 	}
+	st.Plugins = m.pluginsBehind(ctx)
+	if st.Available == "" && len(st.Plugins) > 0 && st.Installed != "" {
+		st.Available = st.Installed
+	}
 	if out, err := m.exec(ctx, "apt-get", "-s", "-q", "upgrade"); err == nil {
 		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "Inst ") && !strings.HasPrefix(line, "Inst "+Package+" ") {
+			if strings.HasPrefix(line, "Inst ") && !strings.HasPrefix(line, "Inst "+Package+" ") && !strings.HasPrefix(line, "Inst "+PluginPrefix) {
 				st.OSUpdates++
 			}
 		}
@@ -282,9 +290,16 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 	rollback := ""
 	if from != "" {
 		if _, err := m.execIn(ctx, keep, "apt-get", "download", Package+"="+from); err == nil {
-			if debs, _ := filepath.Glob(filepath.Join(keep, "*.deb")); len(debs) == 1 {
+			if debs, _ := filepath.Glob(filepath.Join(keep, Package+"_*.deb")); len(debs) == 1 {
 				rollback = debs[0]
 			}
+		}
+	}
+	// first-party plugins move with goblin-gate and roll back with it
+	plugins := m.installedPlugins(ctx)
+	for pkg, v := range plugins {
+		if _, err := m.execIn(ctx, keep, "apt-get", "download", pkg+"="+v); err != nil {
+			m.logger().Warn("updates: plugin not saved for a rollback", "package", pkg, "version", v, "error", err)
 		}
 	}
 	if rollback == "" && to != "" {
@@ -294,9 +309,13 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 	// 2. Debian updates first (goblin-gate is held so it moves only in step 3)
 	if includeOS {
 		step("installing Debian updates")
-		m.exec(ctx, "apt-mark", "hold", Package)
+		held := []string{Package}
+		for pkg := range plugins {
+			held = append(held, pkg)
+		}
+		m.exec(ctx, "apt-mark", append([]string{"hold"}, held...)...)
 		_, err := m.exec(ctx, "apt-get", "-y", "-q", "-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef", "upgrade")
-		m.exec(ctx, "apt-mark", "unhold", Package)
+		m.exec(ctx, "apt-mark", append([]string{"unhold"}, held...)...)
 		if err != nil {
 			return finish("failed", "Debian updates failed: "+err.Error())
 		}
@@ -307,8 +326,15 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 
 	// 3. the new goblin-gate
 	step("installing " + to)
-	_, installErr := m.exec(ctx, "apt-get", "install", "-y", "-q", "--allow-downgrades",
-		"-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef", Package+"="+to)
+	install := []string{"install", "-y", "-q", "--allow-downgrades",
+		"-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef"}
+	for pkg := range plugins {
+		if c := m.candidate(ctx, pkg); c != "" {
+			install = append(install, pkg+"="+c)
+		}
+	}
+	install = append(install, Package+"="+to)
+	_, installErr := m.exec(ctx, "apt-get", install...)
 
 	// 4. is it healthy?
 	if installErr == nil {
@@ -323,7 +349,11 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 
 	// 5. roll back
 	step("rolling back to " + from)
-	if _, err := m.exec(ctx, "dpkg", "-i", "--force-confold", rollback); err != nil {
+	restore := []string{"-i", "--force-confold", rollback}
+	if saved, _ := filepath.Glob(filepath.Join(keep, PluginPrefix+"*.deb")); len(saved) > 0 {
+		restore = append(restore, saved...)
+	}
+	if _, err := m.exec(ctx, "dpkg", restore...); err != nil {
 		return finish("failed", fmt.Sprintf("update failed (%v) and the rollback failed too (%v): reinstall %s from the console", installErr, err, rollback))
 	}
 	// a crash-looping new goblind may have hit the unit's start limit

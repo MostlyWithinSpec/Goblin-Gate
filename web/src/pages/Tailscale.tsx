@@ -65,8 +65,10 @@ const TailscalePage: React.FC = () => {
         // Login interactively - this will return auth_url
         const result = await loginTailscale()
         if (result.auth_url) {
-          // Open the auth URL in a new tab
-          window.open(result.auth_url, '_blank')
+          // Open the login page in a new tab: an https URL only (a control
+          // server of your own, like Headscale, is fine), never anything else
+          if (!isHttpsURL(result.auth_url)) throw new Error('Tailscale returned a login link that is not https')
+          window.open(result.auth_url, '_blank', 'noopener,noreferrer')
           setLoginStatus('success')
           setIsLoginModalOpen(false)
         } else {
@@ -399,6 +401,15 @@ const TailscalePage: React.FC = () => {
       </div>
     </div>
   )
+}
+
+// isHttpsURL accepts only an absolute https URL.
+export function isHttpsURL(u: string): boolean {
+  try {
+    return new URL(u).protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 export default TailscalePage

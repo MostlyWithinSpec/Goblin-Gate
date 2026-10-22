@@ -2,10 +2,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { getFeedStats, getPolicyStats, getSystemStats, statsQuery, type TimeRange, type Widget } from '../../api/stats'
-import { getGatewayStatus } from '../../api/gateways'
+import { getGatewayStatus, getWANStatus } from '../../api/gateways'
 import { formatRate, listFlowDevices } from '../../api/flows'
 import { countBySeverity, getChecks, scoreTone } from '../../api/checks'
-import { getUPSStatus } from '../../api/objects'
+import { getCandidate, getUPSStatus } from '../../api/objects'
 import { ChargeBar, StateBadge, runtimeText } from '../system/UPS'
 import Chart from './Chart'
 import { builtin, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
@@ -56,6 +56,8 @@ function FeedBody({ dark }: { dark: boolean }) {
 function PolicyBody() {
   const navigate = useNavigate()
   const q = useQuery({ queryKey: ['stats', 'policies'], queryFn: getPolicyStats, refetchInterval: REFRESH })
+  const cfg = useQuery({ queryKey: ['candidate'], queryFn: getCandidate })
+  const names = new Map((cfg.data?.policies ?? []).map((p) => [p.id, p.name]))
   if (q.isLoading) return <Empty text="Loading…" />
   if (q.isError) return <Empty text="Policy counters are not available." />
   const rows = [...(q.data?.policies ?? [])].sort((a, b) => b.packets - a.packets).slice(0, 10)
@@ -68,7 +70,9 @@ function PolicyBody() {
       <tbody>
         {rows.map((p) => (
           <tr key={p.id} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => navigate(`/log?kind=traffic&q=${p.id}`)}>
-            <td>#{p.id}</td>
+            <td className="max-w-0 truncate" title={names.get(p.id) ?? ''}>
+              <span className="text-gray-500">#{p.id}</span> {names.get(p.id) ?? ''}
+            </td>
             <td className="text-right">{p.packets.toLocaleString()}</td>
             <td className="text-right">{formatValue('bytes', p.bytes)}</td>
           </tr>
@@ -78,12 +82,40 @@ function PolicyBody() {
   )
 }
 
+// WANBody is the WAN status of a box without multi-WAN gateways: each WAN
+// interface's link, address and the next hop of its default route.
+function WANBody() {
+  const q = useQuery({ queryKey: ['wan', 'status'], queryFn: getWANStatus, refetchInterval: REFRESH })
+  if (q.isLoading) return <Empty text="Loading…" />
+  if (q.isError) return <Empty text="WAN status is not available." />
+  const wans = q.data ?? []
+  if (wans.length === 0) return <Empty text="No WAN interface is configured." />
+  return (
+    <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+      {wans.map((w) => (
+        <li key={w.name} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${w.up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {w.up ? 'up' : 'down'}
+          </span>
+          <span className="font-medium text-gray-800 dark:text-gray-100">{w.name}</span>
+          <span className="text-xs text-gray-500">{w.device}</span>
+          <span className="ml-auto text-xs text-gray-500">
+            {w.addresses[0] ?? 'no address'}
+            {w.gateway ? ` · via ${w.gateway}` : ' · no default route'}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function GatewayBody() {
   const q = useQuery({ queryKey: ['gateways', 'status'], queryFn: getGatewayStatus, refetchInterval: REFRESH })
   if (q.isLoading) return <Empty text="Loading…" />
   if (q.isError) return <Empty text="Gateway status is not available." />
   const gateways = q.data?.gateways ?? []
-  if (gateways.length === 0) return <Empty text="No gateways are configured." />
+  // a single WAN has no monitored gateways: show the WAN itself
+  if (gateways.length === 0) return <WANBody />
   const badge = (state: string) =>
     state === 'up' ? 'bg-green-100 text-green-700' : state === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
   return (

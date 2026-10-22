@@ -24,6 +24,8 @@ func TestCheckCustomRuleText(t *testing.T) {
 		{`ip saddr 1.2.3.4 GOTO x`, `"goto" is not allowed`},
 		{`tcp dport 80 accept comment "x" include "/etc/passwd"`, `"include" is not allowed`},
 		{strings.Repeat("a", MaxCustomRuleLen+1), "longer than"},
+		{`tcp dport 80 accept comment 'x' include '/etc/passwd'`, "double quotes"},
+		{`log prefix "it's fine in double quotes" accept`, ""},
 	} {
 		got := CheckCustomRuleText(c.rule)
 		if c.want == "" && got != "" || c.want != "" && !strings.Contains(got, c.want) {

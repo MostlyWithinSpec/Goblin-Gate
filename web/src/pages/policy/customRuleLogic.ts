@@ -65,6 +65,7 @@ export function checkCustomRuleText(raw: string): string {
   if (/[\n\r]/.test(s)) return 'One rule per entry: no line breaks.'
   const { words, unquoted, ok } = ruleTokens(s)
   if (!ok) return 'Unbalanced quotes.'
+  if (unquoted.includes("'")) return 'Use double quotes ("...") for strings: nft has no single-quoted strings.'
   if (/[;#]/.test(unquoted)) return "One rule per entry: no ';' or '#' outside quotes."
   let depth = 0
   for (const r of unquoted) {

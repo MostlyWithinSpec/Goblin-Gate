@@ -18,8 +18,13 @@ func ServeStaticFile(w http.ResponseWriter, r *http.Request, staticDir string) {
 		return
 	}
 
-	// Construct full file path
-	fullPath := filepath.Join(staticDir, path)
+	// Construct full file path; it must stay inside staticDir
+	root := filepath.Clean(staticDir)
+	fullPath := filepath.Join(root, path)
+	if fullPath != root && !strings.HasPrefix(fullPath, root+string(filepath.Separator)) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {

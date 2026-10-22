@@ -117,8 +117,12 @@ const Updates: React.FC = () => {
           <dt className="font-medium text-gray-600 dark:text-gray-400">Available</dt>
           <dd>
             {available ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">{displayVersion(status.available!)}</span>
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {status.available === status.installed ? (
+                  <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">plugin updates</span>
+                ) : (
+                  <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">{displayVersion(status.available!)}</span>
+                )}
                 {status.release_url && (
                   <a href={status.release_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
                     Release notes <ExternalLink size={12} />
@@ -131,6 +135,18 @@ const Updates: React.FC = () => {
               <span className="text-gray-400">Not checked yet</span>
             )}
           </dd>
+          {(status.plugins ?? []).length > 0 && (
+            <>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">Plugins</dt>
+              <dd data-testid="plugin-updates">
+                {(status.plugins ?? []).map((p) => (
+                  <div key={p.package}>
+                    {p.package.replace('goblin-gate-plugin-', '')}: {displayVersion(p.installed)} → {displayVersion(p.available)}
+                  </div>
+                ))}
+              </dd>
+            </>
+          )}
           {status.os_updates !== undefined && status.os_updates > 0 && (
             <>
               <dt className="font-medium text-gray-600 dark:text-gray-400">OS updates</dt>

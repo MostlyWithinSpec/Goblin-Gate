@@ -18,6 +18,9 @@ type fakeBox struct {
 	broken    map[string]bool // versions whose goblind never comes up
 	failApt   bool            // apt-get install fails
 	calls     []string
+	// first-party plugins: installed versions and what the channel has
+	plugins    map[string]string
+	pluginRepo map[string]string
 }
 
 func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...string) ([]byte, error) {
@@ -28,6 +31,27 @@ func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...str
 			return nil, errors.New("apt-get without the lock timeout: " + line)
 		}
 		args = args[2:]
+	}
+	if name == "dpkg-query" && strings.HasSuffix(args[len(args)-1], "*") {
+		var lines []string
+		for pkg, v := range f.plugins {
+			lines = append(lines, pkg+" "+v+" ii")
+		}
+		return []byte(strings.Join(lines, "\n")), nil
+	}
+	if name == "apt-cache" && strings.HasPrefix(args[len(args)-1], PluginPrefix) {
+		pkg := args[len(args)-1]
+		return []byte(pkg + ":\n  Installed: " + f.plugins[pkg] + "\n  Candidate: " + f.pluginRepo[pkg] + "\n"), nil
+	}
+	if name == "apt-get" && args[0] == "download" && strings.HasPrefix(args[1], PluginPrefix) {
+		pkg, v, _ := strings.Cut(args[1], "=")
+		dir := ""
+		for _, e := range env {
+			if strings.HasPrefix(e, "PWD=") {
+				dir = strings.TrimPrefix(e, "PWD=")
+			}
+		}
+		return nil, os.WriteFile(filepath.Join(dir, pkg+"_"+v+"_amd64.deb"), []byte(args[1]), 0o644)
 	}
 	switch {
 	case name == "dpkg-query":
@@ -53,11 +77,25 @@ func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...str
 		if f.failApt {
 			return []byte("E: Sub-process /usr/bin/dpkg returned an error code (1)"), errors.New("exit status 100")
 		}
+		for _, a := range args {
+			if pkg, v, ok := strings.Cut(a, "="); ok && strings.HasPrefix(pkg, PluginPrefix) {
+				f.plugins[pkg] = v
+			}
+		}
 		f.installed = strings.TrimPrefix(args[len(args)-1], Package+"=")
 		return nil, nil
 	case name == "dpkg" && args[0] == "-i":
-		b, _ := os.ReadFile(args[len(args)-1])
-		f.installed = string(b)
+		for _, a := range args[1:] {
+			if !strings.HasSuffix(a, ".deb") {
+				continue
+			}
+			b, _ := os.ReadFile(a)
+			if pkg, v, ok := strings.Cut(string(b), "="); ok {
+				f.plugins[pkg] = v
+			} else {
+				f.installed = string(b)
+			}
+		}
 		return nil, nil
 	case name == "apt-cache":
 		best := f.installed
@@ -164,5 +202,44 @@ func TestStartRefusesWhileRunning(t *testing.T) {
 	}
 	if err := m.Start(context.Background(), "", false); !errors.Is(err, ErrRunning) {
 		t.Fatalf("second start: %v", err)
+	}
+}
+
+func pluginBox(broken bool) *fakeBox {
+	f := &fakeBox{installed: "0.1.0~beta.7", repo: map[string]bool{"0.1.0~beta.7": true, "0.1.0~beta.8": true},
+		plugins:    map[string]string{"goblin-gate-plugin-sentry": "0.1.0~beta.2"},
+		pluginRepo: map[string]string{"goblin-gate-plugin-sentry": "0.1.0~beta.8"}}
+	if broken {
+		f.broken = map[string]bool{"0.1.0~beta.8": true}
+	}
+	return f
+}
+
+// First-party plugins update together with goblin-gate.
+func TestPluginsUpdateWithGoblinGate(t *testing.T) {
+	f := pluginBox(false)
+	s := manager(t, f).Run(context.Background(), "0.1.0~beta.8", false)
+	if s.State != "done" || f.installed != "0.1.0~beta.8" || f.plugins["goblin-gate-plugin-sentry"] != "0.1.0~beta.8" {
+		t.Fatalf("%+v installed=%s plugins=%v", s, f.installed, f.plugins)
+	}
+}
+
+// ...and roll back with it.
+func TestPluginsRollBackWithGoblinGate(t *testing.T) {
+	f := pluginBox(true)
+	s := manager(t, f).Run(context.Background(), "0.1.0~beta.8", false)
+	if s.State != "rolled_back" || f.installed != "0.1.0~beta.7" || f.plugins["goblin-gate-plugin-sentry"] != "0.1.0~beta.2" {
+		t.Fatalf("%+v installed=%s plugins=%v", s, f.installed, f.plugins)
+	}
+}
+
+// A box that is current but whose plugin lags gets an update offered, and
+// the plugin isn't counted as a Debian update.
+func TestCheckOffersALaggingPlugin(t *testing.T) {
+	f := pluginBox(false)
+	f.installed = "0.1.0~beta.8"
+	st := manager(t, f).Check(context.Background(), 0)
+	if st.Available != "0.1.0~beta.8" || len(st.Plugins) != 1 || st.Plugins[0].Available != "0.1.0~beta.8" {
+		t.Fatalf("%+v", st)
 	}
 }
