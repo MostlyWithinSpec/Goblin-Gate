@@ -134,6 +134,16 @@ func run(args []string, stdout, stderr io.Writer, ready chan<- string) int {
 	return 0
 }
 
+// tls12Suites are the TLS 1.2 cipher suites offered: forward secret and
+// authenticated encryption only (Go's defaults add CBC-SHA suites). TLS 1.3
+// suites are not configurable and all fine.
+var tls12Suites = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+}
+
 func parseFlags(args []string, stderr io.Writer) (options, error) {
 	var o options
 	fs := flag.NewFlagSet("goblind", flag.ContinueOnError)
@@ -729,7 +739,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		if err != nil {
 			return err
 		}
-		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+		tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12, CipherSuites: tls12Suites}
 	}
 	handler := apiServer.Routes()
 	if o.demo {

@@ -1,0 +1,40 @@
+# The public demo behind a Cloudflare Tunnel: no open ports, TLS from Cloudflare.
+#   cp .env.example .env    # paste the tunnel token
+#   docker compose up -d --build
+# See docs/dev/DEMO.md.
+name: goblin-demo
+
+services:
+  demo:
+    build:
+      context: ../..
+      dockerfile: packaging/demo/Dockerfile
+    image: goblin-gate-demo
+    command: ["--demo-reset", "1h"]  # a shared demo starts over every hour
+    restart: unless-stopped        # goblind exits every hour on purpose; this starts it fresh
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777    # the demo's throwaway config and logs live here
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    networks: [demo]               # internal network: the demo cannot reach anything, not even the internet
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [demo, outside]      # reaches Cloudflare and the demo, nothing else is published
+    depends_on: [demo]
+
+networks:
+  demo:
+    internal: true
+  outside: {}

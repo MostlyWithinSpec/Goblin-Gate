@@ -310,6 +310,11 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("/api/v1/plugins/{name}/api/{path...}", s.pluginAPI)
 }
 
+// contentSecurityPolicy is sent with every response.
+const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; " +
+	"frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
 // middleware adds request logging (no bodies), body limits, content-type
 // checks and the security headers.
 func (s *Server) middleware(next http.Handler) http.Handler {
@@ -319,6 +324,13 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		h.Set("X-Frame-Options", "SAMEORIGIN") // only the UI may frame its pages (plugin UIs)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
+		// The UI is self-contained: no outside scripts, styles or fonts, no
+		// inline scripts. Inline styles stay allowed (React style attributes,
+		// the charts).
+		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		if r.TLS != nil {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		// uploads are the non-JSON bodies: a backup (zip) and a pfSense
 		// config.xml, raw or as a form

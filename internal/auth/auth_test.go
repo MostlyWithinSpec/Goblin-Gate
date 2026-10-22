@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,9 +110,61 @@ func TestLimiter(t *testing.T) {
 	if ok, _ := l.Allowed("10.9.9.9", "victim"); ok {
 		t.Fatal("locked user allowed from a new address")
 	}
+	// the real admin's address (it logged in recently) is not kept out by the
+	// user lock; everyone else still is
 	l.Succeed("10.9.9.9")
+	if ok, _ := l.Allowed("10.9.9.9", "victim"); !ok {
+		t.Fatal("a recently trusted address is kept out by someone else's failures")
+	}
+	if ok, _ := l.Allowed("10.8.8.8", "victim"); ok {
+		t.Fatal("success elsewhere unlocked the user for everyone")
+	}
+	// trust runs out
+	clk.t = clk.t.Add(TrustFor + time.Minute)
+	for i := 0; i < MaxUserFailures; i++ {
+		l.Fail(fmt.Sprintf("10.1.0.%d", i), "victim")
+	}
 	if ok, _ := l.Allowed("10.9.9.9", "victim"); ok {
-		t.Fatal("success elsewhere unlocked the user")
+		t.Fatal("trust never expires")
+	}
+	// trust never lifts the address's own limit
+	clk.t = clk.t.Add(Lockout + time.Second)
+	l.Succeed("10.7.7.7")
+	for i := 0; i < MaxFailures; i++ {
+		l.Fail("10.7.7.7", "admin")
+	}
+	if ok, _ := l.Allowed("10.7.7.7", "admin"); ok {
+		t.Fatal("a trusted address may guess without limit")
+	}
+}
+
+// A new IPv6 address per few guesses (one /64) runs into the /64 limit.
+func TestLimiterIPv6Rotation(t *testing.T) {
+	clk := newClock()
+	l := &Limiter{Now: clk.now}
+	locked := false
+	for i := 0; i < MaxNetFailures; i++ {
+		locked = l.Fail(fmt.Sprintf("2001:db8:1:2::%x", i+1), fmt.Sprintf("user%d", i))
+	}
+	if !locked {
+		t.Fatal("rotating addresses inside one /64 never locks")
+	}
+	if ok, _ := l.Allowed("2001:db8:1:2::ffff", "fresh"); ok {
+		t.Fatal("a new address in the locked /64 is allowed")
+	}
+	if ok, _ := l.Allowed("2001:db8:1:3::1", "fresh"); !ok {
+		t.Fatal("the next /64 is locked too")
+	}
+	if ok, _ := l.Allowed("192.168.1.20", "fresh"); !ok {
+		t.Fatal("IPv4 is locked by IPv6 failures")
+	}
+	// a device that logged in recently from that /64 is not kept out
+	l.Succeed("2001:db8:1:2::abcd")
+	if ok, _ := l.Allowed("2001:db8:1:2::abcd", "fresh"); !ok {
+		t.Fatal("a trusted address is kept out by its /64's lock")
+	}
+	if net64("192.168.1.1") != "" || net64("::ffff:192.168.1.1") != "" || net64("fe80::1%eth0") != "fe80::/64" {
+		t.Fatal("net64")
 	}
 }
 

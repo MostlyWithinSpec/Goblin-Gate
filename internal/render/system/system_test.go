@@ -79,3 +79,19 @@ func TestRenderRefusesBadKey(t *testing.T) {
 		t.Fatal("rendered a key that could inject sshd options")
 	}
 }
+
+// SSH forwarding: local only, to the web UI on the box only.
+func TestSSHForwardingOnlyToTheWebUI(t *testing.T) {
+	c := config.Default()
+	c.System.AdminPort = 8443
+	files, err := Renderer{}.Render(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := string(files[SSHDPath])
+	for _, want := range []string{"AllowTcpForwarding local\n", "PermitOpen localhost:8443 127.0.0.1:8443 [::1]:8443\n", "AllowStreamLocalForwarding no\n", "PermitTunnel no\n"} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("sshd drop-in lacks %q:\n%s", want, conf)
+		}
+	}
+}

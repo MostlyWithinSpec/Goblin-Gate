@@ -96,6 +96,19 @@ click. It never blocks on its own.
 
 <sub>Screenshots follow your GitHub theme: switch to light or dark mode to see the other one. Demo data, not a real network.</sub>
 
+## Try it without installing
+
+Curious but not ready to give it a VM? The demo runs on your own computer in one command, with
+[Docker](https://docs.docker.com/get-docker/) (Windows, Mac or Linux):
+
+```sh
+docker run --rm -p 127.0.0.1:8090:8090 ghcr.io/mostlywithinspec/goblin-gate-demo
+```
+
+Then open <http://localhost:8090>. It's the real web UI on a pretend home network with made-up traffic:
+click anything, commit, roll back. Nothing reaches your network, and it's gone when you press Ctrl+C.
+The download is about 10 MB.
+
 ## Summoning a goblin
 
 1. Download the ISO from [Releases](../../releases) (or build it, below).

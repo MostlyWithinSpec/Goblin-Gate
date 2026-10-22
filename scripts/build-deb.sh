@@ -38,8 +38,8 @@ install -d "$ROOT/lib/systemd/system" "$ROOT/etc/systemd/system/systemd-networkd
 install -m644 packaging/systemd/goblind.service packaging/systemd/goblin-suricata@.service packaging/systemd/goblin-miniupnpd.service packaging/systemd/goblin-plugin@.service packaging/systemd/goblin-sqm.service "$ROOT/lib/systemd/system/"
 install -m644 packaging/systemd/systemd-networkd-wait-online.service.d/goblin.conf "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d/"
 install -m644 packaging/systemd/nftables.service.d/goblin.conf "$ROOT/etc/systemd/system/nftables.service.d/"
-# sandboxes for the stock DNS and DHCP units (in /lib: an admin's drop-in in /etc still wins)
-for u in unbound.service kea-dhcp4-server.service; do
+# sandboxes for the stock DNS, DHCP, log and UPS units (in /lib: an admin's drop-in in /etc still wins)
+for u in unbound.service kea-dhcp4-server.service ulogd2.service nut-server.service nut-monitor.service; do
 	install -d "$ROOT/lib/systemd/system/$u.d"
 	install -m644 "packaging/systemd/$u.d/goblin-hardening.conf" "$ROOT/lib/systemd/system/$u.d/"
 done

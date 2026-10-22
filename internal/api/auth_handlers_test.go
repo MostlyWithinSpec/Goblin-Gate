@@ -243,6 +243,12 @@ func TestReadonlySeesNoSecrets(t *testing.T) {
 	if resp.Header.Get("X-Frame-Options") != "SAMEORIGIN" || resp.Header.Get("X-Content-Type-Options") != "nosniff" {
 		t.Errorf("security headers missing: %v", resp.Header)
 	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self'") || strings.Contains(csp, "unsafe-eval") {
+		t.Errorf("content security policy %q", csp)
+	}
+	if resp.Header.Get("Strict-Transport-Security") != "" {
+		t.Error("HSTS over plain HTTP")
+	}
 
 	admin := a.browser()
 	admin.login("admin")

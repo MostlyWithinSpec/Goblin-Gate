@@ -328,13 +328,16 @@ check ssh-key-login retry 60 sh -c "$SSH true"
 check suricata-not-root sh -c "$SSH 'p=\$(pgrep -f \"suricata -c\" | head -1); test -n \"\$p\" && grep -q \"^Uid:[[:space:]]*\$(id -u suricata)[[:space:]]\" /proc/\$p/status'"
 check sysctl-hardened sh -c "$SSH 'test \$(sysctl -n net.ipv4.conf.all.send_redirects) = 0 && test \$(sysctl -n kernel.kptr_restrict) = 1'"
 check config-root-only sh -c "$SSH 'test \$(stat -c %a /etc/goblingate/running.json) = 600'"
-$SSH 'systemd-analyze security --no-pager goblind goblin-suricata@test unbound kea-dhcp4-server 2>/dev/null | grep -i overall' >"$A/systemd-exposure.txt" 2>&1
+$SSH 'systemd-analyze security --no-pager goblind goblin-suricata@test unbound kea-dhcp4-server ulogd2 nut-server nut-monitor 2>/dev/null | grep -i overall' >"$A/systemd-exposure.txt" 2>&1
 # unbound and kea run in their sandbox drop-ins (exposure score below 5
 # of 10) and still work: answers, unbound-control, the client's DHCP lease
 sandboxed() { $SSH "systemctl is-active -q $1 && systemd-analyze security --no-pager $1 | awk '/Overall exposure/ { ok = (\$(NF-2) < 5) } END { exit !ok }'"; }
 check dns-sandboxed sh -c "$SSH 'unbound-control -c /etc/unbound/unbound.conf status >/dev/null' && $D +short www.test.example | grep -qx 203.0.113.80"
 check unbound-exposure sandboxed unbound
 check kea-exposure sandboxed kea-dhcp4-server
+check ulogd-exposure sandboxed ulogd2
+# UPS: NUT starts and works inside its sandboxes (dummy driver, real units)
+check nut-sandboxed sh -c "$SSH 'bash -s' < /s/net-nut.sh > \"$A/nut.txt\" 2>&1"
 $SSH 'journalctl -u "goblin-suricata@*" -n 100 --no-pager; ls -la /var/lib/suricata/goblin /var/log/suricata; tail -n 60 /var/log/suricata/goblin-*.log' >"$A/suricata.txt" 2>&1
 # nightly security updates: on, and only the security archive may install
 check security-updates-auto sh -c "$SSH 'eval \$(apt-config shell U APT::Periodic::Unattended-Upgrade); test \"\$U\" = 1 && test \$(apt-config dump Unattended-Upgrade::Origins-Pattern | grep -c origin=) = 1 && apt-config dump Unattended-Upgrade::Origins-Pattern | grep -q Debian-Security && command -v unattended-upgrade'"

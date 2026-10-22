@@ -318,3 +318,18 @@ func TestAuthHook(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 }
+
+// HSTS is sent on HTTPS connections only.
+func TestHSTSOverTLS(t *testing.T) {
+	a := newTestAPI(t)
+	ts := httptest.NewTLSServer(a.server.Routes())
+	t.Cleanup(ts.Close)
+	resp, err := ts.Client().Get(ts.URL + "/api/v1/system/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("Strict-Transport-Security") == "" || resp.Header.Get("Content-Security-Policy") == "" {
+		t.Fatalf("headers %v", resp.Header)
+	}
+}

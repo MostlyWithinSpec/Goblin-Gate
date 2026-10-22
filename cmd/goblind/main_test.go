@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -90,4 +92,19 @@ func TestServeRefusesWithoutDev(t *testing.T) {
 		t.Logf("serve returned error (acceptable): %v", err)
 	}
 	// If we get here without timeout, the test passes
+}
+
+// TLS 1.2 offers only forward-secret AEAD suites.
+func TestTLS12Suites(t *testing.T) {
+	for _, id := range tls12Suites {
+		for _, bad := range tls.InsecureCipherSuites() {
+			if bad.ID == id {
+				t.Fatalf("insecure suite %s", bad.Name)
+			}
+		}
+		name := tls.CipherSuiteName(id)
+		if !strings.Contains(name, "ECDHE") || !(strings.Contains(name, "GCM") || strings.Contains(name, "CHACHA20")) {
+			t.Errorf("suite %s is not ECDHE + AEAD", name)
+		}
+	}
 }

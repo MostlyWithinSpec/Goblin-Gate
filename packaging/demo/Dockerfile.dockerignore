@@ -1,0 +1,9 @@
+# Only what the demo image needs (build context = repository root).
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!web/
+web/node_modules/
+web/dist/

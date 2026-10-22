@@ -6,6 +6,7 @@ package system
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
@@ -89,10 +90,21 @@ const header = "# Managed by Goblin Gate (goblind): changes here are overwritten
 
 // sshdConfig: key-only logins; root may log in with a listed key. Debian's
 // sshd_config includes sshd_config.d first, so these values win. TCP
-// forwarding stays on (ssh -L to the web UI); MaxAuthTries stays at the
+// forwarding is local only and only to the web UI on the box itself (ssh -L
+// to the admin port keeps working; the box is no stepping stone to other
+// hosts, and nothing is forwarded back in). MaxAuthTries stays at the
 // default, since a lower one locks out agents holding many keys. No SHA-1
 // or 64-bit-tag MACs.
-const sshdConfig = header + `PasswordAuthentication no
+func sshdConfig(adminPort int) string {
+	if adminPort == 0 {
+		adminPort = 443
+	}
+	p := strconv.Itoa(adminPort)
+	return sshdBase + "AllowTcpForwarding local\nPermitOpen localhost:" + p + " 127.0.0.1:" + p + " [::1]:" + p +
+		"\nAllowStreamLocalForwarding no\nPermitTunnel no\n"
+}
+
+const sshdBase = header + `PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 X11Forwarding no
@@ -120,7 +132,7 @@ func (Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 		HostnamePath:  []byte(s.Hostname + "\n"),
 		TimezonePath:  []byte(tz + "\n"),
 		TimesyncdPath: []byte(header + "[Time]\nNTP=" + strings.Join(s.NTPServers, " ") + "\n"),
-		SSHDPath:      []byte(sshdConfig),
+		SSHDPath:      []byte(sshdConfig(s.AdminPort)),
 	}
 	var keys strings.Builder
 	keys.WriteString(header)
