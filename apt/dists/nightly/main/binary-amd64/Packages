@@ -1,41 +1,19 @@
 Package: goblin-gate-plugin-sentry
 Architecture: amd64
-Version: 0.1.0~beta.5+1.g156d3ea
+Version: 0.1.0~beta.5+2.g1140161
 Priority: optional
 Section: net
 Maintainer: Network Goblin Labs <goblin@localhost>
-Depends: goblin-gate (>= 0.1.0~beta.5+1.g156d3ea)
-Filename: pool/nightly/goblin-gate-plugin-sentry_0.1.0~beta.5+1.g156d3ea_amd64.deb
-Size: 2454632
-MD5sum: ce91b47521afeda91d3ead5e47c9f15b
-SHA1: 8cacc23c3a161ba6bb494ba242736bc563255f16
-SHA256: 7a107dce82d499a7c368032879071b1e7996fb1050087a2d349d11d7ead8ed4f
-SHA512: b73abec7b9f02c6ad388f44dc3e4eec641c79fb60409532d2a17d71334531d770757fd4c8cb1752ef778cf934dd52c233810732e003381e16d22b54221fbe22a
+Depends: goblin-gate (>= 0.1.0~beta.5+2.g1140161)
+Filename: pool/nightly/goblin-gate-plugin-sentry_0.1.0~beta.5+2.g1140161_amd64.deb
+Size: 2456548
+MD5sum: 12ed95623eac38630a2316368cb7c206
+SHA1: 00ae2007a642c43080105898d8dcf141ac6366d8
+SHA256: 8d1eb27b69d568879694e53019b8895648aa9635797d859ea9f2142b3cfdc5cf
+SHA512: 5b4861ead10579fb72aa6020d17f0b8b8bee433bd697497f1c1ae58d88a3c4e4e5e62d264ab8bf05c019e54ebc0e8fd189fa351a13c826870cc4bcf28eab8d7e
 Description: Goblin Sentry for Goblin Gate
  Turns IPS alerts into incidents and answers them with temporary blocks,
  notifications and an approval queue.
-
-Package: goblin-gate
-Architecture: amd64
-Version: 0.1.0~alpha.2
-Priority: optional
-Section: net
-Maintainer: Network Goblin Labs <goblin@localhost>
-Installed-Size: 30396
-Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates
-Recommends: suricata (>= 7), suricata-update, tailscale
-Conflicts: ifupdown2, network-manager, systemd-resolved
-Filename: pool/nightly/goblin-gate_0.1.0~alpha.2_amd64.deb
-Size: 7714720
-MD5sum: ac5b51206b8c979e599e13614ae1b1c6
-SHA1: 3ffcf7ececc140716becb39643ead32f27ebe765
-SHA256: 461d6eb6766f72389db8555f70a770e5b968a775a3d12cc6e3c3dea0399e484d
-SHA512: c1bbf9f1a42586b5ef4fbded70d17e730e572c06ae0a0ff7cf59bc7f7c022b0640e393d448609ad7f7f8c1ea71fadbe5980270caf764ad123602d6bc12504f8b
-Description: Goblin Gate firewall
- A home and small-office firewall and router: nftables policies, DHCP
- (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
- filter, application control, WireGuard and Tailscale, managed through
- a web UI, a FortiOS-style CLI and a console menu.
 
 Package: goblin-gate
 Architecture: amd64
@@ -207,6 +185,28 @@ MD5sum: 30d4bd25ddce6dfaa3126f03306e7d37
 SHA1: 4d51600eb98f5fabe37d76d7daae0a81de6a49ff
 SHA256: 5df697892ded387a3aa6e9d1a2fbb10f04783d5465ea2192ccb58fd867c9b10c
 SHA512: be6a02f1f6eb6c998c40dddfc3d962e2c7a4c713a53e1ea8fb50dc6fb68fb1e539302894875e37f0562e5eeb5b850dbf441b229d5db2d39f3f607ae325dbe377
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.
+
+Package: goblin-gate
+Architecture: amd64
+Version: 0.1.0~beta.5+2.g1140161
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Installed-Size: 33072
+Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates, iputils-ping, tcpdump, traceroute, unattended-upgrades, git
+Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Filename: pool/nightly/goblin-gate_0.1.0~beta.5+2.g1140161_amd64.deb
+Size: 8731740
+MD5sum: 3eaacefa38f92588aaba6af84ec85cae
+SHA1: ea20d05a19b2b2894faf90ff5284f1b870928dea
+SHA256: e1eab9ff369f900fafade6b1788f5abed5b1aa5ab62cf022ab2a247b3c4fb043
+SHA512: 73e997d4654cd0216d7aec0f654d0ad24ce5c89bdc627ba0674ea1616a6a561789005d598e6d2ab6fa588441d8fe6576804b8ab7bfa0d88d84c7de59e144c252
 Description: Goblin Gate firewall
  A home and small-office firewall and router: nftables policies, DHCP
  (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
