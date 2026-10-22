@@ -6,8 +6,6 @@ import {
   Shield,
   Settings,
   User,
-  ChevronLeft,
-  ChevronRight,
   Activity,
   Menu,
   X,
@@ -20,6 +18,7 @@ import {
   Waypoints,
   ShieldAlert,
   Clock,
+  Terminal,
   Server,
   History,
   Bell,
@@ -29,7 +28,8 @@ import {
   ScrollText,
   ListOrdered,
   Ban,
-  Camera
+  Camera,
+  Search
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
 import { PageErrorBoundary } from './PageErrorBoundary'
@@ -39,6 +39,7 @@ import { getUpdates } from '../api/system'
 import { getSystemStatus } from '../api/config'
 import { getPlugins } from '../api/plugins'
 import { useQuery } from '@tanstack/react-query'
+import { SearchModal } from './SearchModal'
 
 // ConnectionBadge shows whether goblind answers (GET /api/v1/system/status
 // every 15 s).
@@ -72,21 +73,72 @@ const ConnectionBadge: React.FC = () => {
   )
 }
 
+// mdPx is Tailwind's md breakpoint: below it the sidebar is a slide-in drawer
+// that a menu button opens, at it and above the sidebar is part of the layout.
+// The drawer always starts closed; matchMedia tracks the viewport and the
+// innerWidth check is the fallback for hosts without it (tests, older WebViews).
+const mdPx = 768
+const mdQuery = `(max-width: ${mdPx - 1}px)`
+
+function isPhone(): boolean {
+  if (typeof window.matchMedia === 'function') return window.matchMedia(mdQuery).matches
+  return window.innerWidth < mdPx
+}
+
 const Layout: React.FC = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  // The drawer starts closed on every viewport: on a phone the page is what
+  // you see first, and the menu button reveals the navigation.
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [phone, setPhone] = useState(isPhone)
   const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const location = useLocation()
 
-  // Toggle sidebar on mobile
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen)
-  }
-
-  // Close mobile menu when navigating
+  // Close the drawer when navigating
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [location])
+
+  // Below md the sidebar is a slide-in drawer, so a viewport that shrinks past
+  // md is closed and one that grows past md has nothing left to close (there
+  // the sidebar is part of the layout).
+  useEffect(() => {
+    const onResize = () => {
+      const p = isPhone()
+      setPhone(p)
+      if (!p) setIsMobileMenuOpen(false)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!isMobileMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isMobileMenuOpen])
+
+  // Handle global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K or Cmd+K to open search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && !isSearchOpen) {
+        e.preventDefault()
+        setIsSearchOpen(true)
+      }
+      // Escape to close search
+      if (e.key === 'Escape' && isSearchOpen) {
+        setIsSearchOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isSearchOpen])
 
   // Show a small badge on the System item when an update is available.
   useEffect(() => {
@@ -126,6 +178,7 @@ const Layout: React.FC = () => {
       group: 'Policy & Objects'
     },
     { name: 'Schedules', path: '/policy/schedules', icon: Clock, group: 'Policy & Objects' },
+    { name: 'Custom Rules', path: '/policy/custom-rules', icon: Terminal, group: 'Policy & Objects' },
     {
       name: 'Security Profiles',
       path: '/security',
@@ -137,6 +190,7 @@ const Layout: React.FC = () => {
     { name: 'Web Filter', path: '/security/web-filter', icon: Globe, group: 'Security Profiles' },
     { name: 'Application Control', path: '/security/apps', icon: AppWindow, group: 'Security Profiles' },
     { name: 'IPS', path: '/security/ips', icon: ShieldAlert, group: 'Security Profiles' },
+    { name: 'CrowdSec', path: '/security/crowdsec', icon: ShieldAlert, group: 'Security Profiles' },
     { name: 'Tailscale', path: '/vpn/tailscale', icon: Waypoints, group: 'VPN' },
     { name: 'WireGuard', path: '/vpn/wireguard', icon: KeyRound, group: 'VPN' },
     { name: 'VPN Providers', path: '/vpn/providers', icon: Server, group: 'VPN' },
@@ -146,6 +200,7 @@ const Layout: React.FC = () => {
       icon: Activity,
       group: 'Log & Report'
     },
+    { name: 'Live Events', path: '/events', icon: Rss, group: 'Log & Report' },
     {
       name: 'System',
       path: '/system',
@@ -174,22 +229,18 @@ const Layout: React.FC = () => {
   )
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-transparent">
-      {/* Mobile menu button */}
-      <div className="md:hidden fixed top-4 left-4 z-50">
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 rounded-md bg-white dark:bg-gray-800 shadow-lg"
-        >
-          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
-
-      {/* Sidebar */}
-      <div
-        className={`fixed md:static inset-y-0 left-0 z-40 bg-white dark:bg-gray-900/80 dark:backdrop-blur border-r border-gray-200 dark:border-gray-700 shadow-lg md:shadow-none transform transition-transform duration-300 ease-in-out ${
+    <div className="flex h-screen overflow-x-hidden bg-gray-50 dark:bg-transparent">
+      {/* Sidebar: part of the layout from md up, a slide-in drawer below it.
+          The drawer holds its own scrolling and is not a scroll box, so the
+          sticky nav inside it is not swallowed by a clipping ancestor. */}
+      <aside
+        id="sidebar"
+        aria-label="Main navigation"
+        aria-hidden={phone ? !isMobileMenuOpen : undefined}
+        data-testid="sidebar"
+        className={`fixed md:sticky inset-y-0 left-0 z-[60] md:z-auto flex w-64 flex-shrink-0 transform flex-col bg-white shadow-lg transition-transform duration-300 ease-in-out dark:bg-gray-900/80 dark:backdrop-blur md:translate-x-0 md:shadow-none dark:border-r dark:border-gray-700 ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        } w-64 flex flex-col`}
+        }`}
       >
         {/* Sidebar header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -200,15 +251,17 @@ const Layout: React.FC = () => {
             </span>
           </div>
           <button
-            onClick={toggleSidebar}
-            className="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            type="button"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close menu"
+            className="flex h-10 w-10 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 md:hidden"
           >
-            {isSidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+            <X size={20} />
           </button>
         </div>
 
         {/* Sidebar content */}
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
           <nav className="px-2 space-y-1">
             {Array.from(groups).map(group => (
               <div key={group} className="mb-4">
@@ -224,7 +277,7 @@ const Layout: React.FC = () => {
                       <Link
                         key={item.path}
                         to={item.path}
-                        className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                        className={`flex min-h-[40px] items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                           isActive
                             ? 'bg-blue-100 text-blue-700 dark:bg-gray-800 dark:text-blue-400'
                             : 'text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100'
@@ -257,15 +310,18 @@ const Layout: React.FC = () => {
             </div>
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              aria-label="Switch colour theme"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
               {document.documentElement.classList.contains('dark') ? '☀️' : '🌙'}
             </button>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Overlay for mobile */}
+      {/* Dim the page while the drawer is open. The drawer sits above the
+          header; the part of the header and the phone commit bar right of the
+          drawer stays above the dimming, so commit is reachable with the menu open. */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden"
@@ -274,27 +330,42 @@ const Layout: React.FC = () => {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white dark:bg-gray-900/80 dark:backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm z-10">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="flex items-center">
+        <header className="relative z-50 flex-shrink-0 bg-white dark:bg-gray-900/80 dark:backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="flex items-center justify-between px-2 py-2 md:px-4 md:py-3">
+            <div className="flex min-w-0 items-center">
               <button
-                onClick={toggleSidebar}
-                className="md:hidden mr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                type="button"
+                onClick={() => setIsMobileMenuOpen((open) => !open)}
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="sidebar"
+                className="mr-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 md:hidden"
               >
                 <Menu size={20} />
               </button>
-              <h1 className="text-lg font-semibold text-gray-800 dark:text-white">Goblin Gate</h1>
+              <h1 className="truncate text-base font-semibold text-gray-800 dark:text-white md:text-lg">Goblin Gate</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1 md:space-x-4">
               <ConnectionBadge />
-              <CommitBar />
+              <div className="hidden md:block">
+                <CommitBar />
+              </div>
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                title="Global search (Ctrl+K)"
+                aria-label="Global search"
+                className="flex h-10 items-center gap-2 rounded-md bg-gray-100 px-3 text-sm text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+              >
+                <Search size={18} />
+                <span className="hidden md:inline">Search</span>
+              </button>
               <Link
                 to="/log"
                 title="Log & Report"
                 aria-label="Log & Report"
-                className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                className="hidden h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:flex"
               >
                 <Activity size={20} />
               </Link>
@@ -303,10 +374,17 @@ const Layout: React.FC = () => {
           </div>
         </header>
 
+        {/* Commit bar for phones (the header one is md and up only) */}
+        <div className="relative z-50 flex-shrink-0 overflow-x-auto bg-white dark:bg-gray-900/80 dark:backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm md:hidden">
+          <div className="px-2 py-2">
+            <CommitBar />
+          </div>
+        </div>
+
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 dark:bg-transparent">
           <div className="max-w-7xl mx-auto">
-            <div className="bg-white dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-3 md:p-6">
               <PageErrorBoundary resetKey={location.pathname}>
                 <Outlet />
               </PageErrorBoundary>
@@ -314,6 +392,9 @@ const Layout: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </div>
   )
 }

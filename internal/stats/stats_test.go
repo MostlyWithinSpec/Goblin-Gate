@@ -100,3 +100,21 @@ func TestSystemSampler(t *testing.T) {
 		t.Fatalf("no /proc: %+v", empty)
 	}
 }
+
+func TestCustomCounters(t *testing.T) {
+	n := NFTCounters{
+		Run: func(context.Context) ([]byte, error) {
+			return []byte(`{"nftables":[{"counter":{"name":"custom_a","table":"goblin","packets":3,"bytes":90}},{"counter":{"name":"policy_1","table":"goblin","packets":9,"bytes":9}}]}`), nil
+		},
+		RunNAT: func(context.Context) ([]byte, error) {
+			return []byte(`{"nftables":[{"counter":{"name":"custom_b","table":"goblin_nat","packets":1,"bytes":60}}]}`), nil
+		},
+	}
+	got, err := n.CustomCounters(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got["custom_a"].Packets != 3 || got["custom_b"].Bytes != 60 {
+		t.Fatalf("counters: %v", got)
+	}
+}

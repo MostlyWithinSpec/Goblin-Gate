@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -30,6 +31,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/crowdsec"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ddns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
@@ -258,7 +260,18 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if err := geoMgr.Load(); err != nil {
 		logger.Warn("geoip: stored database unreadable, it will be downloaded again", "error", err)
 	}
+	// custom nftables rules (task 100) are checked with nft -c, blamed on
+	// the rule nft complains about (not in --dev: no nft there)
+	checkCustom := func(ctx context.Context, cfg *config.Config) []config.ValidationError {
+		if o.dev {
+			return nil
+		}
+		return nft.CheckCustomRules(ctx, cfg, nil)
+	}
 	engine.CheckCandidate = func(ctx context.Context, cfg *config.Config) []config.ValidationError {
+		if errs := checkCustom(ctx, cfg); len(errs) > 0 {
+			return errs
+		}
 		sets, err := nft.CountrySets(cfg)
 		if err != nil || len(sets) == 0 {
 			return nil
@@ -319,6 +332,29 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if o.dev {
 		blockMgr.Run = func(context.Context, []byte) error { return nil }
 	}
+	// CrowdSec bouncer (task 104): same sets-after-apply pattern
+	csMgr := &crowdsec.Manager{Logger: logger,
+		Config: func() (config.CrowdSec, error) {
+			cfg, err := store.Running()
+			if err != nil {
+				return config.CrowdSec{}, err
+			}
+			return cfg.CrowdSec, nil
+		},
+		Drops: func(ctx context.Context) (uint64, error) {
+			out, err := exec.CommandContext(ctx, "nft", "-j", "list", "counter", "inet", nft.FilterTable, nft.CrowdSecCounter).Output()
+			if err != nil {
+				return 0, err
+			}
+			c, err := stats.ParseNFTNamedCounter(out, nft.CrowdSecCounter)
+			return c.Packets, err
+		},
+	}
+	if o.dev {
+		csMgr.RunNFT = func(context.Context, []byte) error { return nil }
+		csMgr.Drops = nil
+	}
+	go csMgr.Run(ctx)
 	// live flows and bandwidth (task 078): local networks follow the running
 	// config (set after every apply)
 	var flowSampler *flows.Sampler
@@ -327,6 +363,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	}
 	engine.AfterApply = func(live *config.Config) {
 		blockMgr.Resync(ctx)
+		csMgr.Resync(ctx)
 		if pluginMgr != nil {
 			pluginMgr.Resync(ctx, live)
 		}
@@ -381,6 +418,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 
 	apiServer := api.NewServer(store, engine)
 	apiServer.GeoIP = geoMgr
+	apiServer.CheckCustom = checkCustom
+	apiServer.CrowdSec = csMgr
 	apiServer.GitBackup = gitMgr
 	apiServer.Logger = logger
 
@@ -555,6 +594,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	var counters interface {
 		stats.CounterSource
 		stats.FeedCounterSource
+		stats.CustomCounterSource
 	} = stats.NFTCounters{}
 	if o.dev {
 		counters = &stats.FakeCounters{}
@@ -562,6 +602,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	apiServer.Logs = logStore
 	apiServer.Policies = &stats.PolicyTracker{Source: counters}
 	apiServer.FeedHits = counters
+	apiServer.CustomHits = counters
 	apiServer.UI = &api.UIStore{Dir: filepath.Join(dataDir, "ui")}
 	apiServer.WebFilter = wf
 	apiServer.WireGuardKeyDir = wgKeyDir

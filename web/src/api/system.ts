@@ -17,6 +17,10 @@ export interface TokenInfo {
   role: string
   created: string
   last_used?: string
+  // Absent on a full token: its role decides what it may do (task 102).
+  scopes?: string[]
+  expires?: string
+  allowed_from?: string[]
 }
 
 // --- Admins -----------------------------------------------------------------
@@ -45,7 +49,16 @@ export const deleteAdmin = (name: string) =>
 export const getTokens = () =>
   apiClient<{ tokens: TokenInfo[] }>('/api/v1/auth/tokens').then((r) => r.tokens ?? [])
 
-export function createToken(body: { name: string; readonly?: boolean }): Promise<{ token: string; info: TokenInfo }> {
+export interface TokenCreateBody {
+  name: string
+  readonly?: boolean
+  // Omit scopes for a full token; an empty list is refused by the server.
+  scopes?: string[]
+  expires?: string
+  allowed_from?: string[]
+}
+
+export function createToken(body: TokenCreateBody): Promise<{ token: string; info: TokenInfo }> {
   return apiClient<{ token: string; info: TokenInfo }>('/api/v1/auth/tokens', {
     method: 'POST',
     body: JSON.stringify(body),

@@ -130,7 +130,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={busy}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50 min-h-[40px]"
             >
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
@@ -158,7 +158,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={busy}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50 min-h-[40px]"
             >
               {busy ? 'Verifying…' : 'Verify'}
             </button>

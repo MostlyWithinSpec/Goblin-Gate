@@ -3,6 +3,8 @@ import { Plus, Trash2 } from 'lucide-react'
 import { getNetworkConfig, patchSection, wanInterfaces, type PortForward } from '../../api/network'
 import type { ValidationError } from '../../api/policy'
 import { EditDrawer } from '../../components/EditDrawer'
+import { EditParam } from '../../components/ConfigList'
+import { useInRouterContext } from 'react-router-dom'
 import { validatePortForward, type Errors } from './networkLogic'
 
 const empty = (wan: string[]): PortForward => ({ name: '', in_intf: wan[0] ?? '', ext_port: '', protocol: 'tcp', to_addr: '', to_port: '' })
@@ -17,6 +19,7 @@ export default function PortForwards() {
   const [serverErrors, setServerErrors] = useState<ValidationError[]>([])
   const [editing, setEditing] = useState<{ pf: PortForward; index: number | null } | null>(null)
   const [errors, setErrors] = useState<Errors>({})
+  const inRouter = useInRouterContext()
 
   useEffect(() => {
     getNetworkConfig()
@@ -60,7 +63,7 @@ export default function PortForwards() {
 
   const set = <K extends keyof PortForward>(k: K, v: PortForward[K]) =>
     setEditing((e) => (e ? { ...e, pf: { ...e.pf, [k]: v } } : e))
-  const input = 'mt-1 block w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600'
+  const input = 'mt-1 block min-h-[40px] w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600'
   const err = (k: string) => errors[k] && <p className="mt-1 text-xs text-red-600" role="alert">{errors[k]}</p>
 
   return (
@@ -74,29 +77,41 @@ export default function PortForwards() {
             setErrors({})
             setEditing({ pf: empty(wan), index: null })
           }}
-          className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          className="flex min-h-[40px] items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
           <Plus size={16} /> New port forward
         </button>
       </div>
+      {inRouter && loaded && (
+        <EditParam
+          onEdit={(name) => {
+            const i = items.findIndex((x) => x.name === name)
+            if (i >= 0) {
+              setErrors({})
+              setEditing({ pf: items[i], index: i })
+            }
+          }}
+        />
+      )}
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
         <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
           {serverErrors.map((v) => <li key={v.path}><code>{v.path}</code>: {v.message}</li>)}
         </ul>
       )}
+      <div className="max-w-full overflow-x-auto rounded-lg" data-testid="table-scroll">
       <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
           <tr>
-            <th className="px-3 py-2">Name</th><th className="px-3 py-2">Interface</th><th className="px-3 py-2">External</th>
+            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 dark:bg-gray-700">Name</th><th className="px-3 py-2">Interface</th><th className="px-3 py-2">External</th>
             <th className="px-3 py-2">Protocol</th><th className="px-3 py-2">Internal</th><th className="px-3 py-2">From</th><th className="px-3 py-2"></th>
           </tr>
         </thead>
         <tbody>
           {items.map((pf, i) => (
             <tr key={pf.name} className="border-t border-gray-100 dark:border-gray-700">
-              <td className="px-3 py-1">
-                <button type="button" className="text-blue-600 hover:underline" onClick={() => { setErrors({}); setEditing({ pf, index: i }) }}>
+              <td className="sticky left-0 z-10 bg-white px-3 py-1 dark:bg-gray-800">
+                <button type="button" className="min-h-[40px] text-left text-blue-600 hover:underline" onClick={() => { setErrors({}); setEditing({ pf, index: i }) }}>
                   {pf.name}
                 </button>
               </td>
@@ -117,6 +132,7 @@ export default function PortForwards() {
           )}
         </tbody>
       </table>
+      </div>
 
       {editing && (
         <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? 'New port forward' : `Edit ${editing.pf.name}`}>

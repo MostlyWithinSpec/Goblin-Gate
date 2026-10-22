@@ -47,27 +47,27 @@ const System: React.FC = () => {
         {tab === 'About' && <AboutTab />}
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link to="/system/revisions" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/revisions" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Revisions</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">View and manage configuration history</span>
         </Link>
-        <Link to="/system/notifications" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/notifications" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Notifications</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channels and per-event routing</span>
         </Link>
-        <Link to="/system/plugins" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/plugins" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Plugins</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Installed plugins, capabilities and settings</span>
         </Link>
-        <Link to="/system/updates" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/updates" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Updates</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channel, available version and update history</span>
         </Link>
-        <Link to="/system/generated" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/generated" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Generated config</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Renderer output: running vs candidate, with diff</span>
         </Link>
-        <Link to="/system/diagnostics" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm">
+        <Link to="/system/diagnostics" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Diagnostics</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Ping, traceroute and DNS lookup from the box</span>
         </Link>
@@ -568,23 +568,116 @@ const SSHKeysSection: React.FC = () => {
 
 // --- API Tokens ---------------------------------------------------------------
 
+// Token scopes, exactly as internal/auth(tokens.go) names them (task 102).
+const TOKEN_SCOPES = ['read', 'write:firewall', 'write:network', 'write:system', 'actions', 'commit'] as const
+
+const SCOPE_HINTS: Record<string, string> = {
+  read: 'read everything, including the event stream',
+  'write:firewall': 'firewall, objects, profiles, feeds',
+  'write:network': 'interfaces, DHCP, DNS, routes, VPN',
+  'write:system': 'system settings, notifications, snapshots',
+  actions: 'blocks, devices, diagnostics, refresh',
+  commit: 'commit, confirm, discard, rollback',
+}
+
+const SCOPE_PRESETS: { label: string; scopes: readonly string[] }[] = [
+  { label: 'Read only', scopes: ['read'] },
+  { label: 'Home automation', scopes: ['read', 'write:firewall', 'actions', 'commit'] },
+  { label: 'Full', scopes: [] },
+]
+
+// tokenExpiry turns a date from an <input type="date"> into the RFC 3339 time
+// the API wants: the end of that day, so the token lives all through it.
+function tokenExpiry(date: string): string | undefined {
+  if (!date) return undefined
+  const end = new Date(`${date}T23:59:59`)
+  return isNaN(end.getTime()) ? undefined : end.toISOString()
+}
+
+// parseCIDRs splits the networks box into valid prefixes and the rest, so the
+// form can complain about a typo instead of sending a broken body.
+function parseCIDRs(text: string): { cidrs: string[]; bad: string[] } {
+  const cidrs: string[] = []
+  const bad: string[] = []
+  for (const part of text.split(/[,\s]+/)) {
+    if (!part) continue
+    const m = /^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/.exec(part)
+    const v6 = /^([0-9a-fA-F:]+)\/(\d{1,3})$/.exec(part)
+    const ok =
+      (m !== null && Number(m[2]) <= 32 && m[1].split('.').every((o) => Number(o) <= 255)) ||
+      (v6 !== null && v6[1].includes(':') && Number(v6[2]) <= 128)
+    if (ok) cidrs.push(part)
+    else bad.push(part)
+  }
+  return { cidrs, bad }
+}
+
+const TokenScopes: React.FC<{ scopes?: string[] }> = ({ scopes }) => {
+  if (!scopes || scopes.length === 0) return <Badge>full</Badge>
+  return (
+    <span className="flex flex-wrap gap-1">
+      {scopes.map((s) => (
+        <Badge key={s} variant="primary">
+          {s}
+        </Badge>
+      ))}
+    </span>
+  )
+}
+
+const TokenExpiry: React.FC<{ expires?: string; now: Date }> = ({ expires, now }) => {
+  if (!expires) return <span aria-label="expiry">never</span>
+  const past = new Date(expires).getTime() < now.getTime()
+  return (
+    <span className={past ? 'font-medium text-red-600' : undefined} aria-label="expiry">
+      {past ? 'expired ' : ''}
+      {new Date(expires).toLocaleString()}
+    </span>
+  )
+}
+
 const TokensTab: React.FC = () => {
   const [tokens, setTokens] = useState<TokenInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [readonly, setReadonly] = useState(false)
+  const [scopes, setScopes] = useState<string[]>([])
+  const [expiry, setExpiry] = useState('')
+  const [networks, setNetworks] = useState('')
   const [created, setCreated] = useState<string | null>(null)
+  // Wall clock for the "expired" colour, refreshed when the list reloads.
+  const [now, setNow] = useState(() => new Date())
 
-  const load = useCallback(() => { getTokens().then(setTokens).catch((e: Error) => setError(e.message)) }, [])
+  const load = useCallback(() => {
+    setNow(new Date())
+    getTokens().then(setTokens).catch((e: Error) => setError(e.message))
+  }, [])
   useEffect(load, [load])
+
+  const toggleScope = (scope: string, on: boolean) =>
+    setScopes((cur) => (on ? [...new Set([...cur, scope])] : cur.filter((s) => s !== scope)))
 
   const create = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!name.trim()) return
+    const { cidrs, bad } = parseCIDRs(networks)
+    if (bad.length > 0) {
+      setError(`Not a CIDR network: ${bad.join(', ')} — want for example 192.168.1.0/24`)
+      return
+    }
+    setError(null)
     try {
-      const res = await createToken({ name: name.trim(), readonly })
+      const res = await createToken(
+        omitEmpty({
+          name: name.trim(),
+          readonly,
+          scopes: scopes.length > 0 ? [...scopes].sort((a, b) => TOKEN_SCOPES.indexOf(a as (typeof TOKEN_SCOPES)[number]) - TOKEN_SCOPES.indexOf(b as (typeof TOKEN_SCOPES)[number])) : [],
+          expires: tokenExpiry(expiry) ?? '',
+          allowed_from: cidrs,
+        })
+      )
       setCreated(res.token)
-      setName(''); setReadonly(false)
+      setName(''); setReadonly(false); setScopes([]); setExpiry(''); setNetworks('')
       load()
     } catch (e) { setError((e as Error).message) }
   }
@@ -601,34 +694,91 @@ const TokensTab: React.FC = () => {
       {created && (
         <div className="mb-4 rounded bg-green-50 p-3 text-sm" role="status">
           <p className="font-medium text-green-800">Token created — copy it now, it will not be shown again:</p>
-          <code className="mt-1 block break-all rounded bg-white p-2 font-mono text-xs dark:bg-gray-900">{created}</code>
+          <code className="mt-1 blockmin-h-[40px]  break-all rounded bg-white p-2 font-mono text-xs dark:bg-gray-900">{created}</code>
         </div>
       )}
-      <form onSubmit={create} className="mb-4 flex items-end gap-2">
-        <label className="block text-sm">
-          Name
-          <input aria-label="Token name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="ci-deploy" />
-        </label>
-        <label className="flex items-center gap-1 pb-2 text-sm">
-          <input type="checkbox" checked={readonly} onChange={(e) => setReadonly(e.target.checked)} /> readonly
-        </label>
-        <button type="submit" className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">Create</button>
+      <form onSubmit={create} className="mb-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block text-sm">
+            Name
+            <input aria-label="Token name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="ci-deploy" />
+          </label>
+          <label className="flex items-center gap-1 pb-2 text-sm">
+            <input type="checkbox" checked={readonly} onChange={(e) => setReadonly(e.target.checked)} /> readonly
+          </label>
+          <button type="submit" className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">Create</button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-gray-500">Preset</span>
+          {SCOPE_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => setScopes([...p.scopes])}
+              aria-pressed={
+                p.scopes.length === scopes.length && p.scopes.every((s) => scopes.includes(s))
+              }
+              className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 aria-pressed:border-blue-500 aria-pressed:bg-blue-50 dark:border-gray-600 dark:hover:bg-gray-700"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <fieldset className="rounded border border-gray-200 p-2 dark:border-gray-700">
+          <legend className="px-1 text-xs text-gray-500">Scopes (check none for a full token)</legend>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {TOKEN_SCOPES.map((s) => (
+              <label key={s} className="flex items-center gap-1 text-sm" title={SCOPE_HINTS[s]}>
+                <input
+                  type="checkbox"
+                  aria-label={`Scope ${s}`}
+                  checked={scopes.includes(s)}
+                  onChange={(e) => toggleScope(s, e.target.checked)}
+                />
+                <span className="font-mono text-xs">{s}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block text-sm">
+            Expires on
+            <input type="date" aria-label="Token expiry date" className={inputClass} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+          </label>
+          <label className="block flex-1 text-sm">
+            Allowed from (CIDR networks, optional)
+            <input
+              aria-label="Token allowed networks"
+              className={inputClass + ' font-mono text-xs'}
+              placeholder="192.168.1.0/24, 10.10.0.5/32"
+              value={networks}
+              onChange={(e) => setNetworks(e.target.value)}
+            />
+          </label>
+        </div>
       </form>
       {tokens.length === 0 ? (
         <p className="text-sm text-gray-500">No tokens yet.</p>
       ) : (
         <table className="min-w-full text-sm">
           <thead className="text-left text-xs uppercase text-gray-500">
-            <tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">User</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Created</th><th className="px-3 py-2">Last used</th><th></th></tr>
+            <tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">Scopes</th><th className="px-3 py-2">User</th><th className="px-3 py-2">Role</th><th className="px-3 py-2">Created</th><th className="px-3 py-2">Expires</th><th className="px-3 py-2">Last used</th><th></th></tr>
           </thead>
           <tbody>
             {tokens.map((t) => (
               <tr key={t.id} className="border-t border-gray-100 dark:border-gray-700">
-                <td className="px-3 py-2">{t.name}</td>
+                <td className="px-3 py-2">
+                  {t.name}
+                  {t.allowed_from && t.allowed_from.length > 0 && (
+                    <span className="block font-mono text-[10px] text-gray-500">{t.allowed_from.join(', ')}</span>
+                  )}
+                </td>
+                <td className="px-3 py-2"><TokenScopes scopes={t.scopes} /></td>
                 <td className="px-3 py-2">{t.user}</td>
                 <td className="px-3 py-2">{t.role}</td>
                 <td className="px-3 py-2 text-xs">{new Date(t.created).toLocaleString()}</td>
-                <td className="px-3 py-2 text-xs">{t.last_used ? new Date(t.last_used).toLocaleString() : '—'}</td>
+                <td className="px-3 py-2 text-xs"><TokenExpiry expires={t.expires} now={now} /></td>
+                <td className="px-3 py-2 text-xs" aria-label="last used">{t.last_used ? new Date(t.last_used).toLocaleString() : '—'}</td>
                 <td className="px-3 py-2 text-right">
                   <button type="button" onClick={() => doDelete(t.id)} className="text-red-600" aria-label={`Delete token ${t.name}`}><Trash2 size={16} /></button>
                 </td>

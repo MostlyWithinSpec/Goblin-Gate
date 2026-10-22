@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Candidate } from '../api/objects'
 
@@ -295,5 +295,87 @@ describe('Git backup card', () => {
     const forget = await screen.findByRole('button', { name: /Forget host key and retry/ })
     fireEvent.click(forget)
     await waitFor(() => expect(gitApi.forgetGitBackupHostKey).toHaveBeenCalled())
+  })
+})
+
+const openTokensTab = async () => {
+  wrap(<System />)
+  fireEvent.click(screen.getByRole('button', { name: 'API Tokens' }))
+  await screen.findByLabelText('Token name')
+}
+
+// Every test renders its own tab and several may run in one file, so read the
+// body of the call this test itself caused.
+const lastTokenBody = () => {
+  const calls = vi.mocked(sys.createToken).mock.calls
+  return calls[calls.length - 1][0]
+}
+
+describe('API Tokens tab', () => {
+  test('sends scopes, expiry and allowed networks in the POST body', async () => {
+    await openTokensTab()
+    fireEvent.change(screen.getByLabelText('Token name'), { target: { value: 'home' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Home automation' }))
+    fireEvent.change(screen.getByLabelText('Token expiry date'), { target: { value: '2030-01-02' } })
+    fireEvent.change(screen.getByLabelText('Token allowed networks'), { target: { value: '192.168.1.0/24 10.10.0.5/32, fd00::/8' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(sys.createToken).toHaveBeenCalled())
+    const body = lastTokenBody()
+    expect(body.name).toBe('home')
+    expect(body.scopes).toEqual(['read', 'write:firewall', 'actions', 'commit'])
+    expect(new Date(String(body.expires)).getTime()).toBe(new Date('2030-01-02T23:59:59').getTime())
+    expect(body.allowed_from).toEqual(['192.168.1.0/24', '10.10.0.5/32', 'fd00::/8'])
+    expect(body.readonly).toBeFalsy()
+    expect(await screen.findByText('tok_abc')).toBeInTheDocument()
+  })
+
+  test('a single scope checkbox and no expiry or networks stay out of the body', async () => {
+    await openTokensTab()
+    fireEvent.change(screen.getByLabelText('Token name'), { target: { value: 'eyes' } })
+    fireEvent.click(screen.getByLabelText('Scope read'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(lastTokenBody()).toEqual({ name: 'eyes', readonly: false, scopes: ['read'] }))
+  })
+
+  test('the Full preset sends no scopes at all', async () => {
+    await openTokensTab()
+    fireEvent.change(screen.getByLabelText('Token name'), { target: { value: 'root-box' } })
+    fireEvent.click(screen.getByLabelText('Scope commit'))
+    fireEvent.click(screen.getByRole('button', { name: 'Full' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(lastTokenBody()).toEqual({ name: 'root-box', readonly: false }))
+  })
+
+  test('a typo in the allowed networks is reported and never sent', async () => {
+    await openTokensTab()
+    const before = vi.mocked(sys.createToken).mock.calls.length
+    fireEvent.change(screen.getByLabelText('Token name'), { target: { value: 'oops' } })
+    fireEvent.change(screen.getByLabelText('Token allowed networks'), { target: { value: '192.168.1.0/33' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/192\.168\.1\.0\/33/)
+    expect(vi.mocked(sys.createToken).mock.calls).toHaveLength(before)
+  })
+
+  test('list shows scopes, "full" without scopes, expiry in red when past and last used', async () => {
+    vi.mocked(sys.getTokens).mockResolvedValue([
+      { id: '1', name: 'ro', user: 'root', role: 'readonly', created: '2026-10-01T10:00:00Z', scopes: ['read'] },
+      { id: '2', name: 'all', user: 'root', role: 'admin', created: '2026-10-01T10:00:00Z', last_used: '2026-10-20T08:30:00Z' },
+      { id: '3', name: 'old', user: 'root', role: 'admin', created: '2026-09-01T10:00:00Z', scopes: ['read', 'commit'], expires: '2026-10-01T00:00:00Z' },
+      { id: '4', name: 'later', user: 'root', role: 'readonly', created: '2026-10-01T10:00:00Z', expires: '2030-01-01T00:00:00Z' },
+    ])
+    await openTokensTab()
+    const row = (name: string) => screen.getByText(name).closest('tr') as HTMLElement
+    const lastUsed = (name: string) => within(row(name)).getByLabelText('last used')
+    expect(within(row('ro')).getByText('read')).toBeInTheDocument()
+    expect(within(row('all')).getByText('full')).toBeInTheDocument()
+    expect(lastUsed('ro')).toHaveTextContent('—')
+    expect(within(row('old')).getAllByText('commit').length).toBeGreaterThan(0)
+    const expired = within(row('old')).getByLabelText('expiry')
+    expect(expired).toHaveTextContent(/expired/)
+    expect(expired.className).toContain('text-red-600')
+    const later = within(row('later')).getByLabelText('expiry')
+    expect(later).not.toHaveTextContent(/expired/)
+    expect(later.className).not.toContain('text-red-600')
+    expect(lastUsed('all')).toHaveTextContent(new Date('2026-10-20T08:30:00Z').toLocaleString())
   })
 })

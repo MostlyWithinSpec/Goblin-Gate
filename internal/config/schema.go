@@ -44,6 +44,10 @@ type Config struct {
 	// GitBackup records every revision in a git repository on the box and
 	// pushes it to a remote (task 098).
 	GitBackup GitBackup `json:"git_backup,omitzero"`
+	// CustomRules are admin-written nftables rules (task 100).
+	CustomRules []CustomRule `json:"custom_rules,omitempty"`
+	// CrowdSec bans from a CrowdSec Local API (task 104).
+	CrowdSec CrowdSec `json:"crowdsec,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

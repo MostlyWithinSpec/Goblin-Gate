@@ -24,7 +24,7 @@ export default function PluginPage() {
           src={`/plugin-ui/${name}/${path}`}
           sandbox="allow-scripts allow-forms"
           referrerPolicy="no-referrer"
-          className="h-[70vh] w-full rounded border border-gray-200 bg-white dark:border-gray-700"
+          className="h-[70vh] w-full rounded border border-gray-200 bg-white dark:border-gray-700 min-h-[40px]"
         />
       ) : (
         <p role="alert" className="text-sm text-red-600">Not a plugin page.</p>

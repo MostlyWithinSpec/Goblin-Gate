@@ -3,7 +3,7 @@
 // every page edits one list of the candidate and saves the whole list with
 // PATCH {path, value} (see patchSection), then the CommitBar commits it.
 import { apiClient } from './client'
-import type { Policy, SaveResult } from './policy'
+import type { Policy, SaveResult, ValidationError } from './policy'
 
 export interface IPv6 {
   mode: 'none' | 'dhcp6' | 'static' | 'delegated'
@@ -261,7 +261,10 @@ export interface Candidate {
   vpn?: { wireguard_clients?: WireGuardClient[] }
   ddns?: DDNS[]
   log_export?: LogExport[]
-  nat?: { port_forwards?: { name: string; source?: string[] }[] }
+  nat?: { port_forwards?: { name: string; source?: string[]; ext_port?: string; to_addr?: string }[] }
+  dhcp?: { interface: string; static_leases?: { mac: string; ip?: string; hostname?: string }[] }[]
+  custom_rules?: CustomRule[]
+  crowdsec?: CrowdSecSettings
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -361,6 +364,41 @@ export interface LogExportStatus {
 export const getLogExportStatus = () =>
   apiClient<{ entries: LogExportStatus[] }>('/api/v1/log-export').then((r) => r.entries ?? [])
 
+// Custom nftables rules (task 100/101): one rule body written by an admin and
+// placed as written in a generated chain. Types mirror internal/config/customrules.go.
+export type CustomHook = 'input' | 'forward' | 'prerouting' | 'postrouting'
+export type CustomPosition = 'start' | 'end'
+
+export interface CustomRule {
+  name: string
+  enabled: boolean
+  comment?: string
+  hook: CustomHook
+  position?: CustomPosition // "" = end
+  rule: string
+}
+
+// CustomHit is one row of GET /api/v1/stats/custom-rules: packets matched by
+// an enabled rule of the running config since the last ruleset load.
+export interface CustomHit {
+  name: string
+  packets: number
+  bytes: number
+}
+
+export const getCustomRuleHits = () =>
+  apiClient<{ rules: CustomHit[] }>('/api/v1/stats/custom-rules').then((r) => r.rules ?? [])
+
+// validateCandidate checks the candidate as a commit would (including `nft -c`
+// when a custom rule is enabled) and returns every error, not only the ones of
+// one list. An empty body means "validate the candidate".
+export function validateCandidate(): Promise<{ valid: boolean; errors: ValidationError[] | null }> {
+  return apiClient<{ valid: boolean; errors: ValidationError[] | null }>('/api/v1/config/validate', {
+    method: 'POST',
+    body: '',
+  })
+}
+
 export const lookupFeeds = (q: string) =>
   apiClient<{ query: string; feeds: string[] }>(`/api/v1/feeds/lookup?q=${encodeURIComponent(q)}`)
 
@@ -454,3 +492,24 @@ export const refreshGeoIP = () =>
 // geoipLookup resolves an IP to a country; country "" means private or unknown.
 export const geoipLookup = (ip: string) =>
   apiClient<{ ip: string; country: string; name: string }>(`/api/v1/geoip/lookup?ip=${encodeURIComponent(ip)}`)
+
+// CrowdSec (task 105). The settings are one object in the candidate at
+// "crowdsec"; api_key comes back empty for callers that may not see secrets.
+export interface CrowdSecSettings {
+  enabled: boolean
+  url?: string
+  api_key?: string
+  poll_seconds?: number
+  scope?: 'wan' | 'all' | ''
+}
+
+export interface CrowdSecStatus {
+  enabled: boolean
+  connected: boolean
+  last_pull?: string
+  active: number
+  dropped_packets: number
+  last_error?: string
+}
+
+export const getCrowdSecStatus = () => apiClient<CrowdSecStatus>('/api/v1/crowdsec')

@@ -180,7 +180,7 @@ export default function Queue() {
                 max={10080}
                 value={minutes}
                 onChange={(e) => setMinutes(Number(e.target.value))}
-                className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                className="mt-1 blockmin-h-[40px]  w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
               />
             </label>
             {answerMut.isError && (

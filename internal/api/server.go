@@ -17,6 +17,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
 	"github.com/networkgoblinlabs/goblin-gate/internal/commit"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/crowdsec"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ddns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/diag"
@@ -71,6 +72,8 @@ type Server struct {
 	// GitBackup records revisions in git and pushes them (task 098); nil
 	// answers 503.
 	GitBackup *gitbackup.Manager
+	// CrowdSec is the bouncer (task 104); nil answers 503.
+	CrowdSec *crowdsec.Manager
 	// LogExport forwards events to remote syslog / Loki (task 096); nil
 	// answers 503.
 	LogExport *logexport.Exporter
@@ -93,6 +96,11 @@ type Server struct {
 	Policies *stats.PolicyTracker
 	System   *stats.SystemSampler
 	FeedHits stats.FeedCounterSource
+	// CustomHits reads the custom nftables rule counters (task 100).
+	CustomHits stats.CustomCounterSource
+	// CheckCustom, if set, checks a config's custom nftables rules with
+	// `nft -c` (POST /api/v1/config/validate; commits check it too).
+	CheckCustom func(ctx context.Context, cfg *config.Config) []config.ValidationError
 
 	// UI stores per-user web UI documents (dashboards); nil answers 503.
 	UI *UIStore
@@ -235,6 +243,9 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/stats/policies", s.policyStats)
 	handle("GET /api/v1/stats/system", s.systemStats)
 	handle("GET /api/v1/stats/feeds", s.feedStats)
+	handle("GET /api/v1/stats/custom-rules", s.customRuleStats)
+	handle("GET /api/v1/events", s.events)
+	handle("GET /api/v1/crowdsec", s.crowdSecStatus)
 	handle("GET /api/v1/logs", s.listLogs)
 	handle("GET /api/v1/ui/dashboards", s.getDashboards)
 	handle("PUT /api/v1/ui/dashboards", s.putDashboards)

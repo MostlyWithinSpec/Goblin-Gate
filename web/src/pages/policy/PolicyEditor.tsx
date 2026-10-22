@@ -57,7 +57,7 @@ function ProfileSelect({ label, options, value, onChange }: ProfileSelectProps) 
       {label}
       <select
         aria-label={label}
-        className="mt-1 block w-full rounded border-gray-300 dark:bg-gray-700 dark:border-gray-600"
+        className="mt-1 block w-full rounded border-gray-300 dark:bg-gray-700 dark:border-gray-600 min-h-[40px]"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value || undefined)}
       >
@@ -97,7 +97,7 @@ export default function PolicyEditor({ policy, isNew, objects, others, onSave, o
   return (
     <EditDrawer isOpen onClose={onClose} title={isNew ? 'New policy' : `Edit policy ${policy.id}`}>
       <form onSubmit={submit} noValidate>
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
           <label className="text-sm text-gray-700 dark:text-gray-300">
             ID
             <input
@@ -123,7 +123,7 @@ export default function PolicyEditor({ policy, isNew, objects, others, onSave, o
         <MultiSelect label="Destination" options={objects.addresses} value={p.dst_addr ?? []} onChange={(v) => set('dst_addr', v)} error={errors.dst_addr} exclusive="all" />
         <MultiSelect label="Service" options={objects.services} value={p.service ?? []} onChange={(v) => set('service', v)} error={errors.service} exclusive="any" />
 
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
           <label className="text-sm text-gray-700 dark:text-gray-300">
             Action
             <select aria-label="Action" className={input} value={p.action} onChange={(e) => set('action', e.target.value as Policy['action'])}>

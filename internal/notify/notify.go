@@ -53,6 +53,38 @@ type Dispatcher struct {
 	queue chan Event
 	mu    sync.Mutex
 	last  map[string]time.Time
+
+	subMu sync.Mutex
+	subs  map[chan Event]struct{}
+}
+
+// Subscribe returns a channel that receives every published event (before
+// rules and rate limits: GET /api/v1/events) and a cancel function. A slow
+// subscriber loses events instead of blocking Publish.
+func (d *Dispatcher) Subscribe() (<-chan Event, func()) {
+	ch := make(chan Event, 64)
+	d.subMu.Lock()
+	if d.subs == nil {
+		d.subs = map[chan Event]struct{}{}
+	}
+	d.subs[ch] = struct{}{}
+	d.subMu.Unlock()
+	return ch, func() {
+		d.subMu.Lock()
+		delete(d.subs, ch)
+		d.subMu.Unlock()
+	}
+}
+
+func (d *Dispatcher) broadcast(ev Event) {
+	d.subMu.Lock()
+	defer d.subMu.Unlock()
+	for ch := range d.subs {
+		select {
+		case ch <- ev:
+		default:
+		}
+	}
 }
 
 func (d *Dispatcher) init() {
@@ -86,6 +118,7 @@ func (d *Dispatcher) Publish(ev Event) {
 	if ev.Time.IsZero() {
 		ev.Time = d.now()
 	}
+	d.broadcast(ev)
 	select {
 	case d.queue <- ev:
 	default:

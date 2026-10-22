@@ -77,6 +77,8 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkDDNS()
 	v.checkGeoIP()
 	v.checkGitBackup()
+	v.checkCustomRules()
+	v.checkCrowdSec()
 	v.checkLogExport()
 	return v.errs
 }
@@ -127,6 +129,7 @@ func (v *validator) checkNames() {
 		{"web filter profile", "profiles.webfilter", "name", nameList(c.Profiles.WebFilter, func(x WebFilterProfile) string { return x.Name }), false},
 		{"DNS filter profile", "profiles.dnsfilter", "name", nameList(c.Profiles.DNSFilter, func(x DNSFilterProfile) string { return x.Name }), false},
 		{"app control profile", "profiles.appctrl", "name", nameList(c.Profiles.AppCtrl, func(x AppCtrlProfile) string { return x.Name }), false},
+		{"custom rule", "custom_rules", "name", nameList(c.CustomRules, func(x CustomRule) string { return x.Name }), false},
 		{"admin", "admins", "username", nameList(c.Admins, func(x Admin) string { return x.Username }), false},
 	}
 	for _, k := range kinds {

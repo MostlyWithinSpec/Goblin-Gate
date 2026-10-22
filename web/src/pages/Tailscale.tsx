@@ -261,7 +261,7 @@ const TailscalePage: React.FC = () => {
                   type="password"
                   value={authKey}
                   onChange={(e) => setAuthKey(e.target.value)}
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
                   placeholder="Enter auth key (tskey-...)"
                 />
               </FormField>
@@ -311,7 +311,7 @@ const TailscalePage: React.FC = () => {
                 type="text"
                 value={settings.hostname || ''}
                 onChange={(e) => setSettings({...settings, hostname: e.target.value})}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
                 placeholder="Enter hostname"
               />
             </FormField>
@@ -362,7 +362,7 @@ const TailscalePage: React.FC = () => {
                 type="text"
                 value={settings.login_server || ''}
                 onChange={(e) => setSettings({...settings, login_server: e.target.value})}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
                 placeholder="Enter Headscale URL"
               />
             </FormField>

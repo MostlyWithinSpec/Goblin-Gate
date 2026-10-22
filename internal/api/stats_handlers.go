@@ -125,6 +125,40 @@ type FeedHit struct {
 	Bytes   uint64 `json:"bytes"`
 }
 
+// CustomHit is one row of GET /api/v1/stats/custom-rules.
+type CustomHit struct {
+	Name    string `json:"name"`
+	Packets uint64 `json:"packets"`
+	Bytes   uint64 `json:"bytes"`
+}
+
+// GET /api/v1/stats/custom-rules → {rules: [{name, packets, bytes}]}:
+// packets matched per enabled custom rule since the last ruleset load.
+func (s *Server) customRuleStats(w http.ResponseWriter, r *http.Request) {
+	if s.CustomHits == nil {
+		unavailable(w, "custom rule counters")
+		return
+	}
+	cfg, err := s.Store.Running()
+	if err != nil {
+		s.internal(w, "read running config", err)
+		return
+	}
+	counters, err := s.CustomHits.CustomCounters(r.Context())
+	if err != nil {
+		s.Logger.Warn("api: read custom rule counters", "error", err)
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "could not read custom rule counters", err.Error())
+		return
+	}
+	out := []CustomHit{}
+	for name, counter := range nft.CustomCounterNames(cfg) {
+		c := counters[counter]
+		out = append(out, CustomHit{Name: name, Packets: c.Packets, Bytes: c.Bytes})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	writeJSON(w, http.StatusOK, map[string]any{"rules": out})
+}
+
 // GET /api/v1/stats/feeds → {feeds: [{name, packets, bytes}]}: packets
 // dropped per enabled IP threat feed since the last ruleset load.
 func (s *Server) feedStats(w http.ResponseWriter, r *http.Request) {

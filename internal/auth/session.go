@@ -23,12 +23,33 @@ type Identity struct {
 	Role   string `json:"role"`            // admin | readonly
 	Method string `json:"method"`          // session | token | socket
 	Token  string `json:"token,omitempty"` // token id for Method token
-	CSRF   string `json:"-"`               // session CSRF token
-	sessID string // hashed session id
+	// Scopes of a scoped token (task 102); nil = everything Role allows.
+	Scopes []string `json:"scopes,omitempty"`
+	CSRF   string   `json:"-"` // session CSRF token
+	sessID string   // hashed session id
 }
 
-// CanWrite reports whether the identity may change config.
-func (id Identity) CanWrite() bool { return id.Role == "admin" }
+// CanWrite reports whether the identity has full admin rights: change
+// anything, see secrets. A scoped token never does; its writes go through
+// Has.
+func (id Identity) CanWrite() bool { return id.Role == "admin" && id.Scopes == nil }
+
+// Has reports whether the identity holds a token scope: a full admin holds
+// every scope, a read-only user only ScopeRead.
+func (id Identity) Has(scope string) bool {
+	if id.Scopes == nil {
+		return id.Role == "admin" || scope == ScopeRead
+	}
+	if id.Role != "admin" && scope != ScopeRead {
+		return false // the user was demoted after the token was made
+	}
+	for _, s := range id.Scopes {
+		if s == scope {
+			return true
+		}
+	}
+	return false
+}
 
 // SessID returns the hashed session id of a session-method identity, or ""
 // for other methods. It is what the active-sessions list keys on.

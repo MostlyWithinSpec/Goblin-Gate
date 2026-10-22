@@ -97,7 +97,7 @@ export default function ChartBuilder() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 lg:grid-cols-1 sm:grid-cols-3">
       <div className="space-y-3 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
         <label className="block">
           Source
@@ -125,7 +125,7 @@ export default function ChartBuilder() {
         </label>
         <fieldset>
           <legend>Group by (up to two)</legend>
-          <div className="mt-1 grid grid-cols-2 gap-x-2">
+          <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-2">
             {fields.map((f) => (
               <label key={f} className="flex items-center gap-1">
                 <input type="checkbox" checked={b.group_by.includes(f)} onChange={(e) => set({ group_by: e.target.checked ? [...b.group_by, f] : b.group_by.filter((x) => x !== f) })} />
@@ -174,7 +174,7 @@ export default function ChartBuilder() {
           </div>
           {err('filters')}
         </fieldset>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label className="block">
             Time range
             <select aria-label="Time range" className={input} value={b.range} onChange={(e) => set({ range: e.target.value as Builder['range'] })}>

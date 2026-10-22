@@ -148,7 +148,7 @@ export default function Devices() {
             placeholder="Search name, hostname, IP, MAC…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-64 rounded border border-gray-300 py-1 pl-8 pr-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+            className="w-full sm:w-64 rounded border border-gray-300 py-1 pl-8 pr-2 text-sm dark:bg-gray-700 dark:border-gray-600"
           />
         </div>
         <select
@@ -228,7 +228,7 @@ export default function Devices() {
       {selected && (
         <EditDrawer isOpen onClose={() => setSelected(null)} title={selected.name || selected.hostname || selected.mac}>
           <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-2 text-gray-600 dark:text-gray-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600 dark:text-gray-300">
               <div><span className="text-gray-400">MAC:</span> <code>{selected.mac}</code></div>
               <div><span className="text-gray-400">Interface:</span> {selected.interface ?? '—'}</div>
               <div><span className="text-gray-400">Vendor:</span> {selected.vendor ?? '—'}</div>

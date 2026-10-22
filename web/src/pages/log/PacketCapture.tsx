@@ -124,7 +124,7 @@ export default function PacketCapture() {
       {/* Start form */}
       {!captureId && (
         <form
-          className="mb-6 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-3"
+          className="mb-6 grid max-w-3xl grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-1 sm:grid-cols-3"
           onSubmit={(e) => {
             e.preventDefault()
             void start()

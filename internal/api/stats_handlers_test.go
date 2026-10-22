@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strconv"
@@ -105,5 +106,36 @@ func TestFeedStats(t *testing.T) {
 	fs, _ := out["feeds"].([]any)
 	if len(fs) != 2 || fs[0].(map[string]any)["name"] != "bad-ips" || fs[0].(map[string]any)["packets"] != float64(12) || fs[1].(map[string]any)["packets"] != float64(0) {
 		t.Fatalf("feeds: %v", out)
+	}
+}
+
+func TestCustomRuleStats(t *testing.T) {
+	counters := &stats.FakeCounters{Custom: map[string]stats.Counter{"custom_node_exporter": {Packets: 5, Bytes: 300}}}
+	a := newTestAPIWith(t, func(s *Server) { s.CustomHits = counters })
+	cfg, _ := a.store.Running()
+	cfg.CustomRules = []config.CustomRule{
+		{Name: "node-exporter", Enabled: true, Hook: "input", Rule: "tcp dport 9100 accept"},
+		{Name: "off", Hook: "input", Rule: "tcp dport 1 accept"},
+	}
+	if _, err := a.store.SaveRevision(cfg, "test", "custom"); err != nil {
+		t.Fatal(err)
+	}
+	out := a.expect("GET", "/api/v1/stats/custom-rules", nil, 200)
+	rs, _ := out["rules"].([]any)
+	if len(rs) != 1 || rs[0].(map[string]any)["name"] != "node-exporter" || rs[0].(map[string]any)["packets"] != float64(5) {
+		t.Fatalf("rules: %v", out)
+	}
+}
+
+func TestValidateRunsCustomCheck(t *testing.T) {
+	a := newTestAPIWith(t, func(s *Server) {
+		s.CheckCustom = func(_ context.Context, cfg *config.Config) []config.ValidationError {
+			return []config.ValidationError{{Path: "custom_rules[0].rule", Message: "nft: syntax error"}}
+		}
+	})
+	out := a.expect("POST", "/api/v1/config/validate", nil, 200)
+	errs, _ := out["errors"].([]any)
+	if out["valid"] != false || len(errs) != 1 || errs[0].(map[string]any)["path"] != "custom_rules[0].rule" {
+		t.Fatalf("validate: %v", out)
 	}
 }

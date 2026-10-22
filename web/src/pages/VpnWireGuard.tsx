@@ -180,7 +180,7 @@ const WireGuardPage: React.FC = () => {
               <select
                 value={selectedInterface || ''}
                 onChange={(e) => setSelectedInterface(e.target.value)}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
               >
                 <option value="">Select an interface</option>
                 {wireGuardConfig?.interfaces.map((iface) => (
@@ -196,7 +196,7 @@ const WireGuardPage: React.FC = () => {
                 type="text"
                 value={peerName}
                 onChange={(e) => setPeerName(e.target.value)}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
                 placeholder="Enter peer name"
               />
             </FormField>
@@ -207,7 +207,7 @@ const WireGuardPage: React.FC = () => {
                 min="0"
                 value={keepalive}
                 onChange={(e) => setKeepalive(parseInt(e.target.value) || 0)}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
                 placeholder="0 = off"
               />
             </FormField>

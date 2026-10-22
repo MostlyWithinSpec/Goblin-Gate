@@ -198,7 +198,7 @@ export const CommitBar: React.FC = () => {
           Comment (optional)
           <input
             aria-label="Commit comment"
-            className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 min-h-[40px]"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={200}

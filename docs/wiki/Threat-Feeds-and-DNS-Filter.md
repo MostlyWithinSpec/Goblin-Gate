@@ -61,3 +61,22 @@ On filtered networks the box also:
 
 Memory: a large list costs memory in the resolver (about 1 GB for ~850 000 domains). Watch the dashboard's
 memory after adding big lists.
+
+## CrowdSec
+
+[CrowdSec](https://www.crowdsec.net) watches logs (web servers, SSH, your reverse proxy) on another machine,
+decides which addresses are attacking, and shares a community blocklist. Goblin Gate can act as its
+*bouncer*: every address CrowdSec bans is dropped at the firewall within seconds, and released when the ban
+ends.
+
+1. Install CrowdSec on a host or in a container on your network and note its Local API address (port 8080 by
+   default, e.g. `http://192.168.1.20:8080`). If it listens only on 127.0.0.1, set `listen_uri` to
+   `0.0.0.0:8080` in its `config.yaml`.
+2. On that host, register the firewall: `cscli bouncers add goblin-gate`. Copy the key it prints.
+3. In Goblin Gate, enable CrowdSec with the Local API URL and the key, then commit.
+
+**Scope**: *WAN* drops banned addresses arriving from the internet (the usual choice). *All* also drops them on
+internal interfaces and as destinations, so nothing on your network can reach them either.
+
+The status shows whether the Local API answers, how many bans are active and how many packets they dropped.
+Use HTTPS for a Local API on another network: the key is sent with every request.

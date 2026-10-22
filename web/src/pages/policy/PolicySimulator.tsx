@@ -67,7 +67,7 @@ export default function PolicySimulator({ interfaces, initial, onClose }: Props)
           Destination IP
           <input aria-label="Destination IP" className={input + ' mt-1'} value={dstIP} onChange={(e) => setDstIP(e.target.value)} placeholder="8.8.8.8" />
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-sm text-gray-700 dark:text-gray-300">
             Protocol
             <select aria-label="Protocol" className={input + ' mt-1'} value={protocol} onChange={(e) => setProtocol(e.target.value as SimProtocol)}>
@@ -83,7 +83,7 @@ export default function PolicySimulator({ interfaces, initial, onClose }: Props)
             </label>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-sm text-gray-700 dark:text-gray-300">
             Source interface
             <select aria-label="Source interface" className={input + ' mt-1'} value={srcIntf} onChange={(e) => setSrcIntf(e.target.value)}>
@@ -140,7 +140,7 @@ export default function PolicySimulator({ interfaces, initial, onClose }: Props)
           {result.translated && <p className="text-sm text-gray-600 dark:text-gray-300">{result.translated}</p>}
 
           {result.policy ? (
-            <Link to={`/policy?edit=${result.policy.id}`} className="inline-block rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">
+            <Link to={`/policy?edit=${result.policy.id}`} className="inline-block rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 min-h-[40px] flex items-center justify-center">
               Matched policy: {result.policy.name}
             </Link>
           ) : (

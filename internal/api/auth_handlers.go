@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -134,7 +135,11 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			if ti.Role == "readonly" {
 				role = "readonly" // a token never has more rights than it was made with
 			}
-			id = auth.Identity{User: ti.User, Role: role, Method: "token", Token: ti.ID}
+			if ip, err := netip.ParseAddr(clientAddr(r)); err != nil || !ti.AllowsAddr(ip) {
+				writeError(w, http.StatusForbidden, "forbidden", "this token may not be used from this address", nil)
+				return
+			}
+			id = auth.Identity{User: ti.User, Role: role, Method: "token", Token: ti.ID, Scopes: ti.Scopes}
 		default:
 			c, err := r.Cookie(SessionCookie)
 			var ok bool
@@ -157,8 +162,17 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				return
 			}
 		}
-		// read-only users may still secure their own login (password, 2FA)
-		if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" &&
+		if id.Scopes != nil {
+			// a scoped token (task 102): the route decides
+			sc := routeScope(r.Method, r.Pattern)
+			if !allowedScope(id, sc) {
+				writeError(w, http.StatusForbidden, "forbidden", "this token lacks the scope for this request", map[string]string{"needs": sc})
+				return
+			}
+			if !safeMethod(r.Method) {
+				s.audit(r, "token_used", id.User, map[string]any{"token": id.Token, "scope": sc, "method": r.Method, "path": r.URL.Path})
+			}
+		} else if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" &&
 			!strings.HasPrefix(r.URL.Path, "/api/v1/auth/2fa/") &&
 			!(r.Method == http.MethodPost && readOnlyPosts[r.URL.Path]) {
 			writeError(w, http.StatusForbidden, "forbidden", "read-only users cannot change anything", nil)
@@ -261,6 +275,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	s.setCookie(w, SessionCookie, cookie, true, 0)
 	s.setCookie(w, CSRFCookie, id.CSRF, false, 0)
 	s.audit(r, "login", req.Username, nil)
+	s.Notify.Publish(notify.Event{Kind: "login", Key: req.Username, Title: "Login: " + req.Username,
+		Message: req.Username + " logged in from " + clientAddr(r), Fields: map[string]string{"user": req.Username, "addr": clientAddr(r)}})
 	writeJSON(w, http.StatusOK, map[string]any{"user": id.User, "role": id.Role, "csrf_token": id.CSRF})
 }
 
@@ -326,9 +342,15 @@ func (s *Server) listTokens(w http.ResponseWriter, r *http.Request) {
 type tokenRequest struct {
 	Name     string `json:"name"`
 	ReadOnly bool   `json:"readonly,omitempty"`
+	// Scopes, Expires and AllowedFrom limit the token (task 102). Scopes
+	// given but empty is refused: leave it out for a full token.
+	Scopes      *[]string      `json:"scopes,omitempty"`
+	Expires     time.Time      `json:"expires,omitzero"`
+	AllowedFrom []netip.Prefix `json:"allowed_from,omitempty"`
 }
 
-// POST /api/v1/auth/tokens {name, readonly?} → {token (shown once), info}
+// POST /api/v1/auth/tokens {name, readonly?, scopes?, expires?, allowed_from?}
+// → {token (shown once), info}
 func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.requireAdmin(w, r)
 	if !ok {
@@ -342,12 +364,20 @@ func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
 	if req.ReadOnly {
 		role = "readonly"
 	}
-	tok, info, err := s.Authn.Tokens.Create(req.Name, id.User, role)
+	opts := auth.TokenOptions{Expires: req.Expires, AllowedFrom: req.AllowedFrom}
+	if req.Scopes != nil {
+		if len(*req.Scopes) == 0 {
+			writeError(w, http.StatusBadRequest, "invalid_request", "scopes: pick at least one, or leave it out for a full token", nil)
+			return
+		}
+		opts.Scopes = *req.Scopes
+	}
+	tok, info, err := s.Authn.Tokens.CreateWith(req.Name, id.User, role, opts)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 		return
 	}
-	s.audit(r, "token_created", id.User, map[string]any{"token": info.ID, "name": info.Name, "role": role})
+	s.audit(r, "token_created", id.User, map[string]any{"token": info.ID, "name": info.Name, "role": role, "scopes": info.Scopes})
 	writeJSON(w, http.StatusCreated, map[string]any{"token": tok, "info": info})
 }
 

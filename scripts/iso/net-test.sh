@@ -87,6 +87,8 @@ $IN dnsmasq --interface=inet0 --bind-interfaces --except-interface=lo \
 	--no-resolv --server="${UPSTREAM:-8.8.8.8}" --log-queries --log-dhcp --log-facility="$A/dnsmasq.log" \
 	--dhcp-leasefile=/tmp/inet.leases --pid-file=/tmp/dnsmasq.pid
 for a in 80 81 82 83; do $IN python3 /s/net-web.py 203.0.113.$a 80 internet-$a 2>>"$A/inet-web.log" & done
+: >/tmp/lapi-bans
+$IN python3 /s/net-lapi.py 203.0.113.80 8081 test-bouncer-key /tmp/lapi-bans 2>>"$A/lapi.log" &
 
 # IPv6 (task 045): the "internet" is also 2001:db8:0:1::/64 - radvd announces
 # it (SLAAC + default route), Kea hands out /56 prefixes from
@@ -155,6 +157,7 @@ cleanup() {
 	kill "$(cat /tmp/fw.pid 2>/dev/null)" 2>/dev/null
 	kill "$(cat /tmp/dnsmasq.pid 2>/dev/null)" 2>/dev/null
 	pkill -f net-web.py 2>/dev/null
+	pkill -f net-lapi.py 2>/dev/null
 	pkill dhclient 2>/dev/null
 	kill "$(cat /tmp/radvd.pid 2>/dev/null)" 2>/dev/null
 	pkill kea-dhcp6 2>/dev/null
@@ -243,6 +246,30 @@ check geoip-block retry 30 sh -c "! $CL curl -s -m 5 http://203.0.113.83/"
 check geoip-others-pass sh -c "$CL curl -s -m 5 http://203.0.113.80/whoami | grep -q sees"
 check geoip-forward-nz sh -c "$IN curl -s -m 5 --interface 203.0.113.83 http://${FW_WAN:-x}:8080/ | grep -q 'hello from lan-client'"
 check geoip-forward-others-dropped sh -c "! $IN curl -s -m 5 --interface 203.0.113.80 http://${FW_WAN:-x}:8080/"
+
+# --- CrowdSec bouncer: a fake Local API bans the NZ address the forward
+# above lets in; the ban cuts it off, lifting it lets it back
+CS="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/crowdsec"
+echo 203.0.113.83 >/tmp/lapi-bans
+patch crowdsec '{"enabled":true,"url":"http://203.0.113.80:8081","api_key":"test-bouncer-key","poll_seconds":5}'
+api POST /api/v1/commit '{"comment":"crowdsec"}' | tee "$A/commit-crowdsec.json"; echo
+check crowdsec-connected retry 60 sh -c "$CS | jq -e '.connected and .active == 1'"
+check crowdsec-ban-drops retry 30 sh -c "! $IN curl -s -m 5 --interface 203.0.113.83 http://${FW_WAN:-x}:8080/"
+check crowdsec-drops-counted sh -c "$CS | jq -e '.dropped_packets > 0'"
+: >/tmp/lapi-bans
+check crowdsec-ban-lifted retry 60 sh -c "$IN curl -s -m 5 --interface 203.0.113.83 http://${FW_WAN:-x}:8080/ | grep -q 'hello from lan-client'"
+api GET /api/v1/crowdsec >"$A/crowdsec.json" 2>&1
+
+# --- custom nftables rules: open the web UI on the WAN for one address only;
+# a broken rule is refused by validation with nft's message on that rule
+check custom-wan-closed-before sh -c "! $IN curl -sk -m 5 --interface 203.0.113.81 -o /dev/null https://${FW_WAN:-x}/api/v1/setup/state"
+patch custom_rules '[{"name":"bad","enabled":true,"hook":"input","rule":"tcp dport 443 frobnicate"}]'
+check custom-bad-refused sh -c "$CL curl -sk -m 30 -X POST -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/config/validate | jq -e '.valid == false and .errors[0].path == \"custom_rules[0].rule\"'"
+patch custom_rules '[{"name":"wan-ui-81","enabled":true,"hook":"input","position":"start","rule":"iifname \"eth0\" ip saddr 203.0.113.81 tcp dport 443 accept"}]'
+api POST /api/v1/commit '{"comment":"custom rules"}' | tee "$A/commit-custom.json"; echo
+check custom-rule-opens retry 30 sh -c "$IN curl -sk -m 5 --interface 203.0.113.81 -o /dev/null https://${FW_WAN:-x}/api/v1/setup/state"
+check custom-rule-only-that sh -c "! $IN curl -sk -m 5 --interface 203.0.113.80 -o /dev/null https://${FW_WAN:-x}/api/v1/setup/state"
+check custom-rule-hits sh -c "$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/stats/custom-rules | jq -e '.rules[0].name == \"wan-ui-81\" and .rules[0].packets > 0'"
 
 # --- git history: an SSH git server on the test internet; the box's deploy
 # key (from the API) is its only authorized key

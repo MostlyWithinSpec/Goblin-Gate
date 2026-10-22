@@ -42,7 +42,7 @@ function MonitorFields({ g, set, err }: { g: Gateway; set: (patch: Partial<Gatew
             <input aria-label="Monitor IP" className={inputClass} placeholder="auto (public resolver)" value={m.ip ?? ''} onChange={(e) => setMonitor({ ip: e.target.value })} />
             {err('monitor.ip')}
           </label>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Num label="Interval (s)" value={m.interval_seconds} onChange={(v) => setMonitor({ interval_seconds: v })} min={1} max={60} />
             <Num label="Loss %" value={m.loss_percent} onChange={(v) => setMonitor({ loss_percent: v })} min={0} max={100} />
             <Num label="Latency (ms)" value={m.latency_ms} onChange={(v) => setMonitor({ latency_ms: v })} min={0} />

@@ -31,6 +31,7 @@ type FakeCounters struct {
 	mu       sync.Mutex
 	Counters map[uint32]Counter
 	Feeds    map[string]Counter // by nft counter name
+	Custom   map[string]Counter // custom rule counters by nft counter name
 	Err      error
 }
 
@@ -61,7 +62,8 @@ func (f *FakeCounters) Set(id uint32, c Counter) {
 // NFTCounters reads the policy_<id> counters of table inet goblin (see
 // internal/render/nft). Run defaults to executing nft.
 type NFTCounters struct {
-	Run func(ctx context.Context) ([]byte, error)
+	Run    func(ctx context.Context) ([]byte, error)
+	RunNAT func(ctx context.Context) ([]byte, error) // table ip goblin_nat (custom rules)
 }
 
 // PolicyCounters runs `nft -j list counters table inet goblin`.
@@ -180,6 +182,84 @@ func (f *FakeCounters) FeedCounters(context.Context) (map[string]Counter, error)
 	return out, nil
 }
 
+// CustomCounterSource reads the custom rule counters (custom_<name>, in
+// table inet goblin and ip goblin_nat), keyed by nft counter name.
+type CustomCounterSource interface {
+	CustomCounters(ctx context.Context) (map[string]Counter, error)
+}
+
+// CustomCounters implements CustomCounterSource. The NAT table's counters
+// are read with a second `nft` call (RunNAT replaces it in tests).
+func (n NFTCounters) CustomCounters(ctx context.Context) (map[string]Counter, error) {
+	data, err := n.list(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, err := parseCustomCounters(data, "goblin")
+	if err != nil {
+		return nil, err
+	}
+	run := n.RunNAT
+	if run == nil {
+		run = func(ctx context.Context) ([]byte, error) {
+			out, err := exec.CommandContext(ctx, "nft", "-j", "list", "counters", "table", "ip", "goblin_nat").Output()
+			if ee, ok := err.(*exec.ExitError); ok {
+				return nil, fmt.Errorf("nft: %w: %s", err, strings.TrimSpace(string(ee.Stderr)))
+			}
+			return out, err
+		}
+	}
+	if data, err = run(ctx); err != nil {
+		return nil, err
+	}
+	nat, err := parseCustomCounters(data, "goblin_nat")
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range nat {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func parseCustomCounters(data []byte, table string) (map[string]Counter, error) {
+	var doc struct {
+		Nftables []struct {
+			Counter *struct {
+				Name    string `json:"name"`
+				Table   string `json:"table"`
+				Packets uint64 `json:"packets"`
+				Bytes   uint64 `json:"bytes"`
+			} `json:"counter"`
+		} `json:"nftables"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("nft counters: %w", err)
+	}
+	out := map[string]Counter{}
+	for _, item := range doc.Nftables {
+		c := item.Counter
+		if c != nil && (c.Table == "" || c.Table == table) && strings.HasPrefix(c.Name, "custom_") {
+			out[c.Name] = Counter{Packets: c.Packets, Bytes: c.Bytes}
+		}
+	}
+	return out, nil
+}
+
+// CustomCounters implements CustomCounterSource for tests and --dev: f.Custom.
+func (f *FakeCounters) CustomCounters(context.Context) (map[string]Counter, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	out := make(map[string]Counter, len(f.Custom))
+	for k, v := range f.Custom {
+		out[k] = v
+	}
+	return out, nil
+}
+
 // PolicyStat is one row of GET /api/v1/stats/policies.
 type PolicyStat struct {
 	ID      uint32    `json:"id"`
@@ -230,4 +310,17 @@ func (t *PolicyTracker) Read(ctx context.Context) ([]PolicyStat, error) {
 	t.prev = cur
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, nil
+}
+
+// ParseNFTNamedCounter returns one counter from `nft -j list counter ...`.
+func ParseNFTNamedCounter(data []byte, name string) (Counter, error) {
+	named, err := parseNamedCounters(data)
+	if err != nil {
+		return Counter{}, err
+	}
+	c, ok := named[name]
+	if !ok {
+		return Counter{}, fmt.Errorf("nft counters: no counter %q", name)
+	}
+	return c, nil
 }

@@ -58,7 +58,9 @@ export const DataTable: React.FC<DataTableProps> = ({
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+      {/* a wide table scrolls inside this box, never the page */}
+      <div className="max-w-full overflow-x-auto" data-testid="table-scroll">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-700">
           <tr>
@@ -91,6 +93,7 @@ export const DataTable: React.FC<DataTableProps> = ({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };

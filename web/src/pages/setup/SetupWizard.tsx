@@ -90,7 +90,7 @@ export default function SetupWizard() {
         <p className="mt-2">
           If your computer is on the LAN, reconnect at <code>https://{lanIP}</code> and sign in as <code>admin</code>.
         </p>
-        <a href="/login" className="mt-4 inline-block rounded bg-blue-600 px-3 py-1 text-white">Go to sign in</a>
+        <a href="/login" className="mt-4 inline-flex min-h-[40px] items-center rounded bg-blue-600 px-3 py-1 text-white">Go to sign in</a>
       </Shell>
     )
   }
@@ -148,7 +148,7 @@ export default function SetupWizard() {
               <label className="flex items-center gap-1"><input type="radio" name="wanMode" checked={a.wanMode === 'static'} onChange={() => set('wanMode', 'static')} />Static address</label>
             </fieldset>
             {a.wanMode === 'static' && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <label>WAN address<input aria-label="WAN address" placeholder="203.0.113.2/24" className={input} value={a.wanAddress} onChange={(e) => set('wanAddress', e.target.value)} />{err('wanAddress')}</label>
                 <label>Gateway<input aria-label="Gateway" placeholder="203.0.113.1" className={input} value={a.wanGateway} onChange={(e) => set('wanGateway', e.target.value)} />{err('wanGateway')}</label>
               </div>
@@ -176,7 +176,7 @@ export default function SetupWizard() {
             </label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={a.dhcp} onChange={(e) => set('dhcp', e.target.checked)} />Hand out addresses with DHCP</label>
             {a.dhcp && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <label>Range start<input aria-label="Range start" className={input} value={a.dhcpStart} onChange={(e) => set('dhcpStart', e.target.value)} />{err('dhcpStart')}</label>
                 <label>Range end<input aria-label="Range end" className={input} value={a.dhcpEnd} onChange={(e) => set('dhcpEnd', e.target.value)} />{err('dhcpEnd')}</label>
               </div>
@@ -243,7 +243,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           Goblin <span className="text-green-600 dark:text-green-400">Gate</span>
         </span>
       </div>
-      <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-8 text-gray-800 shadow-lg dark:border-gray-700 dark:bg-gray-800/90 dark:text-gray-200">{children}</div>
+      <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-5 text-gray-800 shadow-lg dark:border-gray-700 dark:bg-gray-800/90 dark:text-gray-200 sm:p-8">{children}</div>
     </div>
   )
 }

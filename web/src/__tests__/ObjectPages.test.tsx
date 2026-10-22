@@ -482,3 +482,15 @@ describe('Application control', () => {
     expect(stats.listLogs).toHaveBeenCalledWith({ kind: 'appctrl', limit: 50 })
   })
 })
+
+describe('?edit= opens the drawer (global search links)', () => {
+  test('addresses', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue(structuredClone(cfg))
+    render(
+      <MemoryRouter initialEntries={['/network/addresses?edit=nas']}>
+        <Addresses />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Edit nas')).toBeInTheDocument()
+  })
+})

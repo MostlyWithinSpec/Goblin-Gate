@@ -81,7 +81,7 @@ export const Snapshots: React.FC = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="pre-upgrade"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 min-h-[40px]"
             />
           </label>
           <label className="flex-1">
@@ -90,7 +90,7 @@ export const Snapshots: React.FC = () => {
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="before the upgrade"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 min-h-[40px]"
             />
           </label>
         </div>

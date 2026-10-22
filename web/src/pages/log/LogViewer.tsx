@@ -154,7 +154,7 @@ export default function LogViewer() {
             setState({ ...state, q: q.trim() })
           }}
         >
-          <input aria-label="Search" className={input + ' w-64'} placeholder="Search IP, domain, signature…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input aria-label="Search" className={input + ' w-full sm:w-64'} placeholder="Search IP, domain, signature…" value={q} onChange={(e) => setQ(e.target.value)} />
         </form>
         <select aria-label="Time range" className={input} value={state.range} onChange={(e) => setState({ ...state, range: e.target.value as LogState['range'] })}>
           {RANGES.map((r) => <option key={r} value={r}>Last {r}</option>)}
@@ -218,7 +218,7 @@ export default function LogViewer() {
 
       {detail && (
         <EditDrawer isOpen onClose={() => setDetail(null)} title={`${detail.kind} event`}>
-          <dl className="grid grid-cols-3 gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
+          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
             <dt className="text-gray-500">time</dt>
             <dd className="col-span-2">{fmtTime(detail.time)}</dd>
             {detail.src_ip && <CountryRow ip={detail.src_ip} />}
@@ -248,12 +248,12 @@ export default function LogViewer() {
               ))}
           </dl>
           {detail.policy_id && /^\d+$/.test(detail.policy_id) && (
-            <Link to={`/policy?edit=${detail.policy_id}`} className="mt-4 inline-block rounded bg-blue-600 px-3 py-1 text-sm text-white">
+            <Link to={`/policy?edit=${detail.policy_id}`} className="mt-4 inline-flex min-h-[40px] items-center rounded bg-blue-600 px-3 py-1 text-sm text-white">
               Go to policy {detail.policy_id}
             </Link>
           )}
           {detail.action === 'deny' && detail.src_ip && detail.dst_ip && (
-            <Link to={`/policy?${simulateQuery(detail)}`} className="mt-4 inline-block rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
+            <Link to={`/policy?${simulateQuery(detail)}`} className="mt-4 inline-flex min-h-[40px] items-center rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
               Why was this denied?
             </Link>
           )}

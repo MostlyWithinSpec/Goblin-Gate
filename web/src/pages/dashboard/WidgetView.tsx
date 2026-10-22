@@ -32,7 +32,7 @@ function SystemBody() {
     </div>
   )
   return (
-    <div className="grid grid-cols-2 gap-3 p-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
       {item('CPU', `${s.cpu_percent.toFixed(1)}%`)}
       {item('Memory', `${memPct}% of ${formatValue('bytes', s.mem_total_bytes)}`)}
       {item('Uptime', up)}

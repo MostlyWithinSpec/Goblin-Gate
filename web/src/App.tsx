@@ -7,11 +7,13 @@ import SetupGate from './components/SetupGate'
 import Network from './pages/Network'
 import Policy from './pages/Policy'
 import Schedules from './pages/policy/Schedules'
+import CustomRules from './pages/policy/CustomRules'
 import Security from './pages/Security'
 import Log from './pages/Log'
 import PacketCapture from './pages/log/PacketCapture'
 import Live from './pages/log/Live'
 import LogExportPage from './pages/log/Export'
+import Events from './pages/Events'
 import System from './pages/System'
 import { Revisions } from './pages/Revisions'
 import Notifications from './pages/system/Notifications'
@@ -46,6 +48,7 @@ import DNSFilterProfiles from './pages/security/DNSFilterProfiles'
 import WebFilterProfiles from './pages/security/WebFilterProfiles'
 import AppControl from './pages/security/AppControl'
 import IPS from './pages/security/IPS'
+import CrowdSec from './pages/security/CrowdSec'
 import Tailscale from './pages/Tailscale'
 import VpnWireGuard from './pages/VpnWireGuard'
 import VpnProviders from './pages/VpnProviders'
@@ -84,12 +87,14 @@ function App() {
               </Route>
               <Route path="/policy" element={<Policy />} />
               <Route path="/policy/schedules" element={<Schedules />} />
+              <Route path="/policy/custom-rules" element={<CustomRules />} />
               <Route path="/security" element={<Security />} />
               <Route path="/security/feeds" element={<ThreatFeeds />} />
               <Route path="/security/dns-filter" element={<DNSFilterProfiles />} />
               <Route path="/security/web-filter" element={<WebFilterProfiles />} />
               <Route path="/security/apps" element={<AppControl />} />
               <Route path="/security/ips" element={<IPS />} />
+              <Route path="/security/crowdsec" element={<CrowdSec />} />
               <Route path="/vpn/tailscale" element={<Tailscale />} />
               <Route path="/vpn/wireguard" element={<VpnWireGuard />} />
               <Route path="/vpn/providers" element={<VpnProviders />} />
@@ -97,6 +102,7 @@ function App() {
               <Route path="/log/capture" element={<PacketCapture />} />
               <Route path="/log/live" element={<Live />} />
               <Route path="/log/export" element={<LogExportPage />} />
+              <Route path="/events" element={<Events />} />
               <Route path="/system" element={<System />} />
               <Route path="/system/revisions" element={<Revisions />} />
               <Route path="/system/notifications" element={<Notifications />} />

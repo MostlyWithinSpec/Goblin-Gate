@@ -85,28 +85,30 @@ func (Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 
 // ruleset collects the pieces of both tables before writing them out.
 type ruleset struct {
-	cfg      *config.Config
-	devs     map[string]string
-	names    *namer
-	objs     *objects
-	sets     []setDecl
-	counters []counterDecl
-	input    []string
-	forward  []string
-	feedSet  map[string]string // feed name -> set, enabled ip feeds only
-	feedHit  map[string]string // feed name -> hit counter
-	feedFwd  []string          // chain threat_feeds (forward)
-	feedIn   []string          // chain threat_feeds_input
-	dnsRedir []string          // goblin_nat chain dns_redirect
-	ips      map[string]render.IPSUse
-	ipsQueue []string // top of forward: keep queueing IPS connections
-	spoof    []string // input and forward: anti-spoofing drops
-	rpf      []string // input and forward: reverse-path drops (fib; not simulated)
-	dnsFwd   []string // forward: no DNS-over-TLS around the filter
-	pre      []string // goblin_nat prerouting
-	route    render.RoutingPlan
-	routePol []string       // chain route_policies (task 049)
-	owner    map[int]uint32 // index in forward -> id of the policy it belongs to
+	cfg         *config.Config
+	devs        map[string]string
+	names       *namer
+	objs        *objects
+	sets        []setDecl
+	counters    []counterDecl
+	input       []string
+	forward     []string
+	feedSet     map[string]string // feed name -> set, enabled ip feeds only
+	feedHit     map[string]string // feed name -> hit counter
+	feedFwd     []string          // chain threat_feeds (forward)
+	feedIn      []string          // chain threat_feeds_input
+	dnsRedir    []string          // goblin_nat chain dns_redirect
+	ips         map[string]render.IPSUse
+	ipsQueue    []string // top of forward: keep queueing IPS connections
+	spoof       []string // input and forward: anti-spoofing drops
+	rpf         []string // input and forward: reverse-path drops (fib; not simulated)
+	dnsFwd      []string // forward: no DNS-over-TLS around the filter
+	pre         []string // goblin_nat prerouting
+	route       render.RoutingPlan
+	routePol    []string            // chain route_policies (task 049)
+	owner       map[int]uint32      // index in forward -> id of the policy it belongs to
+	custom      map[string][]string // custom rules by "hook/position" (custom.go)
+	natCounters []counterDecl       // counters in table ip goblin_nat (custom rules)
 }
 
 type counterDecl struct{ name, comment string }
@@ -137,6 +139,7 @@ func prepare(cfg *config.Config) (*ruleset, error) {
 	r.ipsQueues()
 	r.tailscale()
 	r.antiSpoof()
+	r.customRules()
 	r.wireguard()
 	r.upnpInput()
 	r.inputRules()

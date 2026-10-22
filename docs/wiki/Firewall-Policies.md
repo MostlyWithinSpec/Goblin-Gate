@@ -84,3 +84,50 @@ your internet policy.
 **Caveat**: country detection is based on the IP's registered allocation. A VPN or mobile-phone carrier
 can make a connection appear to come from a different country than the user's physical location. Treat
 country rules as a coarse filter, not a precise geolocation check.
+
+## Custom nftables rules
+
+**Policy & Objects → Custom rules**. When a policy cannot express something, write
+one nftables rule and have it placed in the generated ruleset as written.
+
+Each rule has a **hook** (`input` for traffic to the box, `forward` for traffic through it, `prerouting`
+and `postrouting` for NAT) and a **position**:
+
+- **Start** — after the built-in safety rules (temporary blocks, established/related, loopback,
+  anti-spoofing) and *before* everything the box generates. Use it when the rule must win over the policies.
+- **End** — after all generated rules, just before the chain's default policy. Use it for a last resort,
+  like logging what the policies dropped.
+
+The **Hits** column shows the rule's own counter, refreshed every 30 seconds. **Check** saves the candidate
+and runs `nft -c` on the whole rendered ruleset, so you see nft's own error under the rule before committing.
+A commit that loads a bad ruleset is refused, and a commit with auto-rollback puts the previous ruleset back
+on its own — still, keep a console open: a rule can block this web UI.
+
+A rule stays one rule: no `;`, `#` or line break outside quotes, and no `table`, `chain`, `flush`, `delete`,
+`include`, `jump` and friends, so a custom rule can never rebuild or wipe what the box generates.
+
+**Open a port for a Prometheus exporter on a LAN interface** (scrapers the policy model does not cover):
+
+```
+iifname "lan" tcp dport 9100 accept
+```
+
+hook `input`, position **Start**. Replies go out automatically (established traffic is accepted earlier in
+the chain). Restrict the source, do not open it on every interface:
+`iifname "lan" ip saddr 10.20.0.5/32 tcp dport 9100 accept`.
+
+**Log and drop a protocol** you never want on the network:
+
+```
+iifname "wan1" ip protocol gre log prefix "gre-dropped: " drop
+```
+
+hook `forward`, position **End** — the last thing that sees the packet, so the log line says "nothing else
+wanted it either". `position: Start` if you want it dropped before the policies are consulted at all.
+
+**When to use a policy instead**: almost always. A policy is ordered, named, visible in the policy table,
+logged per policy, tied to schedules and security profiles, and understood by the policy simulator. A custom
+rule is none of those: it bypasses the policy model, does not appear in the simulator's policy list, and
+nobody reviewing the table will see it. Use one only for something policies genuinely cannot do — a protocol
+or match nftables knows and the UI does not, a counter for your own debugging, a match on packet metadata the
+fields do not cover. If you find yourself writing a rule that duplicates a policy, delete it and add the policy.

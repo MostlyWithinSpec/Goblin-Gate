@@ -74,7 +74,7 @@ export default function Incidents() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter by summary, signature, IP…"
-            className="w-full rounded border border-gray-300 py-1 pl-7 pr-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+            className="w-full rounded border border-gray-300 py-1 pl-7 pr-2 text-sm dark:bg-gray-700 dark:border-gray-600 min-h-[40px]"
           />
         </div>
       </div>

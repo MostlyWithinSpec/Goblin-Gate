@@ -123,7 +123,7 @@ export default function VpnProviders() {
           </label>
           <ListInput label="Allowed IPs" value={w.allowed_ips} onChange={(v) => set({ allowed_ips: v })} placeholder="0.0.0.0/0" />
           <ListInput label="DNS" value={w.dns} onChange={(v) => set({ dns: v })} placeholder="one per line" />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className="block">
               Keepalive (s)
               <input aria-label="Keepalive" type="number" min={0} className={inputClass} value={w.keepalive ?? ''} onChange={(e) => set({ keepalive: e.target.value === '' ? undefined : Number(e.target.value) })} />

@@ -608,6 +608,9 @@ func (s *sim) finish(res *SimResult) *SimResult {
 	for n := range s.notes {
 		res.Notes = append(res.Notes, n)
 	}
+	if hooks := s.r.customHooks(res.Chain); len(hooks) > 0 {
+		res.Notes = append(res.Notes, fmt.Sprintf("custom nftables rules in %s are not evaluated here and may change the result", strings.Join(hooks, ", ")))
+	}
 	sort.Strings(res.Notes)
 	return res
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -113,5 +114,8 @@ func (s *Server) rollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "rollback", "", map[string]any{"revision": rev, "rolled_back_to": n})
+	s.Notify.Publish(notify.Event{Kind: "rollback", Title: "Configuration rolled back",
+		Message: fmt.Sprintf("%s rolled back to revision %d (now revision %d).", s.user(r), n, rev),
+		Fields:  map[string]string{"revision": strconv.Itoa(rev), "rolled_back_to": strconv.Itoa(n), "user": s.user(r)}})
 	writeJSON(w, http.StatusOK, map[string]any{"revision": rev, "rolled_back_to": n})
 }

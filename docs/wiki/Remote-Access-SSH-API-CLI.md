@@ -41,6 +41,58 @@ curl -k -X POST -H "Authorization: Bearer $T" https://192.168.1.1/api/v1/config/
 Editing goes through the candidate (`GET/PUT/PATCH /api/v1/config/candidate`) and
 `POST /api/v1/commit` (with `confirm_minutes` for an automatic rollback, see [[How Changes Work]]).
 
+## Limited tokens
+
+A new token gets everything by default, which is rarely what an integration needs. When you create
+one, tick the scopes it may use. A token with no scopes is **full**; a token with scopes can only do
+what those scopes allow, and everything else is refused with `403`.
+
+| Scope | Allows |
+| --- | --- |
+| `read` | Every read-only endpoint |
+| `write:firewall` | Addresses, services, policies, NAT, custom rules |
+| `write:network` | Interfaces, routes, DHCP, DNS, VPN |
+| `write:system` | Users, tokens, settings, backup |
+| `actions` | Reboot, diagnostics, feed refresh, and other one-shot actions |
+| `commit` | `POST /api/v1/commit` — without it a token can edit the candidate but never apply it |
+
+The create form offers three presets: **Read only** (`read`), **Home automation**
+(`read`, `write:firewall`, `actions`, `commit`) and **Full** (no scopes). Beyond scopes, a token can
+also carry:
+
+- an **expiry date** — the token stops working at the end of that day and the list marks it red once
+  it has passed;
+- **allowed-from networks** — the token only works from those CIDR networks.
+
+The list shows scopes (`full` when there are none), expiry and the last time the token was used, so
+you can spot one that is stale. Scoped tokens never see secrets or admin-only routes such as user
+management, whatever their scopes.
+
+```sh
+curl -k -X POST -H "Authorization: Bearer $T" -H "Content-Type: application/json" \
+  -d '{"name":"home automation","scopes":["read","write:firewall","actions","commit"],
+       "expires":"2027-01-01T00:00:00Z","allowed_from":["192.168.1.0/24"]}' \
+  https://192.168.1.1/api/v1/auth/tokens
+```
+
+## Watching events
+
+`GET /api/v1/events` is a Server-Sent Events stream of what happens on the box — commits, logins,
+IPS blocks, feed errors, the WAN going up or down. `-N` keeps curl from buffering, so lines arrive
+as they come. The web UI shows the same stream under **Log & Report → Live Events**.
+
+```sh
+curl -k -N -H "Authorization: Bearer $T" https://192.168.1.1/api/v1/events
+# event: commit
+# data: {"event":"commit","title":"Config committed","message":"root applied 3 changes","time":"..."}
+
+# only the kinds you care about
+curl -k -N -H "Authorization: Bearer $T" "https://192.168.1.1/api/v1/events?types=wan_down,feed_error"
+```
+
+A browser reads it with `EventSource`, which cannot send an `Authorization` header, so the web UI
+relies on its session cookie instead.
+
 ## The CLI
 
 `goblin` on the box (as root it talks to goblind over a local socket) or from another machine with

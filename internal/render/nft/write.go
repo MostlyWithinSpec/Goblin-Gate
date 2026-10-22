@@ -53,6 +53,28 @@ func (r *ruleset) write() []byte {
 		p(0, "")
 	}
 
+	// CrowdSec bans (crowdsec.go), filled by goblind at run time
+	cs := r.crowdSecRules()
+	if cs != nil {
+		for _, s := range crowdSecSets {
+			p(1, "set %s {", s.name)
+			p(2, "type %s", s.typ)
+			p(2, "flags %s", s.flags)
+			p(2, "comment %s", quote("CrowdSec decisions"))
+			p(1, "}")
+			p(0, "")
+		}
+		p(1, "counter %s {", CrowdSecCounter)
+		p(2, "comment %s", quote("dropped by CrowdSec decisions"))
+		p(1, "}")
+		p(1, "chain %s {", crowdSecChain)
+		for _, l := range cs {
+			p(2, "%s", l)
+		}
+		p(1, "}")
+		p(0, "")
+	}
+
 	for _, c := range r.counters {
 		p(1, "counter %s {", c.name)
 		if c.comment != "" {
@@ -98,8 +120,17 @@ func (r *ruleset) write() []byte {
 	for _, l := range r.rpf {
 		p(2, "%s", l)
 	}
+	for _, l := range r.customAt("input", "start") {
+		p(2, "%s", l)
+	}
+	if cs != nil {
+		p(2, "jump %s", crowdSecChain)
+	}
 	p(2, "jump threat_feeds_input")
 	for _, l := range r.input {
+		p(2, "%s", l)
+	}
+	for _, l := range r.customAt("input", "end") {
 		p(2, "%s", l)
 	}
 	p(1, "}")
@@ -119,6 +150,12 @@ func (r *ruleset) write() []byte {
 	for _, l := range r.rpf {
 		p(2, "%s", l)
 	}
+	for _, l := range r.customAt("forward", "start") {
+		p(2, "%s", l)
+	}
+	if cs != nil {
+		p(2, "jump %s", crowdSecChain)
+	}
 	p(2, "jump threat_feeds")
 	if r.cfg.UPnP.Enabled {
 		p(2, "jump %s comment %s", UPnPForwardChain, quote("upnp mappings (miniupnpd)"))
@@ -127,6 +164,9 @@ func (r *ruleset) write() []byte {
 		p(2, "%s", l)
 	}
 	for _, l := range r.forward {
+		p(2, "%s", l)
+	}
+	for _, l := range r.customAt("forward", "end") {
 		p(2, "%s", l)
 	}
 	p(1, "}")
@@ -167,6 +207,14 @@ func (r *ruleset) write() []byte {
 	p(0, "delete table ip %s", NATTable)
 	p(0, "")
 	p(0, "table ip %s {", NATTable)
+	for _, c := range r.natCounters {
+		p(1, "counter %s {", c.name)
+		p(2, "comment %s", quote(c.comment))
+		p(1, "}")
+	}
+	if len(r.natCounters) > 0 {
+		p(0, "")
+	}
 	p(1, "chain dns_redirect {")
 	for _, l := range r.dnsRedir {
 		p(2, "%s", l)
@@ -176,13 +224,22 @@ func (r *ruleset) write() []byte {
 	p(1, "chain prerouting {")
 	p(2, "type nat hook prerouting priority dstnat; policy accept;")
 	p(2, "jump dns_redirect")
+	for _, l := range r.customAt("prerouting", "start") {
+		p(2, "%s", l)
+	}
 	for _, l := range r.pre {
+		p(2, "%s", l)
+	}
+	for _, l := range r.customAt("prerouting", "end") {
 		p(2, "%s", l)
 	}
 	p(1, "}")
 	p(0, "")
 	p(1, "chain postrouting {")
 	p(2, "type nat hook postrouting priority srcnat; policy accept;")
+	for _, l := range r.customAt("postrouting", "start") {
+		p(2, "%s", l)
+	}
 	// nat: true translates traffic that leaves through a WAN only: a
 	// policy towards "all" interfaces must not masquerade LAN-to-LAN traffic
 	// (with multi-WAN also through a VPN-provider tunnel)
@@ -194,6 +251,9 @@ func (r *ruleset) write() []byte {
 	}
 	if egress != "" {
 		p(2, "oifname %s meta mark & 0x%08x == 0x%08x masquerade comment %s", egress, MarkMasquerade, MarkMasquerade, quote("policies with nat enabled"))
+	}
+	for _, l := range r.customAt("postrouting", "end") {
+		p(2, "%s", l)
 	}
 	p(1, "}")
 	p(0, "}")

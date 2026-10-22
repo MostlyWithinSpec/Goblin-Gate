@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render"
@@ -57,7 +58,9 @@ func (s *Server) metricsAllowed(r *http.Request, cfg *config.Config) bool {
 	}
 	if bearer, ok := cutBearer(r.Header.Get("Authorization")); ok {
 		if ti, valid := s.Authn.Tokens.Verify(bearer); valid && s.currentRole(ti.User) != "" {
-			return true
+			ip, err := netip.ParseAddr(clientAddr(r))
+			id := auth.Identity{Role: ti.Role, Scopes: ti.Scopes}
+			return err == nil && ti.AllowsAddr(ip) && id.Has(auth.ScopeRead)
 		}
 	}
 	return false

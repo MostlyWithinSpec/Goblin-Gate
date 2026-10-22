@@ -90,11 +90,18 @@ func (s *Server) patchCandidate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_patch", "give exactly one of value or delete:true", nil)
 		return
 	}
+	if id, ok := IdentityFrom(r); ok && id.Scopes != nil {
+		if sc := configScope(req.Path); !allowedScope(id, sc) {
+			writeError(w, http.StatusForbidden, "forbidden", "this token lacks the scope to change "+req.Path, map[string]string{"needs": sc})
+			return
+		}
+	}
 	cfg, err := s.Store.Candidate()
 	if err != nil {
 		s.internal(w, "read candidate config", err)
 		return
 	}
+	prev := cfg // SetPath and DeletePath return copies
 	var out *config.Config
 	if req.Delete {
 		out, err = config.DeletePath(cfg, req.Path)
@@ -107,6 +114,10 @@ func (s *Server) patchCandidate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_patch", "could not apply the change", err.Error())
 		return
+	}
+	if !s.seesSecrets(r) {
+		// the caller wrote what it read with the secrets blanked
+		config.KeepRedactedSecrets(prev, out)
 	}
 	s.storeCandidate(w, out)
 }
@@ -146,6 +157,9 @@ func (s *Server) validate(w http.ResponseWriter, r *http.Request) {
 		cfg = c
 	}
 	errs := config.ValidateCandidate(cfg)
+	if len(errs) == 0 && s.CheckCustom != nil {
+		errs = s.CheckCustom(r.Context(), cfg)
+	}
 	if errs == nil {
 		errs = []config.ValidationError{}
 	}
