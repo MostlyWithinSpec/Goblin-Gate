@@ -14,7 +14,7 @@ export default function Security() {
   return (
     <div className="p-6">
       <h1 className="mb-6 text-2xl font-bold text-gray-800 dark:text-white">Security Profiles</h1>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-1 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {cards.map((c) => (
           <Link key={c.to} to={c.to} className="block rounded-lg bg-white p-6 shadow-sm hover:shadow dark:bg-gray-800 min-h-[40px]">
             <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-white">{c.title}</h2>

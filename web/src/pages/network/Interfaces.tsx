@@ -208,7 +208,7 @@ function SQMFields({ x, set, ctx }: { x: Interface; set: (p: Partial<Interface>)
   const s: SQM = x.sqm ?? { enabled: false }
   const setS = (p: Partial<SQM>) => set({ sqm: { ...s, ...p } })
   return (
-    <div className="space-y-3 rounded border p-3">
+    <div className="space-y-3 rounded border border-gray-200 p-3 dark:border-gray-600">
       <h4 className="text-sm font-semibold">Smart queue (reduces lag when the line is busy)</h4>
       <label className="flex items-center gap-2">
         <input type="checkbox" aria-label="Enable smart queue" checked={s.enabled} onChange={(e) => setS({ enabled: e.target.checked })} />

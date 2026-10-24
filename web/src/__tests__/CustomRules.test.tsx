@@ -164,6 +164,6 @@ describe('CustomRules page', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Check$/i }))
 
     const box = await screen.findByRole('status')
-    expect(box).toHaveTextContent(/Commit to apply it/)
+    expect(box).toHaveTextContent(/commit to apply it/i)
   })
 })

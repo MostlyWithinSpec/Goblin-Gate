@@ -168,7 +168,19 @@ export default function UserMenu() {
                 </button>
               </>
             )}
-            {restarting === 'failed' && <p>The box has not answered for 5 minutes. Check its console.</p>}
+            {restarting === 'failed' && (
+              <>
+                <p>The box has not answered for 5 minutes. Check its console.</p>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={() => window.location.reload()} className="rounded bg-blue-600 px-3 py-1.5 text-white">
+                    Reload
+                  </button>
+                  <button type="button" onClick={() => setRestarting('no')} className="rounded border border-gray-300 px-3 py-1.5 dark:border-gray-600">
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>,
         document.body,

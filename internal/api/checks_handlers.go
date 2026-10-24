@@ -2,8 +2,11 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/checks"
+	"github.com/networkgoblinlabs/goblin-gate/internal/updates"
 )
 
 // GET /api/v1/checks → checks.Report: Goblin Checks run against the running
@@ -16,8 +19,20 @@ func (s *Server) checks(w http.ResponseWriter, r *http.Request) {
 	}
 	var st checks.State
 	st.RebootRequired, _ = rebootRequired()
+	if st.RebootRequired {
+		if fi, err := os.Stat(rebootRequiredPath); err == nil {
+			st.RebootSince = fi.ModTime()
+		}
+	}
 	if s.Updates != nil {
-		st.UpdateAvailable = s.Updates.Cached().Available
+		cached := s.Updates.Cached()
+		// Available == Installed means only plugins lag (named below)
+		if cached.Available != "" && cached.Available != cached.Installed {
+			st.UpdateAvailable = cached.Available
+		}
+		for _, p := range cached.Plugins {
+			st.PluginUpdates = append(st.PluginUpdates, strings.TrimPrefix(p.Package, updates.PluginPrefix)+" "+p.Installed+" → "+p.Available)
+		}
 	}
 	if s.GitBackup != nil && cfg.GitBackup.Enabled {
 		st.GitLastPush, st.GitLastError = s.GitBackup.PushState()

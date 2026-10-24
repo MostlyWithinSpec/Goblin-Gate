@@ -16,6 +16,8 @@ const WireGuardPage: React.FC = () => {
   const [keepalive, setKeepalive] = useState<number>(0)
   const [isAddPeerModalOpen, setIsAddPeerModalOpen] = useState(false)
   const [peerConfig, setPeerConfig] = useState<string | null>(null)
+  // the added peer's name, for the .conf download (the form is reset by then)
+  const [peerConfigName, setPeerConfigName] = useState('peer')
   const [qrCode, setQrCode] = useState<string | null>(null)
   const [showPeerConfig, setShowPeerConfig] = useState(false)
   const [isAddingPeer, setIsAddingPeer] = useState(false)
@@ -50,6 +52,7 @@ const WireGuardPage: React.FC = () => {
       const response: WireGuardPeerResponse = await addWireGuardPeer(selectedInterface, request)
       
       setPeerConfig(response.config)
+      setPeerConfigName(peerName)
       setQrCode(response.qr_svg || null)
       setShowPeerConfig(true)
       setIsAddPeerOpen(false)
@@ -61,8 +64,7 @@ const WireGuardPage: React.FC = () => {
       // Invalidate cache to refresh the list
       queryClient.invalidateQueries(['wireguardConfig'])
     } catch (err) {
-      console.error('Error adding peer:', err)
-      setAddPeerError('Failed to add peer. Please try again.')
+      setAddPeerError(`Could not add the peer: ${(err as Error).message}`)
     } finally {
       setIsAddingPeer(false)
     }
@@ -263,7 +265,7 @@ const WireGuardPage: React.FC = () => {
               </Button>
             </div>
             {addPeerError && (
-              <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
+              <div role="alert" className="mt-4 p-2 bg-red-100 text-red-700 rounded">
                 {addPeerError}
               </div>
             )}
@@ -306,7 +308,7 @@ const WireGuardPage: React.FC = () => {
               </Button>
               <a 
                 href={`data:text/plain;charset=utf-8,${encodeURIComponent(peerConfig)}`} 
-                download={`${peerName}.conf`}
+                download={`${peerConfigName}.conf`}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Download .conf

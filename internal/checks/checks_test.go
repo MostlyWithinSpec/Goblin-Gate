@@ -3,6 +3,7 @@ package checks
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -203,5 +204,26 @@ func TestDismissals(t *testing.T) {
 		if err := d.Set(bad, true); err == nil {
 			t.Errorf("key %q accepted", bad)
 		}
+	}
+}
+
+// Only a plugin behind: the finding names the plugin, not a Goblin Gate version.
+func TestPluginUpdateFinding(t *testing.T) {
+	r := run(base(), State{GitLastPush: now, PluginUpdates: []string{"sentry 0.1.0~beta.8 → 0.1.0~beta.9"}})
+	if len(r.Findings) != 1 || r.Findings[0].Key != "goblin-update:plugins" ||
+		!strings.Contains(r.Findings[0].Title, "sentry 0.1.0~beta.8") || strings.Contains(r.Findings[0].Title, "Goblin Gate 0.1") {
+		t.Fatalf("%+v", r.Findings)
+	}
+}
+
+// A dismissed restart covers that restart only.
+func TestRebootFindingKeyedByWhen(t *testing.T) {
+	first := run(base(), State{GitLastPush: now, RebootRequired: true, RebootSince: now.Add(-48 * time.Hour)})
+	later := run(base(), State{GitLastPush: now, RebootRequired: true, RebootSince: now})
+	if first.Findings[0].Key == later.Findings[0].Key || !strings.HasPrefix(first.Findings[0].Key, "reboot:") {
+		t.Fatalf("keys %s %s", first.Findings[0].Key, later.Findings[0].Key)
+	}
+	if !strings.Contains(first.Findings[0].Detail, "Restart Goblin Gate") {
+		t.Fatalf("detail %q", first.Findings[0].Detail)
 	}
 }

@@ -53,17 +53,16 @@ function Mappings() {
       {data && data.mappings.length > 0 && (
         <table className="min-w-full text-sm dark:text-gray-200">
           <thead className="text-left text-xs uppercase text-gray-500">
-            <tr><th>Client</th><th>Protocol</th><th>External</th><th>Internal</th><th>Description</th><th>Expires in</th></tr>
+            <tr><th className="px-2 py-1">Protocol</th><th className="px-2 py-1">External port</th><th className="px-2 py-1">Internal</th><th className="px-2 py-1">Description</th><th className="px-2 py-1">Expires in</th></tr>
           </thead>
           <tbody>
             {data.mappings.map((m) => (
-              <tr key={m.protocol + m.external_port}>
-                <td>{m.internal_ip}</td>
-                <td>{m.protocol.toUpperCase()}</td>
-                <td>{m.external_port}</td>
-                <td>{m.internal_ip}:{m.internal_port}</td>
-                <td>{m.description}</td>
-                <td>{fmtExpiry(m.expires)}</td>
+              <tr key={m.protocol + m.external_port} className="border-t border-gray-100 dark:border-gray-700">
+                <td className="px-2 py-1">{m.protocol.toUpperCase()}</td>
+                <td className="px-2 py-1">{m.external_port}</td>
+                <td className="px-2 py-1">{m.internal_ip}:{m.internal_port}</td>
+                <td className="px-2 py-1">{m.description}</td>
+                <td className="px-2 py-1">{fmtExpiry(m.expires)}</td>
               </tr>
             ))}
           </tbody>
@@ -80,6 +79,7 @@ export default function UPnP() {
   const [error, setError] = useState<string | null>(null)
   const [serverErrors, setServerErrors] = useState<ValidationError[]>([])
   const [errors, setErrors] = useState<Errors>({})
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     getNetworkConfig()
@@ -99,9 +99,11 @@ export default function UPnP() {
     const prev = cfg
     setCfg(next)
     setError(null)
+    setSaved(false)
     try {
       const res = await patchSection('upnp', next)
       setServerErrors((res.validation_errors ?? []).filter((v) => v.path.startsWith('upnp')))
+      setSaved(true)
     } catch (e) {
       setCfg(prev)
       setError((e as Error).message)
@@ -162,7 +164,7 @@ export default function UPnP() {
       </div>
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
-        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           {serverErrors.map((v) => <li key={v.path + v.message}><code>{v.path}</code>: {v.message}</li>)}
         </ul>
       )}
@@ -231,7 +233,7 @@ export default function UPnP() {
 
             <fieldset>
               <legend className="mb-1 font-medium">Allow list</legend>
-              <p className="mb-2 text-xs text-gray-500">Restrict which LAN clients can create mappings. Empty = allow all.</p>
+              <p className="mb-2 text-xs text-gray-500">Restrict which LAN clients can map which internal ports. Empty = every client on the served interfaces, ports 1024-65535.</p>
               {(cfg.allow ?? []).length > 0 && (
                 <table className="min-w-full">
                   <thead className="text-left text-xs uppercase text-gray-500">
@@ -244,7 +246,7 @@ export default function UPnP() {
                           <input aria-label={`Allow ${i + 1} address`} className={input} placeholder="192.168.1.0/24" value={a.address} onChange={(e) => setAllow(i, 'address', e.target.value)} />
                         </td>
                         <td>
-                          <input aria-label={`Allow ${i + 1} ports`} className={input} placeholder="all or 80-443" value={a.ports} onChange={(e) => setAllow(i, 'ports', e.target.value)} />
+                          <input aria-label={`Allow ${i + 1} ports`} className={input} placeholder="1024-65535 or 8080" value={a.ports} onChange={(e) => setAllow(i, 'ports', e.target.value)} />
                           {err(`allow_${i}_ports`)}
                         </td>
                         <td>
@@ -279,7 +281,8 @@ export default function UPnP() {
           </>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {saved && <span role="status" className="text-green-700 dark:text-green-400">Saved. Use the commit bar to apply.</span>}
           <button type="submit" disabled={!loaded} className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50">
             Save
           </button>

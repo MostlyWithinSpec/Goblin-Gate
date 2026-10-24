@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Button } from '../components/Button'
@@ -29,7 +29,9 @@ const TailscalePage: React.FC = () => {
   const [loginStatus, setLoginStatus] = useState<'idle' | 'logging_in' | 'success' | 'error'>('idle')
   const [loginError, setLoginError] = useState<string | null>(null)
   const [logoutStatus, setLogoutStatus] = useState<'idle' | 'logging_out' | 'success' | 'error'>('idle')
-  const [isLoginButtonDisabled, setIsLoginButtonDisabled] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [settingsSaved, setSettingsSaved] = useState(false)
 
   const queryClient = useQueryClient()
 
@@ -77,9 +79,8 @@ const TailscalePage: React.FC = () => {
         }
       }
     } catch (err) {
-      setLoginError('Failed to initiate login. Please try again.')
+      setLoginError(`Could not start the login: ${(err as Error).message}`)
       setLoginStatus('error')
-      console.error('Login error:', err)
     } finally {
       // Reset login status after a short delay
       setTimeout(() => {
@@ -90,12 +91,15 @@ const TailscalePage: React.FC = () => {
 
   // Handle logout
   const handleLogout = async () => {
+    if (!window.confirm('Log the box out of Tailscale? Subnet routes and the exit node stop until it logs in again.')) return
     setLogoutStatus('logging_out')
+    setLogoutError(null)
     try {
       await logoutTailscale()
       setLogoutStatus('success')
+      queryClient.invalidateQueries(['tailscaleStatus'])
     } catch (err) {
-      console.error('Logout error:', err)
+      setLogoutError(`Could not log out: ${(err as Error).message}`)
       setLogoutStatus('error')
     } finally {
       // Reset logout status after a short delay
@@ -105,50 +109,58 @@ const TailscalePage: React.FC = () => {
     }
   }
 
-  // Handle settings save
-  const handleSaveSettings = async () => {
+  // openSettings loads the form from the candidate's vpn.tailscale, the
+  // settings it saves to (the live status has route CIDRs, not the interface
+  // names the config holds, and none of the other options).
+  const openSettings = async () => {
+    setSettingsError(null)
+    setSettingsSaved(false)
     try {
-      await patchTailscaleSettings(settings)
-      setIsSettingsOpen(false)
-      // Invalidate cache to force refetch
-      queryClient.invalidateQueries(['tailscaleStatus'])
-      queryClient.invalidateQueries(['networkConfig'])
+      const cfg = await getNetworkConfig()
+      const t = cfg.vpn?.tailscale
+      setSettings({
+        enabled: t?.enabled ?? false,
+        hostname: t?.hostname ?? '',
+        advertise_routes: t?.advertise_routes ?? [],
+        exit_node: t?.exit_node ?? false,
+        accept_routes: t?.accept_routes ?? false,
+        accept_dns: t?.accept_dns ?? false,
+        login_server: t?.login_server ?? '',
+        allow_access: t?.allow_access ?? []
+      })
+      setIsSettingsOpen(true)
     } catch (err) {
-      console.error('Error saving settings:', err)
+      setSettingsError(`Could not load the Tailscale settings: ${(err as Error).message}`)
     }
   }
 
-  // Update settings when status changes
-  useEffect(() => {
-    if (status && status.available) {
-      setSettings({
-        enabled: true,
-        hostname: status.hostname || '',
-        advertise_routes: status.advertised_routes || [],
-        exit_node: status.approved_routes?.includes('0.0.0.0/0') || false,
-        accept_routes: false, // Placeholder - this would need to be set from the API
-        accept_dns: false, // Placeholder - this would need to be set from the API
-        login_server: '', // Placeholder - this would need to be set from the API
-        allow_access: [] // Placeholder - this would need to be set from the API
-      })
-    } else {
-      setSettings({
-        enabled: false,
-        hostname: '',
-        advertise_routes: [],
-        exit_node: false,
-        accept_routes: false,
-        accept_dns: false,
-        login_server: '',
-        allow_access: []
-      })
+  // Handle settings save
+  const handleSaveSettings = async () => {
+    setSettingsError(null)
+    const value: TailscaleSettings = { enabled: settings.enabled }
+    if (settings.hostname?.trim()) value.hostname = settings.hostname.trim()
+    if (settings.advertise_routes?.length) value.advertise_routes = settings.advertise_routes
+    if (settings.exit_node) value.exit_node = true
+    if (settings.accept_routes) value.accept_routes = true
+    if (settings.accept_dns) value.accept_dns = true
+    if (settings.login_server?.trim()) value.login_server = settings.login_server.trim()
+    if (settings.allow_access?.length) value.allow_access = settings.allow_access
+    try {
+      await patchTailscaleSettings(value)
+      setIsSettingsOpen(false)
+      setSettingsSaved(true)
+      queryClient.invalidateQueries(['tailscaleStatus'])
+      queryClient.invalidateQueries(['networkConfig'])
+      queryClient.invalidateQueries(['configDiff'])
+    } catch (err) {
+      setSettingsError(`Could not save: ${(err as Error).message}`)
     }
-  }, [status])
+  }
 
   // Status badge component
   const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     switch (status) {
-      case 'Running':
+      case 'Connected':
         return <Badge variant="success">Connected</Badge>
       case 'Needs login':
         return <Badge variant="warning">Needs login</Badge>
@@ -217,11 +229,22 @@ const TailscalePage: React.FC = () => {
           <Button variant="outline" onClick={() => setIsLoginModalOpen(true)}>
             Login
           </Button>
-          <Button variant="outline" onClick={() => setIsSettingsOpen(true)}>
+          <Button variant="outline" onClick={openSettings}>
             Settings
           </Button>
         </div>
       </div>
+
+      {settingsSaved && (
+        <div role="status" className="mb-4 rounded bg-green-50 p-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
+          Tailscale settings saved. Use the commit bar to apply.
+        </div>
+      )}
+      {(settingsError && !isSettingsOpen) || logoutError ? (
+        <div role="alert" className="mb-4 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          {logoutError ?? settingsError}
+        </div>
+      ) : null}
 
       {/* Status Card */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
@@ -281,7 +304,7 @@ const TailscalePage: React.FC = () => {
               </Button>
             </div>
             {loginError && (
-              <div className="mt-4 p-2 bg-red-100 text-red-700 rounded">
+              <div role="alert" className="mt-4 p-2 bg-red-100 text-red-700 rounded">
                 {loginError}
               </div>
             )}
@@ -322,8 +345,13 @@ const TailscalePage: React.FC = () => {
               <TagInput
                 value={settings.advertise_routes || []}
                 onChange={(value) => setSettings({...settings, advertise_routes: value})}
-                placeholder="Enter interface/VLAN names"
+                placeholder="Interface or VLAN name, then Enter"
               />
+              {(networkConfig?.interfaces ?? []).length > 0 && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Names, not addresses: {[...(networkConfig?.interfaces ?? []), ...(networkConfig?.vlans ?? [])].map((i) => i.name).join(', ')}
+                </p>
+              )}
             </FormField>
             
             <div className="flex items-center">
@@ -369,13 +397,32 @@ const TailscalePage: React.FC = () => {
               />
             </FormField>
             
-            <FormField label="Allow Access">
-              <TagInput
-                value={settings.allow_access || []}
-                onChange={(value) => setSettings({...settings, allow_access: value})}
-                placeholder="Enter access types (ping, https, ssh)"
-              />
-            </FormField>
+            <fieldset>
+              <legend className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Allow access to the box from the tailnet</legend>
+              <div className="flex gap-4">
+                {['ping', 'https', 'ssh'].map((a) => (
+                  <label key={a} className="flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={(settings.allow_access ?? []).includes(a)}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          allow_access: e.target.checked ? [...(settings.allow_access ?? []), a] : (settings.allow_access ?? []).filter((x) => x !== a)
+                        })
+                      }
+                    />
+                    {a}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {settingsError && (
+              <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                {settingsError}
+              </div>
+            )}
             
             <div className="flex justify-end space-x-2 mt-6">
               <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>

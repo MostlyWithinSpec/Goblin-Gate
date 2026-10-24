@@ -265,4 +265,26 @@ describe('Policy simulator', () => {
     expect(screen.getByLabelText('Protocol')).toHaveValue('udp')
     expect(screen.getByLabelText('Destination port')).toHaveValue(53)
   })
+
+  test('keeps the event time of a log drill-down', async () => {
+    const at = new Date(2026, 9, 17, 14, 30).toISOString() // 14:30 local
+    await openSim(`/policy?simulate=1&src_ip=192.168.1.20&dst_ip=8.8.8.8&at=${encodeURIComponent(at)}`)
+    expect(screen.getByLabelText('Time')).toHaveValue('2026-10-17T14:30')
+  })
+
+  test('the matched policy link opens the editor in place of the simulator', async () => {
+    vi.mocked(api.simulatePolicy).mockResolvedValue({
+      verdict: 'accept', reason: 'ok', chain: 'forward', src_intf: 'lan', dst_intf: 'wan1',
+      policy: { id: 1, name: 'lan-to-internet' },
+      nat: false,
+      steps: [{ id: 1, name: 'lan-to-internet', matched: true, reason: 'all criteria matched' }],
+    })
+    await openSim('/policy')
+    fireEvent.change(screen.getByLabelText('Source IP'), { target: { value: '192.168.1.10' } })
+    fireEvent.change(screen.getByLabelText('Destination IP'), { target: { value: '8.8.8.8' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Simulate connection' }))
+    fireEvent.click(await screen.findByRole('link', { name: /Matched policy: lan-to-internet/ }))
+    expect(await screen.findByRole('dialog', { name: 'Edit policy 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Simulate a connection' })).toBeNull()
+  })
 })

@@ -3,6 +3,7 @@
 // the candidate with PATCH.
 import { apiClient } from './client'
 import type { SaveResult } from './policy'
+import type { TailscaleSettings } from './tailscale'
 
 export interface PortForward {
   name: string
@@ -79,6 +80,7 @@ export interface NetworkConfig {
   upnp?: UPnPConfig
   addresses?: { name: string; type: string }[]
   address_groups?: { name: string }[]
+  vpn?: { tailscale?: TailscaleSettings }
 }
 
 export interface DHCPLease {

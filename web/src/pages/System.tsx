@@ -52,31 +52,31 @@ const System: React.FC = () => {
         {tab === 'About' && <AboutTab />}
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
-        <Link to="/system/revisions" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/revisions" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Revisions</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">View and manage configuration history</span>
         </Link>
-        <Link to="/system/notifications" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/notifications" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Notifications</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channels and per-event routing</span>
         </Link>
-        <Link to="/system/plugins" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/plugins" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Plugins</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Installed plugins, capabilities and settings</span>
         </Link>
-        <Link to="/system/updates" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/updates" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Updates</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Channel, available version and update history</span>
         </Link>
-        <Link to="/system/generated" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/generated" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Generated config</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Renderer output: running vs candidate, with diff</span>
         </Link>
-        <Link to="/system/diagnostics" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/diagnostics" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">Diagnostics</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Ping, traceroute and DNS lookup from the box</span>
         </Link>
-        <Link to="/system/ups" className="inline-block p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
+        <Link to="/system/ups" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
           <span className="font-semibold text-blue-700 dark:text-blue-300">UPS</span>
           <span className="ml-2 text-gray-600 dark:text-gray-300">Power state, battery runtime and clean shutdown</span>
         </Link>
@@ -92,18 +92,27 @@ const GeneralTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState<SystemSettings>({ hostname: '', timezone: 'UTC' })
+  // The server lists are edited as text (one per line) and split on save, so
+  // Enter or a comma can be typed between two servers.
+  const [ntpText, setNtpText] = useState('')
+  const [dnsText, setDnsText] = useState('')
 
   useEffect(() => {
     getCandidate().then((c) => {
       setCfg(c)
-      if (c.system) setForm({ hostname: c.system.hostname ?? '', domain: c.system.domain, timezone: c.system.timezone || 'UTC', admin_port: c.system.admin_port, ntp_servers: c.system.ntp_servers, dns_servers: c.system.dns_servers })
+      if (c.system) {
+        setForm({ hostname: c.system.hostname ?? '', domain: c.system.domain, timezone: c.system.timezone || 'UTC', admin_port: c.system.admin_port, ntp_servers: c.system.ntp_servers, dns_servers: c.system.dns_servers })
+        setNtpText((c.system.ntp_servers ?? []).join('\n'))
+        setDnsText((c.system.dns_servers ?? []).join('\n'))
+      }
     }).catch((e: Error) => setError(e.message))
   }, [])
 
   const save = async (ev: React.FormEvent) => {
     ev.preventDefault()
     setSaved(false)
-    const value = omitEmpty({ ...form, hostname: form.hostname.trim(), domain: form.domain?.trim() || undefined })
+    const list = (t: string) => t.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+    const value = omitEmpty({ ...form, hostname: form.hostname.trim(), domain: form.domain?.trim() || undefined, ntp_servers: list(ntpText), dns_servers: list(dnsText) })
     try {
       // keep the fields this form does not edit (SSH keys, update channel, ...)
       const keep: Partial<SystemSettings> = { ...(await getCandidate()).system }
@@ -142,11 +151,11 @@ const GeneralTab: React.FC = () => {
       </label>
       <label className="block text-sm">
         NTP servers
-        <textarea aria-label="NTP servers" rows={3} className={inputClass + ' font-mono text-xs'} value={(form.ntp_servers ?? []).join('\n')} onChange={(e) => set({ ntp_servers: e.target.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean) })} placeholder="pool.ntp.org" />
+        <textarea aria-label="NTP servers" rows={3} className={inputClass + ' font-mono text-xs'} value={ntpText} onChange={(e) => setNtpText(e.target.value)} placeholder="pool.ntp.org" />
       </label>
       <label className="block text-sm">
         DNS servers
-        <textarea aria-label="DNS servers" rows={3} className={inputClass + ' font-mono text-xs'} value={(form.dns_servers ?? []).join('\n')} onChange={(e) => set({ dns_servers: e.target.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean) })} placeholder="1.1.1.1" />
+        <textarea aria-label="DNS servers" rows={3} className={inputClass + ' font-mono text-xs'} value={dnsText} onChange={(e) => setDnsText(e.target.value)} placeholder="1.1.1.1" />
       </label>
       <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save</button>
     </form>
@@ -250,6 +259,7 @@ const AdminsTab: React.FC = () => {
   }
 
   const doDelete = async (name: string) => {
+    if (!window.confirm(`Delete admin ${name}?`)) return
     try { await deleteAdmin(name); load() } catch (e) { setError((e as Error).message) }
   }
 
@@ -333,7 +343,7 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
   const [showOff, setShowOff] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState<string | null>(null)
 
   const startSetup = async () => {
     setBusy(true); setError(null)
@@ -356,7 +366,7 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
       await enable2FA(code)
       setSetup(null)
       setCode('')
-      setDone(true)
+      setDone('Two-factor login is on.')
       onChanged()
     } catch (e) {
       setError((e as Error).message)
@@ -373,7 +383,7 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
       await disable2FA(offPassword)
       setShowOff(false)
       setOffPassword('')
-      setDone(true)
+      setDone('Two-factor login is off.')
       onChanged()
     } catch (e) {
       setError((e as Error).message)
@@ -391,7 +401,7 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
     <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-600">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-white">Two-factor authentication</h3>
       {error && <div className="mt-2 rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
-      {done && <div className="mt-2 rounded bg-green-50 p-2 text-sm text-green-700" role="status">Two-factor login is on.</div>}
+      {done && <div className="mt-2 rounded bg-green-50 p-2 text-sm text-green-700" role="status">{done}</div>}
 
       {!me?.totp_enabled ? (
         !setup ? (
@@ -435,7 +445,7 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
         !showOff ? (
           <div className="mt-2 flex items-center gap-3">
             <p className="text-sm text-gray-600 dark:text-gray-300">Two-factor login is on.</p>
-            <button type="button" onClick={() => { setShowOff(true); setDone(false) }} className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+            <button type="button" onClick={() => { setShowOff(true); setDone(null) }} className="rounded border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
               Turn off
             </button>
           </div>
@@ -470,6 +480,7 @@ function timeAgo(iso: string, now: number): string {
 
 const SessionsCard: React.FC = () => {
   const [sessions, setSessions] = useState<SessionInfo[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   const load = useCallback(() => {
@@ -483,10 +494,13 @@ const SessionsCard: React.FC = () => {
 
   const signOut = async (s: SessionInfo) => {
     if (!window.confirm(`Sign out ${s.user}'s session from ${s.addr}?`)) return
+    setError(null)
     try {
       await deleteSession(s.id)
       load()
-    } catch { /* ignore */ }
+    } catch (e) {
+      setError((e as Error).message)
+    }
   }
 
   const ua = (s: SessionInfo) => {
@@ -499,6 +513,7 @@ const SessionsCard: React.FC = () => {
   return (
     <div className="mt-6 rounded border border-gray-200 p-4 dark:border-gray-600">
       <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white">Active sessions</h3>
+      {error && <div className="mb-2 rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
       {sessions.length === 0 ? (
         <p className="text-sm text-gray-500">No active sessions.</p>
       ) : (
@@ -530,47 +545,107 @@ const SessionsCard: React.FC = () => {
   )
 }
 
+// The key types the backend accepts (internal/config CheckSSHKey).
+const SSH_KEY_TYPES = ['ssh-ed25519', 'ssh-rsa', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'sk-ssh-ed25519@openssh.com', 'sk-ecdsa-sha2-nistp256@openssh.com']
+
+// checkSSHKey mirrors the backend check closely enough to catch the usual
+// mistakes before saving: a private key, a wrapped paste, a missing type.
+function checkSSHKey(key: string): string | null {
+  if (key.includes('PRIVATE KEY')) return 'This is a private key. Paste the public key instead: the .pub file, e.g. ~/.ssh/id_ed25519.pub'
+  const f = key.split(/\s+/)
+  if (f.length < 2 || !SSH_KEY_TYPES.includes(f[0])) return 'Not an SSH public key: it should start with ssh-ed25519, ssh-rsa or ecdsa-sha2-…'
+  if (!/^[A-Za-z0-9+/]+=*$/.test(f[1])) return 'The key looks cut off or mangled; copy the whole line from the .pub file'
+  return null
+}
+
+// sshKeySummary shows the type and comment of a stored key, e.g. "ssh-ed25519 · me@laptop".
+const sshKeySummary = (key: string) => {
+  const f = key.trim().split(/\s+/)
+  return [f[0], f.slice(2).join(' ')].filter(Boolean).join(' · ')
+}
+
 // SSH keys are stored in candidate system.ssh_keys and saved with patchSection.
 const SSHKeysSection: React.FC = () => {
   const [keys, setKeys] = useState<SSHKey[]>([])
   const [loaded, setLoaded] = useState(false)
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
+  const [errors, setErrors] = useState<{ name?: string; key?: string }>({})
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     getCandidate().then((c) => { setKeys(c.system?.ssh_keys ?? []); setLoaded(true) }).catch(() => setLoaded(true))
   }, [])
 
-  const saveKeys = async (next: SSHKey[]) => {
-    try { await patchSection('system.ssh_keys', next); setKeys(next) } catch { /* ignore */ }
+  const saveKeys = async (next: SSHKey[]): Promise<boolean> => {
+    setSaved(false); setError(null)
+    try {
+      const res = await patchSection('system.ssh_keys', next)
+      setKeys(next)
+      const problems = (res.validation_errors ?? []).filter((v) => v.path.startsWith('system.ssh_keys'))
+      if (problems.length > 0) setError(problems.map((v) => v.message).join('; '))
+      else setSaved(true)
+      return true
+    } catch (e) {
+      setError((e as Error).message)
+      return false
+    }
   }
 
-  const add = () => {
-    if (!name.trim() || !key.trim()) return
-    saveKeys([...keys, { name: name.trim(), key: key.trim() }])
-    setName(''); setKey('')
+  const add = async (ev: React.FormEvent) => {
+    ev.preventDefault()
+    // A pasted .pub line may carry a trailing newline or be wrapped by the box.
+    const k = key.replace(/[\r\n]+/g, ' ').trim()
+    const n = name.trim()
+    const errs: { name?: string; key?: string } = {}
+    if (!NAME_RE.test(n)) errs.name = 'Use 1-63 letters, digits, ".", "_" or "-"'
+    else if (keys.some((x) => x.name === n)) errs.name = 'A key with this name already exists'
+    const keyErr = checkSSHKey(k)
+    if (keyErr) errs.key = keyErr
+    setErrors(errs)
+    if (errs.name || errs.key) return
+    if (await saveKeys([...keys, { name: n, key: k }])) { setName(''); setKey('') }
   }
 
   if (!loaded) return null
 
   return (
-    <div className="mt-6">
-      <h3 className="mb-2 flex items-center gap-1 text-sm font-semibold text-gray-800 dark:text-white"><KeyRound size={14} /> SSH keys</h3>
+    <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-600">
+      <h3 className="flex items-center gap-1 text-sm font-semibold text-gray-800 dark:text-white"><KeyRound size={14} /> SSH keys</h3>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        Public keys allowed to log in to the box as <code>root</code> over SSH (<code>ssh root@&lt;gateway address&gt;</code>).
+        Paste the contents of your <strong>public</strong> key file, e.g. <code>~/.ssh/id_ed25519.pub</code> — no key yet? Run <code>ssh-keygen -t ed25519</code>.
+        The interface you connect from needs <code>ssh</code> in its allowed access.
+      </p>
+      {error && <div className="mt-2 rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
+      {saved && <div className="mt-2 rounded bg-green-50 p-2 text-sm text-green-700" role="status">Saved. Use the commit bar to apply.</div>}
       {keys.length > 0 && (
-        <ul className="mb-2 space-y-1">
-          {keys.map((k) => (
-            <li key={k.name} className="flex items-center justify-between rounded bg-gray-50 px-2 py-1 text-xs dark:bg-gray-700/40">
-              <span className="font-mono">{k.name}</span>
-              <button type="button" onClick={() => saveKeys(keys.filter((x) => x.name !== k.name))} className="text-red-600" aria-label={`Remove key ${k.name}`}><Trash2 size={14} /></button>
+        <ul className="mt-3 space-y-1">
+          {keys.map((k, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 rounded bg-gray-50 px-2 py-1 text-xs dark:bg-gray-700/40">
+              <span className="min-w-0">
+                <span className="font-mono font-medium">{k.name}</span>
+                <span className="ml-2 break-all text-gray-500">{sshKeySummary(k.key)}</span>
+              </span>
+              <button type="button" onClick={() => { if (window.confirm(`Remove SSH key ${k.name}?`)) saveKeys(keys.filter((_, j) => j !== i)) }} className="shrink-0 text-red-600" aria-label={`Remove key ${k.name}`}><Trash2 size={14} /></button>
             </li>
           ))}
         </ul>
       )}
-      <div className="flex gap-2">
-        <input aria-label="SSH key name" className={inputClass + ' !mt-0'} placeholder="key name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input aria-label="SSH public key" className={inputClass + ' !mt-0 flex-1 font-mono text-xs'} placeholder="ssh-ed25519 AAAA..." value={key} onChange={(e) => setKey(e.target.value)} />
-        <button type="button" onClick={add} className="rounded bg-blue-600 px-3 py-1 text-sm text-white">Add</button>
-      </div>
+      <form onSubmit={add} className="mt-3 space-y-3">
+        <label className="block max-w-xs text-sm">
+          Name
+          <input aria-label="SSH key name" className={inputClass} placeholder="laptop" value={name} onChange={(e) => setName(e.target.value)} />
+          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+        </label>
+        <label className="block text-sm">
+          Public key
+          <textarea aria-label="SSH public key" rows={4} spellCheck={false} className={inputClass + ' break-all font-mono text-xs'} placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA… you@laptop" value={key} onChange={(e) => setKey(e.target.value)} />
+          {errors.key && <p className="mt-1 text-xs text-red-600">{errors.key}</p>}
+        </label>
+        <button type="submit" className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"><Plus size={16} /> Add key</button>
+      </form>
     </div>
   )
 }
@@ -691,8 +766,9 @@ const TokensTab: React.FC = () => {
     } catch (e) { setError((e as Error).message) }
   }
 
-  const doDelete = async (id: string) => {
-    try { await deleteToken(id); load() } catch (e) { setError((e as Error).message) }
+  const doDelete = async (t: TokenInfo) => {
+    if (!window.confirm(`Delete token ${t.name}? Anything using it stops working.`)) return
+    try { await deleteToken(t.id); load() } catch (e) { setError((e as Error).message) }
   }
 
   if (!tokens) return <p className="text-gray-500">{error ?? 'Loading…'}</p>
@@ -703,7 +779,7 @@ const TokensTab: React.FC = () => {
       {created && (
         <div className="mb-4 rounded bg-green-50 p-3 text-sm" role="status">
           <p className="font-medium text-green-800">Token created — copy it now, it will not be shown again:</p>
-          <code className="mt-1 blockmin-h-[40px]  break-all rounded bg-white p-2 font-mono text-xs dark:bg-gray-900">{created}</code>
+          <code className="mt-1 block break-all rounded bg-white p-2 font-mono text-xs dark:bg-gray-900">{created}</code>
         </div>
       )}
       <form onSubmit={create} className="mb-4 space-y-3">
@@ -789,7 +865,7 @@ const TokensTab: React.FC = () => {
                 <td className="px-3 py-2 text-xs"><TokenExpiry expires={t.expires} now={now} /></td>
                 <td className="px-3 py-2 text-xs" aria-label="last used">{t.last_used ? new Date(t.last_used).toLocaleString() : '—'}</td>
                 <td className="px-3 py-2 text-right">
-                  <button type="button" onClick={() => doDelete(t.id)} className="text-red-600" aria-label={`Delete token ${t.name}`}><Trash2 size={16} /></button>
+                  <button type="button" onClick={() => doDelete(t)} className="text-red-600" aria-label={`Delete token ${t.name}`}><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}
@@ -1306,7 +1382,7 @@ const AboutTab: React.FC = () => {
         </tbody>
       </table>
       {info.ntp_synchronized !== undefined && (
-        <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${info.ntp_synchronized ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+        <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${info.ntp_synchronized ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200'}`}>
           NTP {info.ntp_synchronized ? 'synchronized' : 'not synchronized'}
         </span>
       )}

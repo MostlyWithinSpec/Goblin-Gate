@@ -97,7 +97,7 @@ export default function ChartBuilder() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-1 sm:grid-cols-3">
+    <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-3 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
         <label className="block">
           Source

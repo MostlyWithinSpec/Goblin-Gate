@@ -243,3 +243,17 @@ func TestCheckOffersALaggingPlugin(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 }
+
+// After an update, the last check's "available" is forgotten: it named the
+// version that is installed now.
+func TestCheckForgottenAfterUpdate(t *testing.T) {
+	f := &fakeBox{installed: "0.1.0~alpha.1", repo: map[string]bool{"0.1.0~alpha.1": true, "0.1.0~alpha.2": true}}
+	m := manager(t, f)
+	if st := m.Check(context.Background(), 0); st.Available != "0.1.0~alpha.2" {
+		t.Fatalf("%+v", st)
+	}
+	m.Run(context.Background(), "0.1.0~alpha.2", false)
+	if c := m.Cached(); c.Available != "" {
+		t.Fatalf("stale cache %+v", c)
+	}
+}

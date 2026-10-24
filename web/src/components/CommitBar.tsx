@@ -51,6 +51,9 @@ export const CommitBar: React.FC = () => {
 
   // Track previous pending_confirm deadline to detect rollback.
   const prevDeadlineRef = useRef<string | null>(null)
+  // Set when this tab's Confirm went through, so the pending_confirm that then
+  // goes away is not reported as a rollback.
+  const confirmedRef = useRef(false)
 
   const { data: diffData, refetch, isLoading } = useQuery({
     queryKey: ['configDiff'],
@@ -81,9 +84,12 @@ export const CommitBar: React.FC = () => {
       setDone(null)
     }
     if (!deadline && prevDeadlineRef.current) {
-      // pending_confirm went away: either confirmed or rolled back.
-      // If we didn't confirm (no busy state change), it was rolled back.
-      setDone('The commit was rolled back (not confirmed in time)')
+      // pending_confirm went away: confirmed here, rolled back at the
+      // deadline, or confirmed some other way (another tab, the CLI).
+      if (confirmedRef.current) setDone('Commit confirmed')
+      else if (Date.now() >= new Date(prevDeadlineRef.current).getTime() - 2000) setDone('The commit was rolled back (not confirmed in time)')
+      else setDone('The commit is no longer waiting for confirmation')
+      confirmedRef.current = false
       queryClient.invalidateQueries()
       refetch()
     }
@@ -123,6 +129,7 @@ export const CommitBar: React.FC = () => {
     setBusy(true)
     try {
       await confirmCommit()
+      confirmedRef.current = true
       setDone('Commit confirmed')
       refetchStatus()
     } catch (e) {

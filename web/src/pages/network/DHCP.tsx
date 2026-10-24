@@ -39,8 +39,8 @@ function Leases() {
       {leases && leases.length > 0 && (
         <div className="max-w-full overflow-x-auto" data-testid="table-scroll">
         <table className="min-w-full text-sm dark:text-gray-200">
-          <thead className="text-left text-xs uppercase text-gray-500"><tr><th>IP</th><th>MAC</th><th>Hostname</th><th>Expires</th></tr></thead>
-          <tbody>{leases.map((l) => <tr key={l.mac + l.ip}><td>{l.ip}</td><td>{l.mac}</td><td>{l.hostname}</td><td>{l.expires}</td></tr>)}</tbody>
+          <thead className="text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">IP</th><th className="px-3 py-2">MAC</th><th className="px-3 py-2">Hostname</th><th className="px-3 py-2">Expires</th></tr></thead>
+          <tbody>{leases.map((l) => <tr key={l.mac + l.ip} className="border-t border-gray-100 dark:border-gray-700"><td className="px-3 py-1">{l.ip}</td><td className="px-3 py-1 font-mono text-xs">{l.mac}</td><td className="px-3 py-1">{l.hostname}</td><td className="px-3 py-1">{l.expires}</td></tr>)}</tbody>
         </table>
         </div>
       )}
@@ -69,20 +69,22 @@ export default function DHCP() {
 
   const subnetOf = (name: string) => ifs.find((i) => i.name === name)?.address
 
-  const save = async (next: DHCPServer[]) => {
+  const save = async (next: DHCPServer[]): Promise<boolean> => {
     const prev = servers
     setServers(next)
     setError(null)
     try {
       const res = await patchSection('dhcp', next)
       setServerErrors((res.validation_errors ?? []).filter((v) => v.path.startsWith('dhcp')))
+      return true
     } catch (e) {
       setServers(prev)
       setError((e as Error).message)
+      return false
     }
   }
 
-  const submit = (ev: React.FormEvent) => {
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!draft) return
     const s = fromDraft(draft.d)
@@ -91,8 +93,8 @@ export default function DHCP() {
     setErrors(errs)
     if (Object.keys(errs).length) return
     const clean = cleanDHCP(s)
-    save(draft.index === null ? [...servers, clean] : servers.map((x, i) => (i === draft.index ? clean : x)))
-    setDraft(null)
+    // the form stays open when the save fails, so the edits are not lost
+    if (await save(draft.index === null ? [...servers, clean] : servers.map((x, i) => (i === draft.index ? clean : x)))) setDraft(null)
   }
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((x) => (x ? { ...x, d: { ...x.d, [k]: v } } : x))
@@ -122,7 +124,7 @@ export default function DHCP() {
       </div>
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
-        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           {serverErrors.map((v) => <li key={v.path + v.message}><code>{v.path}</code>: {v.message}</li>)}
         </ul>
       )}
@@ -146,7 +148,7 @@ export default function DHCP() {
               <td className="px-3 py-1">{s.lease_seconds ? `${s.lease_seconds}s` : 'default'}</td>
               <td className="px-3 py-1">{s.static_leases?.length ?? 0}</td>
               <td className="px-3 py-1 text-right">
-                <button type="button" aria-label={`Delete DHCP on ${s.interface}`} onClick={() => save(servers.filter((_, j) => j !== i))} className="inline-flex h-10 w-10 items-center justify-center text-red-600"><Trash2 size={16} /></button>
+                <button type="button" aria-label={`Delete DHCP on ${s.interface}`} onClick={() => window.confirm(`Delete the DHCP server on ${s.interface}?`) && save(servers.filter((_, j) => j !== i))} className="inline-flex h-10 w-10 items-center justify-center text-red-600"><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}

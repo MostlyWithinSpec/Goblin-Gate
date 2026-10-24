@@ -131,7 +131,7 @@ describe('CrowdSec page', () => {
     expect(value).toEqual({ enabled: true, url: 'http://10.0.0.5:8080', scope: 'wan', poll_seconds: 60 })
   })
 
-  test('sends a typed key and reports "Saved."', async () => {
+  test('sends a typed key and reports it saved', async () => {
     // Nothing stored yet: the candidate has neither a URL nor a key.
     vi.mocked(api.getCandidate).mockResolvedValue(candidate({ enabled: false }))
     wrap(<CrowdSec />)
@@ -153,7 +153,7 @@ describe('CrowdSec page', () => {
       api_key: 'KEY123',
     })
     await waitFor(() => expect(within(card()).queryByText(/Last error/)).toBeNull())
-    expect(await screen.findByText('Saved.')).toBeTruthy()
+    expect(await screen.findByText(/^Saved\./)).toBeTruthy()
   })
 
   test('a key typed and saved is sent again on the next save, not dropped', async () => {
@@ -165,7 +165,7 @@ describe('CrowdSec page', () => {
 
     fireEvent.change(screen.getByLabelText('Bouncer key'), { target: { value: 'NEW' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Saved.')).toBeTruthy()
+    expect(await screen.findByText(/^Saved\./)).toBeTruthy()
     expect((lastPatch()[1] as CrowdSecSettings).api_key).toBe('NEW')
 
     fireEvent.change(screen.getByLabelText('Poll interval'), { target: { value: '60' } })
@@ -203,7 +203,7 @@ describe('CrowdSec page', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toMatch(/required when CrowdSec is enabled/)
-    expect(screen.queryByText('Saved.')).toBeNull()
+    expect(screen.queryByText(/^Saved\./)).toBeNull()
   })
 
   test('status card: connected shows the counters and the last pull', async () => {

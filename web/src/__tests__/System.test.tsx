@@ -110,6 +110,56 @@ describe('General tab keeps other settings', () => {
   })
 })
 
+describe('General tab server lists', () => {
+  test('Enter and commas can be typed between NTP servers', async () => {
+    wrap(<System />)
+    const box = await screen.findByLabelText('NTP servers')
+    // typed one key at a time: the trailing newline must survive the re-render
+    fireEvent.change(box, { target: { value: 'pool.ntp.org\n' } })
+    expect(box).toHaveValue('pool.ntp.org\n')
+    fireEvent.change(box, { target: { value: 'pool.ntp.org\ntime.cloudflare.com, ' } })
+    fireEvent.change(screen.getByLabelText('DNS servers'), { target: { value: '1.1.1.1\n9.9.9.9' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const body = vi.mocked(api.patchSection).mock.calls[0][1] as Record<string, unknown>
+    expect(body.ntp_servers).toEqual(['pool.ntp.org', 'time.cloudflare.com'])
+    expect(body.dns_servers).toEqual(['1.1.1.1', '9.9.9.9'])
+  })
+})
+
+describe('SSH keys', () => {
+  const ed = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl me@laptop'
+
+  test('adds a pasted .pub line, trimming its newline', async () => {
+    wrapAt('/system?tab=Admins')
+    fireEvent.change(await screen.findByLabelText('SSH key name'), { target: { value: 'laptop' } })
+    fireEvent.change(screen.getByLabelText('SSH public key'), { target: { value: ed + '\n' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add key' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalledWith('system.ssh_keys', [{ name: 'laptop', key: ed }]))
+    expect(await screen.findByText('ssh-ed25519 · me@laptop')).toBeInTheDocument()
+    expect(screen.getByText(/Use the commit bar/)).toBeInTheDocument()
+  })
+
+  test('refuses a private key without saving', async () => {
+    wrapAt('/system?tab=Admins')
+    fireEvent.change(await screen.findByLabelText('SSH key name'), { target: { value: 'laptop' } })
+    fireEvent.change(screen.getByLabelText('SSH public key'), { target: { value: '-----BEGIN OPENSSH PRIVATE KEY-----\nb3Bl\n-----END OPENSSH PRIVATE KEY-----' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add key' }))
+    expect(await screen.findByText(/This is a private key/)).toBeInTheDocument()
+    expect(api.patchSection).not.toHaveBeenCalled()
+  })
+
+  test('shows a save error instead of swallowing it', async () => {
+    vi.mocked(api.patchSection).mockRejectedValueOnce(new Error('forbidden'))
+    wrapAt('/system?tab=Admins')
+    fireEvent.change(await screen.findByLabelText('SSH key name'), { target: { value: 'laptop' } })
+    fireEvent.change(screen.getByLabelText('SSH public key'), { target: { value: ed } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add key' }))
+    expect(await screen.findByText('forbidden')).toBeInTheDocument()
+    expect(screen.getByLabelText('SSH public key')).toHaveValue(ed)
+  })
+})
+
 describe('Admins tab', () => {
   test('validates admin create and does not call API on error', async () => {
     wrap(<System />)

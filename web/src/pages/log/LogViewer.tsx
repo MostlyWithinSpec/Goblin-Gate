@@ -36,7 +36,7 @@ function CountryRow({ ip }: { ip: string }) {
   return (
     <>
       <dt className="text-gray-500">src_country</dt>
-      <dd className="col-span-2">{country}</dd>
+      <dd className="sm:col-span-2">{country}</dd>
     </>
   )
 }
@@ -220,14 +220,14 @@ export default function LogViewer() {
         <EditDrawer isOpen onClose={() => setDetail(null)} title={`${detail.kind} event`}>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
             <dt className="text-gray-500">time</dt>
-            <dd className="col-span-2">{fmtTime(detail.time)}</dd>
+            <dd className="sm:col-span-2">{fmtTime(detail.time)}</dd>
             {detail.src_ip && <CountryRow ip={detail.src_ip} />}
             {(Object.keys(detail) as (keyof LogEvent)[])
               .filter((k) => k !== 'time' && k !== 'id' && detail[k] !== undefined && detail[k] !== '')
               .map((k) => (
                 <React.Fragment key={k}>
                   <dt className="text-gray-500">{k}</dt>
-                  <dd className="col-span-2 flex items-start justify-between gap-2 break-all">
+                  <dd className="sm:col-span-2 flex items-start justify-between gap-2 break-all">
                     <span>{String(detail[k])}</span>
                     {CHIP_FIELDS.includes(k) && (
                       <button

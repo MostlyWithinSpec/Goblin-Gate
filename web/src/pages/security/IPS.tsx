@@ -23,7 +23,7 @@ function ExceptionDialog({ event, onClose, onDone }: { event: LogEvent; onClose:
   const { sid, msg } = parseSignature(event.signature)
   const [profiles, setProfiles] = useState<IPSProfile[] | null>(null)
   const [target, setTarget] = useState('')
-  const [scope, setScope] = useState<'' | 'by_src' | 'by_dst'>('by_src')
+  const [scope, setScope] = useState<'' | 'by_src' | 'by_dst'>(event.src_ip ? 'by_src' : event.dst_ip ? 'by_dst' : '')
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     getCandidate()
@@ -109,7 +109,7 @@ export function IPSEvents() {
           <Link to={logLink()} className="text-blue-600 hover:underline">Open in log viewer</Link>
         </div>
       </div>
-      {notice && <p role="status" className="mb-2 rounded bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
+      {notice && <p role="status" className="mb-2 rounded bg-green-50 p-2 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-200">{notice}</p>}
       {error && <p role="alert" className="mb-2 rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <div className="overflow-x-auto rounded bg-white shadow-sm dark:bg-gray-800">
         <table className="min-w-full text-sm text-gray-700 dark:text-gray-200" data-testid="ips-events">

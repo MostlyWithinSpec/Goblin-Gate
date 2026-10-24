@@ -229,12 +229,25 @@ export default function Policies() {
     }
   }, [location.search])
 
-  // the row menu is fixed-positioned: close it when anything scrolls
+  // the row menu is fixed-positioned: close it when anything scrolls, on a
+  // click outside it (its own button toggles it) and on Escape
   useEffect(() => {
     if (menuFor === null) return
     const close = () => setMenuFor(null)
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Element | null
+      if (t?.closest?.('[role="menu"]') || t?.closest?.(`[aria-label="Actions for policy ${menuFor}"]`)) return
+      close()
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
     window.addEventListener('scroll', close, true)
-    return () => window.removeEventListener('scroll', close, true)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [menuFor])
 
   // save stores the new list in the candidate; on failure the old list is kept.
@@ -386,7 +399,18 @@ export default function Policies() {
       )}
 
       {sim && objects && (
-        <PolicySimulator interfaces={objects.interfaces} initial={sim} onClose={() => setSim(null)} />
+        <PolicySimulator
+          interfaces={objects.interfaces}
+          initial={sim}
+          onClose={() => setSim(null)}
+          onOpenPolicy={(id) => {
+            // the editor opens in place of the simulator (both are drawers)
+            const target = policies.find((p) => p.id === id)
+            if (!target) return
+            setSim(null)
+            setEditing({ policy: target, isNew: false })
+          }}
+        />
       )}
     </div>
   )

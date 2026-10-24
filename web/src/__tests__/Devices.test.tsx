@@ -25,6 +25,7 @@ vi.mock('../api/sentry', async (importOriginal) => {
 import * as devices from '../api/devices'
 import * as sentry from '../api/sentry'
 import Devices from '../pages/network/Devices'
+import { APIRequestError } from '../api/client'
 
 const device = (over: Partial<DeviceInventory> = {}): DeviceInventory => ({
   mac: 'aa:bb:cc:dd:ee:01',
@@ -159,5 +160,25 @@ describe('Devices page', () => {
     await waitFor(() => expect(devices.wakeDevice).toHaveBeenCalledWith('aa:bb:cc:dd:ee:01'))
     // Success message uses hostname (no admin label set).
     expect(await screen.findByText(/Wake-up packet sent to tv\.local/)).toBeTruthy()
+  })
+
+  test('a block refused for an own-network IP offers the override, and sends it', async () => {
+    vi.mocked(sentry.createBlock).mockRejectedValueOnce(
+      new APIRequestError('192.168.1.50 cannot be blocked: it is on lan', 403, 'protected_target', null)
+    )
+    wrap(<Devices />)
+    await screen.findByText('tv.local')
+    fireEvent.click(screen.getByText('aa:bb:cc:dd:ee:01'))
+    fireEvent.click(await screen.findByRole('button', { name: /Block temporarily/ }))
+    fireEvent.change(await screen.findByLabelText(/Reason/), { target: { value: 'testing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+
+    expect(await screen.findByText(/cannot be blocked: it is on lan/)).toBeTruthy()
+    const allow = screen.getByLabelText(/Allow \(IP is inside/)
+    fireEvent.click(allow)
+    fireEvent.click(screen.getByRole('button', { name: 'Block' }))
+    await waitFor(() =>
+      expect(sentry.createBlock).toHaveBeenLastCalledWith(expect.objectContaining({ ip: '192.168.1.50', allow_internal: true }))
+    )
   })
 })

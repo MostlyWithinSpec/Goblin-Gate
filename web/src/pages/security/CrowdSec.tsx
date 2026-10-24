@@ -104,7 +104,7 @@ export default function CrowdSec() {
   const [form, setForm] = useState<CrowdSecForm | null>(null)
   const [loaded, setLoaded] = useState<CrowdSecSettings | undefined>(undefined)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     if (!form && cfg.data) {
@@ -132,7 +132,7 @@ export default function CrowdSec() {
       }
       setErrors(errs)
       if (Object.keys(errs).length > 0) {
-        setMessage('')
+        setMessage(null)
         return
       }
       // The save went through, so the key that was sent (or kept behind the
@@ -141,18 +141,18 @@ export default function CrowdSec() {
       // Remember what the server holds now: a key that was sent is the key
       // (echoed back on the next save); one left out stayed as it was.
       setLoaded((c) => ({ ...c, ...value, api_key: value.api_key ?? c?.api_key }))
-      setMessage('Saved.')
+      setMessage({ ok: true, text: 'Saved. Use the commit bar to apply.' })
       queryClient.invalidateQueries({ queryKey: ['candidate'] })
       queryClient.invalidateQueries({ queryKey: ['crowdsec-status'] })
     },
     onError: (err: Error) => {
       setErrors({})
-      setMessage(`Could not save: ${err.message}`)
+      setMessage({ ok: false, text: `Could not save: ${err.message}` })
     },
   })
 
   const set = (patch: Partial<CrowdSecForm>) => {
-    setMessage('')
+    setMessage(null)
     setForm((f) => (f ? { ...f, ...patch } : f))
   }
 
@@ -183,8 +183,11 @@ export default function CrowdSec() {
         ) : (
           <form onSubmit={submit} className="max-w-xl space-y-3">
             {message && (
-              <div role="status" className="rounded bg-green-50 p-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                {message}
+              <div
+                role={message.ok ? 'status' : 'alert'}
+                className={message.ok ? 'rounded bg-green-50 p-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300' : 'rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300'}
+              >
+                {message.text}
               </div>
             )}
             <label className="flex items-center gap-2 text-sm">
@@ -288,7 +291,7 @@ function StatusCard({ query }: { query: StatusState }) {
       ) : !s ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-gray-500 dark:text-gray-400">Active decisions</dt>
             <dd className="font-semibold text-gray-900 dark:text-white">{s.active}</dd>

@@ -24,15 +24,17 @@ export default function StaticRoutes() {
       .catch((e: Error) => setError(e.message))
   }, [])
 
-  const save = async (next: Route[]) => {
+  const save = async (next: Route[]): Promise<boolean> => {
     const prev = routes
     setRoutes(next)
     setError(null)
     try {
       await patchSection('routes', next)
+      return true
     } catch (e) {
       setRoutes(prev)
       setError((e as Error).message)
+      return false
     }
   }
 
@@ -42,7 +44,7 @@ export default function StaticRoutes() {
     return out
   }
 
-  const submit = (ev: FormEvent) => {
+  const submit = async (ev: FormEvent) => {
     ev.preventDefault()
     if (!editing || !cfg) return
     const r = clean(editing.route)
@@ -51,12 +53,13 @@ export default function StaticRoutes() {
       errs.destination = 'This destination already has a route'
     setErrors(errs)
     if (Object.keys(errs).length) return
-    save(editing.index === null ? [...routes, r] : routes.map((x, i) => (i === editing.index ? r : x)))
-    setEditing(null)
+    // the drawer stays open when the save fails, so the edits are not lost
+    if (await save(editing.index === null ? [...routes, r] : routes.map((x, i) => (i === editing.index ? r : x)))) setEditing(null)
   }
 
   const open = (route: Route, index: number | null) => {
     setErrors({})
+    setError(null)
     setEditing({ route: structuredClone(route), index })
   }
   const set = (patch: Partial<Route>) => setEditing((e) => (e ? { ...e, route: { ...e.route, ...patch } } : e))
@@ -80,7 +83,7 @@ export default function StaticRoutes() {
       <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
         Send a subnet through a specific gateway instead of the default route.
       </p>
-      {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
+      {error && !editing && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       <div className="overflow-x-auto">
         <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
@@ -102,7 +105,7 @@ export default function StaticRoutes() {
                 <td className="px-3 py-1">{r.gateway}</td>
                 <td className="px-3 py-1">{r.comment}</td>
                 <td className="whitespace-nowrap px-3 py-1 text-right">
-                  <button type="button" aria-label={`Delete ${r.destination}`} onClick={() => save(routes.filter((_, j) => j !== i))} className="ml-2 text-red-600">
+                  <button type="button" aria-label={`Delete ${r.destination}`} onClick={() => window.confirm(`Delete the route to ${r.destination}?`) && save(routes.filter((_, j) => j !== i))} className="ml-2 text-red-600">
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -121,6 +124,7 @@ export default function StaticRoutes() {
       {editing && cfg && (
         <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? 'New route' : `Edit ${editing.route.destination}`}>
           <form onSubmit={submit} noValidate className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+            {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
             <label className="block">
               Destination
               <input aria-label="Destination" className={inputClass} placeholder="192.168.2.0/24" value={editing.route.destination} onChange={(e) => set({ destination: e.target.value })} />

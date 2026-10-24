@@ -26,6 +26,7 @@ export default function Queue() {
   const [alwaysTarget, setAlwaysTarget] = useState<Incident | null>(null)
   const [minutes, setMinutes] = useState(60)
   const [busy, setBusy] = useState(false)
+  const [answerError, setAnswerError] = useState<string | null>(null)
 
   const statusQ = useQuery({ queryKey: ['sentry', 'status'], queryFn: getSentryStatus, retry: false })
   const incidentsQ = useQuery({
@@ -59,10 +60,14 @@ export default function Queue() {
 
   const doAnswer = async (incident: Incident, answer: Answer, mins?: number) => {
     setBusy(true)
+    setAnswerError(null)
     try {
       await answerMut.mutateAsync({ id: incident.id, answer, mins })
       setBlockTarget(null)
       setAlwaysTarget(null)
+    } catch (e) {
+      // shown in the open dialog, or above the list for Ignore / Approve
+      setAnswerError((e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -85,6 +90,12 @@ export default function Queue() {
       {incidentsQ.isError && (
         <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">
           {(incidentsQ.error as Error).message}
+        </div>
+      )}
+
+      {answerError && !blockTarget && !alwaysTarget && (
+        <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+          {answerError}
         </div>
       )}
 
@@ -127,7 +138,7 @@ export default function Queue() {
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => { setBlockTarget(inc); setMinutes(inc.recommendation.minutes ?? 60) }}
+                onClick={() => { setAnswerError(null); setBlockTarget(inc); setMinutes(inc.recommendation.minutes ?? 60) }}
                 className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
               >
                 <Shield size={14} /> Block
@@ -150,7 +161,7 @@ export default function Queue() {
               </button>
               <button
                 type="button"
-                onClick={() => setAlwaysTarget(inc)}
+                onClick={() => { setAnswerError(null); setAlwaysTarget(inc) }}
                 disabled={busy}
                 className="flex items-center gap-1 rounded border border-blue-300 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
               >
@@ -180,7 +191,7 @@ export default function Queue() {
                 max={10080}
                 value={minutes}
                 onChange={(e) => setMinutes(Number(e.target.value))}
-                className="mt-1 blockmin-h-[40px]  w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
+                className="mt-1 block min-h-[40px] w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
               />
             </label>
             {answerMut.isError && (

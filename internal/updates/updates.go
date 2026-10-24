@@ -276,6 +276,10 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 		m.logger().Info("updates: "+name, "from", from, "to", to)
 	}
 	finish := func(state, msg string) State {
+		// what was available before is out of date now: the next check says
+		m.mu.Lock()
+		m.cache = Status{}
+		m.mu.Unlock()
 		s.State, s.Message, s.Step, s.Finished = state, msg, "", m.now()
 		m.save(s)
 		m.logger().Info("updates: finished", "state", state, "message", msg)

@@ -147,11 +147,6 @@ function TestButton({ name }: { name: string }) {
 }
 
 export default function Notifications() {
-  const [channels, setChannels] = useState<NotifyChannel[]>([])
-  React.useEffect(() => {
-    getCandidate().then((c) => setChannels(c.notifications?.channels ?? [])).catch(() => {})
-  }, [])
-
   return (
     <div className="p-6">
       <ConfigList<NotifyChannel>
@@ -250,7 +245,7 @@ export default function Notifications() {
             </label>
           </>
         )}
-        after={() => <RulesTable channels={channels} />}
+        after={(_cfg, items) => <RulesTable channels={items} />}
       />
     </div>
   )

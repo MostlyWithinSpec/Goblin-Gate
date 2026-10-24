@@ -162,6 +162,18 @@ const Login: React.FC = () => {
             >
               {busy ? 'Verifying…' : 'Verify'}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTotpStep(false)
+                setPassword('')
+                setCode('')
+                setError('')
+              }}
+              className="mt-3 w-full text-sm text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Back to username and password
+            </button>
           </form>
         )}
 

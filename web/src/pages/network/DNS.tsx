@@ -67,7 +67,7 @@ export default function DNS() {
       <h2 className="text-xl font-semibold text-gray-800 dark:text-white">DNS Resolver</h2>
       {error && <div role="alert" className="rounded bg-red-50 p-2 text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
-        <ul className="rounded bg-yellow-50 p-2 text-yellow-800">{serverErrors.map((v) => <li key={v.path + v.message}><code>{v.path}</code>: {v.message}</li>)}</ul>
+        <ul className="rounded bg-yellow-50 p-2 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">{serverErrors.map((v) => <li key={v.path + v.message}><code>{v.path}</code>: {v.message}</li>)}</ul>
       )}
       <label className="block">
         Forwarders
@@ -101,7 +101,7 @@ export default function DNS() {
       </fieldset>
       <div className="flex items-center gap-3">
         <button type="submit" disabled={!loaded} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">Save</button>
-        {saved && <span className="text-green-700">Saved to the candidate config.</span>}
+        {saved && <span role="status" className="text-green-700 dark:text-green-400">Saved. Use the commit bar to apply.</span>}
       </div>
     </form>
   )

@@ -124,7 +124,7 @@ export default function PacketCapture() {
       {/* Start form */}
       {!captureId && (
         <form
-          className="mb-6 grid max-w-3xl grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-1 sm:grid-cols-3"
+          className="mb-6 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3"
           onSubmit={(e) => {
             e.preventDefault()
             void start()
@@ -168,10 +168,10 @@ export default function PacketCapture() {
           </label>
 
           {startError && (
-            <p role="alert" className="col-span-2 text-sm text-red-600 md:col-span-3">{startError}</p>
+            <p role="alert" className="col-span-full text-sm text-red-600">{startError}</p>
           )}
           {busyCaptureId !== null && (
-            <div role="alert" className="col-span-2 flex items-center gap-2 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200 md:col-span-3">
+            <div role="alert" className="col-span-full flex items-center gap-2 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
               <AlertTriangle size={16} />
               A capture is already running.{' '}
               {busyCaptureId && (
@@ -180,7 +180,7 @@ export default function PacketCapture() {
             </div>
           )}
 
-          <div className="col-span-2 flex items-end md:col-span-3">
+          <div className="col-span-full flex items-end">
             <button type="submit" className="flex items-center gap-1 rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">
               <Play size={16} /> Start capture
             </button>
@@ -208,6 +208,36 @@ export default function PacketCapture() {
             {state === 'running' && (
               <button type="button" onClick={() => void stop()} className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
                 <Square size={14} /> Stop
+              </button>
+            )}
+            {state !== 'running' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCaptureId(null)
+                  setRows([])
+                  setDropped(0)
+                  setBusyCaptureId(null)
+                  setStartError(null)
+                }}
+                className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                New capture
+              </button>
+            )}
+            {state !== 'running' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCaptureId(null)
+                  setRows([])
+                  setDropped(0)
+                  setBusyCaptureId(null)
+                  setStartError(null)
+                }}
+                className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                New capture
               </button>
             )}
             {state === 'done' && (

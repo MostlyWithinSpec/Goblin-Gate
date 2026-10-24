@@ -165,9 +165,21 @@ describe('CommitBar', () => {
     expect(banner.className).toContain('bg-red-600')
   })
 
-  test('shows rolled-back message when pending_confirm disappears without confirm', async () => {
-    // Start with a pending confirmation.
+  test('says confirmed, not rolled back, after Confirm', async () => {
     const deadline = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    statusData = { version: 'x', pending_confirm: { deadline } }
+    wrap()
+    await screen.findByRole('button', { name: 'Confirm' })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(calls.some((x) => x.url === '/api/v1/commit/confirm')).toBe(true))
+    statusData = { version: 'x', pending_confirm: null }
+    await waitFor(() => expect(screen.queryByText('Commit confirmed')).toBeTruthy(), { timeout: 8000, interval: 500 })
+    expect(screen.queryByText(/rolled back/)).toBeNull()
+  })
+
+  test('shows rolled-back message when pending_confirm disappears without confirm', async () => {
+    // Start with a pending confirmation that is about to run out.
+    const deadline = new Date(Date.now() + 1000).toISOString()
     statusData = { version: 'x', pending_confirm: { deadline } }
 
     wrap()

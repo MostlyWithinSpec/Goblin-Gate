@@ -5,7 +5,6 @@ import {
   Network,
   Shield,
   Settings,
-  User,
   Activity,
   Menu,
   X,
@@ -56,9 +55,9 @@ const ConnectionBadge: React.FC = () => {
     <>
     {reboot && (
       <Link
-        to="/system"
+        to="/system/updates"
         className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-        title={`A security update is installed and needs a restart to take effect${pkgs.length ? ` (${pkgs.join(', ')})` : ''}. Restart from System when it suits you.`}
+        title={`A security update is installed and needs a restart to take effect${pkgs.length ? ` (${pkgs.join(', ')})` : ''}. Restart from the account menu (top right) when it suits you.`}
       >
         Restart needed
       </Link>
@@ -107,6 +106,8 @@ const Layout: React.FC = () => {
   const [phone, setPhone] = useState(isPhone)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  // the theme toggle's icon follows the theme it switches away from
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const location = useLocation()
 
   // Close the drawer when navigating
@@ -317,21 +318,15 @@ const Layout: React.FC = () => {
         {/* Sidebar footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gray-200 dark:bg-gray-600 rounded-full p-1">
-                <User size={20} className="text-gray-700 dark:text-gray-300" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Admin</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Online</p>
-              </div>
-            </div>
+            <span className="text-sm text-gray-600 dark:text-gray-400">{dark ? 'Dark theme' : 'Light theme'}</span>
             <button
-              onClick={toggleTheme}
+              type="button"
+              onClick={() => setDark(toggleTheme() === 'dark')}
               aria-label="Switch colour theme"
+              title={dark ? 'Switch to the light theme' : 'Switch to the dark theme'}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
-              {document.documentElement.classList.contains('dark') ? '☀️' : '🌙'}
+              {dark ? '☀️' : '🌙'}
             </button>
           </div>
         </div>

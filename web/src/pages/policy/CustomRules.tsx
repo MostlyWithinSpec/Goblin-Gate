@@ -20,7 +20,12 @@ interface CheckState {
   running: boolean
   ok: boolean
   message: string
+  // for is the rule the result is about; another rule (or an edited one)
+  // does not show it
+  for: string
 }
+
+const checkKey = (r: CustomRule) => `${r.name}\u0000${r.hook}\u0000${r.position ?? 'end'}\u0000${r.rule}`
 
 export default function CustomRules() {
   const hits = useQuery({ queryKey: ['custom-rule-hits'], queryFn: getCustomRuleHits, refetchInterval: 30_000 })
@@ -54,21 +59,24 @@ export default function CustomRules() {
   const checkRule = async (item: CustomRule, ctx: FormCtx) => {
     const local = validateCustomRule(item)
     if (Object.keys(local).length) {
-      setCheck({ running: false, ok: false, message: Object.values(local)[0] })
+      setCheck({ running: false, ok: false, message: Object.values(local)[0], for: checkKey(item) })
       return
     }
     const saved = (ctx.items as CustomRule[]) ?? []
     const mine = ctx.index === null ? saved.length : ctx.index
     const next = [...saved.filter((_, i) => i !== mine), omitEmpty(item) as CustomRule]
-    setCheck({ running: true, ok: false, message: 'Checking with nft…' })
+    const key = checkKey(item)
+    setCheck({ running: true, ok: false, message: 'Checking with nft…', for: key })
+    let patched = false
     try {
       await patchSection('custom_rules', next)
+      patched = true
       const res = await validateCandidate()
       const path = `custom_rules[${mine}].rule`
       const here = (res.errors ?? []).filter((e) => e.path === path)
       const elsewhere = (res.errors ?? []).filter((e) => e.path !== path)
-      if (here.length) setCheck({ running: false, ok: false, message: here[0].message })
-      else if (res.valid) setCheck({ running: false, ok: true, message: 'nft accepts the ruleset. Commit to apply it.' })
+      if (here.length) setCheck({ running: false, ok: false, message: here[0].message, for: key })
+      else if (res.valid) setCheck({ running: false, ok: true, message: 'nft accepts the ruleset. Save, then commit to apply it.', for: key })
       else
         setCheck({
           running: false,
@@ -76,9 +84,14 @@ export default function CustomRules() {
           message: `This rule is fine; the config has other problems: ${elsewhere
             .map((e) => `${e.path}: ${e.message}`)
             .join(' · ')}`,
+          for: key,
         })
     } catch (e) {
-      setCheck({ running: false, ok: false, message: (e as Error).message })
+      setCheck({ running: false, ok: false, message: (e as Error).message, for: key })
+    } finally {
+      // Checking is not saving: put the saved list back, so a rule that is
+      // checked and then cancelled does not stay in the candidate.
+      if (patched) await patchSection('custom_rules', saved).catch(() => {})
     }
   }
 
@@ -180,7 +193,7 @@ export default function CustomRules() {
             <input aria-label="Comment" className={inputClass} value={item.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
             {ctx.err('comment')}
           </label>
-          {check && (
+          {check && check.for === checkKey(item) && (
             <div
               role="status"
               className={

@@ -117,6 +117,31 @@ describe('Addresses', () => {
     expect(lastPatch()).toEqual(['addresses', [cfg.addresses![0], { name: 'office', type: 'subnet', value: '10.0.0.0/24' }]])
   })
 
+  test('?new_host= (Devices "Create address object") opens a prefilled host entry', async () => {
+    render(
+      <MemoryRouter initialEntries={['/network/addresses?new_host=192.168.1.50']}>
+        <Addresses />
+      </MemoryRouter>
+    )
+    const drawer = await screen.findByRole('dialog')
+    expect(within(drawer).getByLabelText('Name')).toHaveValue('host_192.168.1.50')
+    expect(within(drawer).getByLabelText('Type')).toHaveValue('host')
+    expect(within(drawer).getByLabelText('Value')).toHaveValue('192.168.1.50')
+  })
+
+  test('a failed save keeps the drawer open with the error and the edits', async () => {
+    vi.mocked(api.patchSection).mockRejectedValueOnce(new Error('candidate is locked'))
+    wrap(<Addresses />)
+    await screen.findByRole('button', { name: 'nas' })
+    fireEvent.click(screen.getByRole('button', { name: /New address/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'office' } })
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '10.0.0.0/24' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const drawer = await screen.findByRole('dialog')
+    expect(await within(drawer).findByText('candidate is locked')).toBeInTheDocument()
+    expect(within(drawer).getByLabelText('Name')).toHaveValue('office')
+  })
+
   test('shows server validation errors for its list', async () => {
     vi.mocked(api.getCandidate).mockResolvedValue({ ...structuredClone(cfg), address_groups: [] })
     vi.mocked(api.patchSection).mockResolvedValue({ status: 'ok', validation_errors: [{ path: 'addresses[0].name', message: 'in use by policy x' }, { path: 'policies[0]', message: 'other' }] })
@@ -330,7 +355,7 @@ describe('Interfaces', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))
     expect(await screen.findByText('Smart queue (reduces lag when the line is busy)')).toBeInTheDocument()
     // Close and open a LAN: no smart queue section there.
-    const close = screen.getByRole('button', { name: '' })
+    const close = screen.getByRole('button', { name: 'Close panel' })
     fireEvent.click(close)
     await waitFor(() => expect(screen.queryByRole('button', { name: 'wan1' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'lan' }))

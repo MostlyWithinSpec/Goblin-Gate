@@ -1,6 +1,6 @@
 // Policy & Objects → Templates (task 111): pick a template, answer its
 // questions, look at the change, apply it. A template writes into the
-// candidate only — committing stays in the commit bar at the bottom, which is
+// candidate only — committing stays in the commit bar at the top, which is
 // why applying refreshes its change count and points there.
 // Docs: https://github.com/MostlyWithinSpec/Goblin-Gate/wiki/How-Changes-Work#templates
 import { useState } from 'react'
@@ -136,7 +136,7 @@ function Field({
 
   if (input.type === 'days') {
     const on = parseDays(value)
-    const toggle = (d: string) => onChange(fmtDays(parseDays(on.concat(d).join(','))))
+    const toggle = (d: string) => onChange(fmtDays(on.includes(d) ? on.filter((x) => x !== d) : parseDays(on.concat(d).join(','))))
     return (
       <div>
         <span className="text-sm font-medium">{input.label}</span>
@@ -329,7 +329,7 @@ function Wizard({ template, onClose }: { template: TemplateInfo; onClose: () => 
           <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-900/20 dark:text-green-200">
             <p>
               Added to the candidate — {applied.changes} change{applied.changes === 1 ? '' : 's'}. Nothing is running
-              yet: commit it in the bar at the bottom of the page.
+              yet: commit it with the Changes button at the top of the page.
             </p>
             <Button variant="secondary" size="sm" className="mt-2" onClick={onClose}>
               Close

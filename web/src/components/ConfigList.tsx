@@ -49,6 +49,9 @@ interface Props<T extends { name: string }> {
   after?: (cfg: Candidate, items: T[]) => React.ReactNode
   rowActions?: (item: T) => React.ReactNode
   wide?: boolean // wider drawer content (big forms)
+  // fromURL builds a new entry from the page's query (a shortcut from another
+  // page, e.g. ?new_host=…); the drawer opens with it once the list is loaded.
+  fromURL?: (params: URLSearchParams, cfg: Candidate) => T | null
 }
 
 export const inputClass = 'mt-1 block min-h-[40px] w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600'
@@ -56,11 +59,13 @@ export const NAME_RE = /^[A-Za-z0-9_.-]{1,63}$/ // config.nameRe
 
 // EditParam calls onEdit with the ?edit=<name> of the URL (global search
 // links), also when only the query changes on the same page.
-export function EditParam({ onEdit }: { onEdit: (name: string) => void }) {
+export function EditParam({ onEdit, onNew }: { onEdit: (name: string) => void; onNew?: (params: URLSearchParams) => void }) {
   const { search } = useLocation()
   useEffect(() => {
-    const name = new URLSearchParams(search).get('edit')
+    const params = new URLSearchParams(search)
+    const name = params.get('edit')
     if (name) onEdit(name)
+    else onNew?.(params)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
   return null
@@ -89,7 +94,8 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const save = async (next: T[]) => {
+  // save stores the list; on failure the old list is kept and false returned.
+  const save = async (next: T[]): Promise<boolean> => {
     const prev = items
     setItems(next)
     setLiveItems(next)
@@ -97,14 +103,16 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
     try {
       const res = await patchSection(p.path, next)
       setServerErrors((res.validation_errors ?? []).filter((v) => v.path === p.path || v.path.startsWith(p.path + '[') || v.path.startsWith(p.path + '.')))
+      return true
     } catch (e) {
       setItems(prev)
       setLiveItems(prev)
       setError((e as Error).message)
+      return false
     }
   }
 
-  const submit = (ev: React.FormEvent) => {
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!editing || !cfg) return
     const item = p.clean ? p.clean(editing.item) : editing.item
@@ -113,8 +121,8 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
     else if (items.some((x, i) => i !== editing.index && x.name === item.name)) errs.name = 'Name already used'
     setErrors(errs)
     if (Object.keys(errs).length) return
-    save(editing.index === null ? [...items, item] : items.map((x, i) => (i === editing.index ? item : x)))
-    setEditing(null)
+    // the drawer stays open when the save fails, so the edits are not lost
+    if (await save(editing.index === null ? [...items, item] : items.map((x, i) => (i === editing.index ? item : x)))) setEditing(null)
   }
 
   // remove refuses while the entry is still referenced (the commit would
@@ -138,6 +146,7 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
 
   const open = (item: T, index: number | null) => {
     setErrors({})
+    setError(null)
     setEditing({ item: structuredClone(item), index })
   }
   const set = (patch: Partial<T>) => setEditing((e) => (e ? { ...e, item: { ...e.item, ...patch } } : e))
@@ -160,6 +169,10 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
             const i = items.findIndex((x) => x.name === name)
             if (i >= 0) open(items[i], i)
           }}
+          onNew={(params) => {
+            const item = p.fromURL?.(params, cfg)
+            if (item) open(item, null)
+          }}
         />
       )}
       <div className="mb-4 flex items-center justify-between">
@@ -174,9 +187,9 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
         </button>
       </div>
       {p.intro && <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">{p.intro}</div>}
-      {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
+      {error && !editing && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
       {serverErrors.length > 0 && (
-        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           {serverErrors.map((v, i) => <li key={i}><code>{v.path}</code>: {v.message}</li>)}
         </ul>
       )}
@@ -220,6 +233,7 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
       {editing && cfg && (
         <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? (p.newLabel ?? 'New') : `Edit ${editing.item.name}`} wide={p.wide}>
           <form onSubmit={submit} noValidate className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+            {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
             <label className="block">
               Name
               <input aria-label="Name" className={inputClass} value={editing.item.name} onChange={(e) => set({ name: e.target.value } as Partial<T>)} />

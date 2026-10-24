@@ -23,6 +23,11 @@ export default function Addresses() {
       empty={() => ({ name: '', type: 'subnet', value: '' })}
       clean={(a) => ({ ...omitEmpty({ name: a.name, type: a.type, comment: a.comment?.trim() || undefined }), value: (a.value ?? '').trim() })}
       validate={(a) => validateAddress(a)}
+      // Network → Devices "Create address object" links here with ?new_host=<ip>
+      fromURL={(params) => {
+        const ip = params.get('new_host')?.trim()
+        return ip ? { name: `host_${ip.replace(/[^A-Za-z0-9_.-]/g, '_')}`, type: ip.includes('/') ? 'subnet' : 'host', value: ip } : null
+      }}
       intro={<GeoIPStatusCard />}
       columns={[
         { label: 'Type', render: (a) => a.type },

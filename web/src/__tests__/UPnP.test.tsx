@@ -130,7 +130,6 @@ describe('UPnP page', () => {
     wrap(<UPnP />)
     await screen.findByText('Active mappings')
 
-    expect(screen.getByText('192.168.1.50')).toBeTruthy()
     expect(screen.getByText('TCP')).toBeTruthy()
     expect(screen.getByText('3000')).toBeTruthy()
     expect(screen.getByText('192.168.1.50:3000')).toBeTruthy()

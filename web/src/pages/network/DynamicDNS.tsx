@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import type { DDNS, DDNSStatus } from '../../api/objects'
@@ -12,6 +13,33 @@ function relTime(s?: string): string {
   if (d < 3_600_000) return `${Math.floor(d / 60_000)} min ago`
   if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} h ago`
   return `${Math.floor(d / 86_400_000)} d ago`
+}
+
+// UpdateNow asks the box to update one entry now and says how it went (an
+// entry that is not committed yet is unknown to the box, which it says).
+function UpdateNow({ name, onDone }: { name: string; onDone: () => void }) {
+  const [state, setState] = useState<{ busy: boolean; ok?: boolean; msg?: string }>({ busy: false })
+  const run = () => {
+    setState({ busy: true })
+    updateDDNSNow(name)
+      .then(() => {
+        setState({ busy: false, ok: true, msg: 'updated' })
+        onDone()
+      })
+      .catch((e: Error) => setState({ busy: false, ok: false, msg: e.message }))
+  }
+  return (
+    <span className="mr-2 inline-flex items-center gap-1 align-middle">
+      <button type="button" disabled={state.busy} onClick={run} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline disabled:opacity-50">
+        <RefreshCw size={12} className={state.busy ? 'animate-spin' : ''} /> Update now
+      </button>
+      {state.msg && (
+        <span role={state.ok ? 'status' : 'alert'} className={`max-w-[14rem] truncate text-xs ${state.ok ? 'text-green-600' : 'text-red-600'}`} title={state.msg}>
+          {state.msg}
+        </span>
+      )}
+    </span>
+  )
 }
 
 export default function DynamicDNS() {
@@ -45,15 +73,7 @@ export default function DynamicDNS() {
       select={(cfg) => cfg.ddns}
       empty={() => ({ name: '', enabled: true, provider: 'cloudflare', hostname: '' })}
       columns={columns}
-      rowActions={(d) => (
-        <button
-          type="button"
-          onClick={() => updateDDNSNow(d.name).then(() => q.refetch())}
-          className="mr-2 flex items-center gap-1 text-xs text-blue-600 hover:underline"
-        >
-          <RefreshCw size={12} /> Update now
-        </button>
-      )}
+      rowActions={(d) => <UpdateNow name={d.name} onDone={() => q.refetch()} />}
       validate={(item, cfg) => {
         const isNew = !(cfg.ddns ?? []).some((d) => d.name === item.name)
         return validateDDNS(item, wanInterfaces(cfg), (cfg.ddns ?? []).filter((d) => d.name !== item.name), isNew)

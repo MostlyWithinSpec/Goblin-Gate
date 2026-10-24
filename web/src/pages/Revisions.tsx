@@ -75,7 +75,7 @@ export const Revisions: React.FC = () => {
                 <td className="px-6 py-4">{r.comment}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   {r.revision !== running && (
-                    <Button variant="secondary" size="sm" onClick={() => setRollbackTo(r)}>
+                    <Button variant="secondary" size="sm" onClick={() => { rollbackMutation.reset(); setRollbackTo(r) }}>
                       Rollback
                     </Button>
                   )}

@@ -36,7 +36,7 @@ export default function ModeSelector({ status }: { status?: SentryStatus }) {
           <span role="alert" className="text-xs text-red-600">{(mut.error as Error).message}</span>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {MODES.map((m) => (
           <button
             key={m.value}

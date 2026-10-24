@@ -35,20 +35,22 @@ export default function PortForwards() {
       .catch((e: Error) => setError(e.message))
   }, [])
 
-  const save = async (next: PortForward[]) => {
+  const save = async (next: PortForward[]): Promise<boolean> => {
     const prev = items
     setItems(next)
     setError(null)
     try {
       const res = await patchSection('nat.port_forwards', next)
       setServerErrors((res.validation_errors ?? []).filter((v) => v.path.startsWith('nat.port_forwards')))
+      return true
     } catch (e) {
       setItems(prev)
       setError((e as Error).message)
+      return false
     }
   }
 
-  const submit = (ev: React.FormEvent) => {
+  const submit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!editing) return
     const others = items.filter((_, i) => i !== editing.index)
@@ -57,8 +59,8 @@ export default function PortForwards() {
     if (Object.keys(errs).length) return
     const pf: PortForward = { ...editing.pf, ext_port: editing.pf.ext_port.trim(), to_port: editing.pf.to_port.trim(), to_addr: editing.pf.to_addr.trim() }
     if (!pf.source?.length) delete pf.source
-    save(editing.index === null ? [...items, pf] : items.map((x, i) => (i === editing.index ? pf : x)))
-    setEditing(null)
+    // the drawer stays open when the save fails, so the edits are not lost
+    if (await save(editing.index === null ? [...items, pf] : items.map((x, i) => (i === editing.index ? pf : x)))) setEditing(null)
   }
 
   const set = <K extends keyof PortForward>(k: K, v: PortForward[K]) =>
@@ -93,9 +95,9 @@ export default function PortForwards() {
           }}
         />
       )}
-      {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
+      {error && !editing && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
-        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800">
+        <ul className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           {serverErrors.map((v) => <li key={v.path}><code>{v.path}</code>: {v.message}</li>)}
         </ul>
       )}
@@ -121,7 +123,7 @@ export default function PortForwards() {
               <td className="px-3 py-1">{pf.to_addr}:{pf.to_port || pf.ext_port}</td>
               <td className="px-3 py-1">{pf.source?.length ? pf.source.join(', ') : <span className="text-gray-500">anyone</span>}</td>
               <td className="px-3 py-1 text-right">
-                <button type="button" aria-label={`Delete ${pf.name}`} onClick={() => save(items.filter((_, j) => j !== i))} className="text-red-600">
+                <button type="button" aria-label={`Delete ${pf.name}`} onClick={() => window.confirm(`Delete port forward "${pf.name}"?`) && save(items.filter((_, j) => j !== i))} className="text-red-600">
                   <Trash2 size={16} />
                 </button>
               </td>
@@ -137,6 +139,7 @@ export default function PortForwards() {
       {editing && (
         <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? 'New port forward' : `Edit ${editing.pf.name}`}>
           <form onSubmit={submit} noValidate className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+            {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
             <label className="block">Name<input aria-label="Name" className={input} value={editing.pf.name} onChange={(e) => set('name', e.target.value)} />{err('name')}</label>
             <label className="block">
               Incoming interface

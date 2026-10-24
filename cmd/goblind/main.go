@@ -692,7 +692,17 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 			logExporter.Observe(ev)
 		}
 	}
-	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), InterfaceFor: interfaceForAddr(store), OnEvent: onEvent}
+	ifaceFor := interfaceForAddr(store)
+	ingester := &logs.Ingester{Store: logStore, PosDir: dataDir, Logger: logger, PolicyAction: policyActions(store), InterfaceFor: ifaceFor, OnEvent: onEvent}
+	// events stored before the ingester filled in interfaces (beta.8 and
+	// older) get theirs once, in the background
+	go func() {
+		if n, err := logStore.FillInterfaces(ifaceFor); err != nil {
+			logger.Warn("logs: filling in interfaces", "error", err)
+		} else if n > 0 {
+			logger.Info("logs: filled in the interface of stored traffic events", "events", n)
+		}
+	}()
 	go ingester.Run(ctx, sources)
 	var counters interface {
 		stats.CounterSource

@@ -78,7 +78,7 @@ export const DataTable: React.FC<DataTableProps> = ({
           {filteredData.map((item, index) => (
             <tr
               key={index}
-              className={`hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700' : ''}
               onClick={() => handleRowClick(item)}
             >
               {columns.map((column) => (

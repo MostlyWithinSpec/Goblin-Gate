@@ -1,13 +1,31 @@
 package main
 
 import (
+	"net"
 	"net/netip"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render"
 )
+
+// liveIPv4 returns the IPv4 networks a device has now.
+func liveIPv4(dev string) []netip.Prefix {
+	ifc, err := net.InterfaceByName(dev)
+	if err != nil {
+		return nil
+	}
+	addrs, _ := ifc.Addrs()
+	var out []netip.Prefix
+	for _, a := range addrs {
+		if p, err := netip.ParsePrefix(a.String()); err == nil && p.Addr().Is4() {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 // ifaceNet is the network of an interface or VLAN with a static address.
 type ifaceNet struct {
@@ -16,12 +34,20 @@ type ifaceNet struct {
 }
 
 // interfaceNets lists the enabled interfaces' and VLANs' networks, longest
-// prefix first.
-func interfaceNets(cfg *config.Config) []ifaceNet {
+// prefix first. An interface without a static address (a WAN by DHCP) uses
+// the addresses its device has now (live; nil = none).
+func interfaceNets(cfg *config.Config, live func(dev string) []netip.Prefix) []ifaceNet {
 	var out []ifaceNet
+	devs := render.Devices(cfg)
 	add := func(name string, enabled bool, p *netip.Prefix) {
-		if enabled && p != nil {
+		switch {
+		case !enabled:
+		case p != nil:
 			out = append(out, ifaceNet{name, p.Masked()})
+		case live != nil:
+			for _, lp := range live(devs[name]) {
+				out = append(out, ifaceNet{name, lp.Masked()})
+			}
 		}
 	}
 	for _, i := range cfg.Interfaces {
@@ -64,7 +90,7 @@ func interfaceForAddr(store *config.Store) func(string) string {
 		defer mu.Unlock()
 		if time.Since(loaded) > 10*time.Second {
 			if cfg, err := store.Running(); err == nil {
-				nets = interfaceNets(cfg)
+				nets = interfaceNets(cfg, liveIPv4)
 			}
 			loaded = time.Now()
 		}

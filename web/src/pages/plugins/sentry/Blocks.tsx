@@ -5,6 +5,7 @@ import { Badge } from '../../../components/Badge'
 import { Dialog } from '../../../components/Dialog'
 import SentryNav from './SentryNav'
 import { getBlocks, createBlock, deleteBlock } from '../../../api/sentry'
+import { APIRequestError } from '../../../api/client'
 
 const inputClass = 'mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600'
 
@@ -34,6 +35,8 @@ export default function Blocks() {
   const [reason, setReason] = useState('')
   const [allowInternal, setAllowInternal] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // refused because the IP is on one of the box's networks: offer the override
+  const [isProtected, setIsProtected] = useState(false)
 
   const q = useQuery({ queryKey: ['sentry', 'blocks'], queryFn: getBlocks, retry: false, refetchInterval: 10000 })
 
@@ -51,14 +54,12 @@ export default function Blocks() {
       setReason('')
       setAllowInternal(false)
       setFormError(null)
+      setIsProtected(false)
     },
     onError: (e) => {
-      const msg = (e as Error).message
-      if (msg.includes('protected_target')) {
-        setFormError('This IP is inside one of the box’s own networks. An admin can allow this explicitly.')
-      } else {
-        setFormError(msg)
-      }
+      const prot = e instanceof APIRequestError && e.code === 'protected_target'
+      setIsProtected(prot)
+      setFormError(prot ? `${(e as Error).message}. Tick the box below to block it anyway.` : (e as Error).message)
     }
   })
 
@@ -83,7 +84,7 @@ export default function Blocks() {
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Active blocks</h2>
         <button
           type="button"
-          onClick={() => setAdding(true)}
+          onClick={() => { setFormError(null); setIsProtected(false); setAllowInternal(false); setAdding(true) }}
           className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
         >
           <Plus size={14} /> Block IP
@@ -126,6 +127,7 @@ export default function Blocks() {
                 <td className="px-2 py-2">
                   <button
                     type="button"
+                    aria-label={`Unblock ${b.ip}`}
                     onClick={() => delMut.mutate(b.ip)}
                     disabled={delMut.isPending}
                     className="rounded p-1 text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/30"
@@ -159,7 +161,7 @@ export default function Blocks() {
             Reason (required, ≤500 chars)
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={500} className={inputClass} />
           </label>
-          {formError?.includes('protected_target') && (
+          {isProtected && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={allowInternal} onChange={(e) => setAllowInternal(e.target.checked)} />
               Allow (IP is inside one of the box’s own networks)

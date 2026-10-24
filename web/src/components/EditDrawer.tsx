@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface EditDrawerProps {
   isOpen: boolean;
@@ -15,6 +15,16 @@ export const EditDrawer: React.FC<EditDrawerProps> = ({
   children,
   wide = false
 }) => {
+  // Escape closes the drawer, like the dialogs.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -27,6 +37,8 @@ export const EditDrawer: React.FC<EditDrawerProps> = ({
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
               <button
+                type="button"
+                aria-label="Close panel"
                 onClick={onClose}
                 className="flex h-10 w-10 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
               >

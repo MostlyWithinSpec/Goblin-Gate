@@ -67,7 +67,7 @@ export default function IncidentDetail() {
           {incident.urgent && <Badge variant="error">urgent</Badge>}
         </div>
 
-        <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-1 sm:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Signature">{incident.alert.signature}</Field>
           <Field label="Severity">{incident.alert.severity === 0 ? 'unknown' : incident.alert.severity}</Field>
           <Field label="Direction">{e.direction}</Field>

@@ -184,3 +184,75 @@ func (s *Store) CountByAction(kind string, since int64) (map[string]int64, error
 	}
 	return out, rows.Err()
 }
+
+// FillInterfaces sets the in_intf of traffic events stored without one (the
+// IPS's flow records, before the ingester filled it in) from their source
+// address, and recomputes the minute rollups it touched. lookup names the
+// interface whose network holds an address ("" = unknown). It reads the
+// events once and writes in small transactions, so new events keep flowing in
+// meanwhile. It returns how many events it changed.
+func (s *Store) FillInterfaces(lookup func(ip string) string) (int64, error) {
+	type fix struct {
+		id   int64
+		name string
+	}
+	rows, err := s.db.Query(`SELECT id, time, src_ip FROM events WHERE kind = 'traffic' AND in_intf = '' AND src_ip != ''`)
+	if err != nil {
+		return 0, fmt.Errorf("fill interfaces: %w", err)
+	}
+	names := map[string]string{} // lookups, once per address
+	minutes := map[int64]bool{}
+	var fixes []fix
+	for rows.Next() {
+		var id, t int64
+		var ip string
+		if rows.Scan(&id, &t, &ip) != nil {
+			continue
+		}
+		n, ok := names[ip]
+		if !ok {
+			n = lookup(ip)
+			names[ip] = n
+		}
+		if n != "" {
+			fixes = append(fixes, fix{id, n})
+			minutes[t-t%60] = true
+		}
+	}
+	rows.Close()
+	var changed int64
+	for len(fixes) > 0 {
+		chunk := fixes[:min(len(fixes), 2000)]
+		fixes = fixes[len(chunk):]
+		tx, err := s.db.Begin()
+		if err != nil {
+			return changed, fmt.Errorf("fill interfaces: %w", err)
+		}
+		stmt, err := tx.Prepare(`UPDATE events SET in_intf = ? WHERE id = ? AND in_intf = ''`)
+		if err != nil {
+			tx.Rollback()
+			return changed, fmt.Errorf("fill interfaces: %w", err)
+		}
+		for _, f := range chunk {
+			if res, err := stmt.Exec(f.name, f.id); err == nil {
+				n, _ := res.RowsAffected()
+				changed += n
+			}
+		}
+		stmt.Close()
+		if err := tx.Commit(); err != nil {
+			return changed, fmt.Errorf("fill interfaces: %w", err)
+		}
+	}
+	// only minutes already rolled up: the current one is rolled up later
+	current := time.Now().Unix()
+	current -= current % 60
+	for m := range minutes {
+		if m < current {
+			if err := s.RollupAt(m); err != nil {
+				return changed, err
+			}
+		}
+	}
+	return changed, nil
+}

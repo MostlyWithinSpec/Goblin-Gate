@@ -63,18 +63,22 @@ function targetLine(t: TargetStatus) {
   )
 }
 
-function StatusPanel({ cfg }: { cfg: Candidate }) {
+// gateways: the page's live list, so one added a moment ago can be the default
+function StatusPanel({ cfg, gatewayNames }: { cfg: Candidate; gatewayNames: string[] }) {
   const q = useQuery({ queryKey: ['gateways', 'status'], queryFn: getGatewayStatus, refetchInterval: 5000 })
   const [def, setDef] = useState(cfg.default_gateway ?? '')
   const [defError, setDefError] = useState<string | null>(null)
   const groups = (cfg.gateway_groups ?? []).map((g) => g.name)
-  const gateways = (cfg.gateways ?? []).map((g) => g.name)
+  const gateways = gatewayNames
+  const [defSaved, setDefSaved] = useState(false)
 
   const changeDefault = async (v: string) => {
     setDef(v)
     setDefError(null)
+    setDefSaved(false)
     try {
       await patchSection('default_gateway', v)
+      setDefSaved(true)
     } catch (e) {
       setDefError((e as Error).message)
     }
@@ -99,6 +103,7 @@ function StatusPanel({ cfg }: { cfg: Candidate }) {
         </label>
       </div>
       {defError && <div role="alert" className="mb-2 rounded bg-red-50 p-2 text-sm text-red-700">{defError}</div>}
+      {defSaved && <p role="status" className="mb-2 text-sm text-green-700 dark:text-green-400">Default route saved. Use the commit bar to apply.</p>}
       {q.isLoading && <p className="text-sm text-gray-500">Loading status…</p>}
       {q.isError && <p className="text-sm text-gray-500">Gateway status is not available.</p>}
       {q.data && (
@@ -175,7 +180,7 @@ export default function Gateways() {
         { label: 'Address', render: (g) => (g.address ? (g.address === 'dhcp' ? 'DHCP' : g.address) : '—') },
         { label: 'Monitor', render: (g) => (g.monitor?.disabled ? 'off' : g.monitor?.ip ?? 'auto') },
       ]}
-      after={(cfg) => <StatusPanel cfg={cfg} />}
+      after={(cfg, items) => <StatusPanel cfg={cfg} gatewayNames={items.map((g) => g.name)} />}
       form={(g, set, { cfg, err }) => {
         const wans = wanInterfaces(cfg)
         const clients = wireGuardClients(cfg)

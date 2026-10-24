@@ -189,6 +189,10 @@ describe('Templates page', () => {
     expect(checked()).toHaveLength(3)
     fireEvent.click(form.getByText('Sun'))
     expect(checked()).toHaveLength(4)
+    // a picked day can be unpicked again
+    fireEvent.click(form.getByText('Mon'))
+    expect(checked()).toHaveLength(3)
+    expect(boxes()[0].checked).toBe(false)
 
     expect((form.getByLabelText('From') as HTMLInputElement).type).toBe('time')
     const kill = form.getByLabelText('Kill switch') as HTMLInputElement
@@ -314,7 +318,7 @@ describe('Templates page', () => {
     // points at the commit bar; the bar's query is invalidated so its count moves
     const form = within(drawer)
     await waitFor(() => expect(form.getByText(/Added to the candidate/)).toBeInTheDocument())
-    expect(form.getByText(/commit it in the bar at the bottom/i)).toBeInTheDocument()
+    expect(form.getByText(/commit it with the Changes button at the top/i)).toBeInTheDocument()
     await waitFor(() =>
       expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['configDiff'] }))
     )

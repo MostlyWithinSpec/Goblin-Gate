@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,6 +71,13 @@ type State struct {
 	// UpdateAvailable is a newer Goblin Gate version, "" when up to date or
 	// unknown.
 	UpdateAvailable string
+	// PluginUpdates lists installed first-party plugins with a newer version,
+	// as "sentry 0.1.0~beta.8 → 0.1.0~beta.9".
+	PluginUpdates []string
+	// RebootSince is when the pending restart was first needed (zero = none
+	// or unknown); it keys the finding, so a dismissal covers that restart
+	// only.
+	RebootSince time.Time
 	// GitLastPush and GitLastError describe config history pushes.
 	GitLastPush  time.Time
 	GitLastError string
@@ -333,23 +341,36 @@ var all = []check{
 		if !c.state.RebootRequired {
 			return nil
 		}
+		key := "reboot:pending"
+		if !c.state.RebootSince.IsZero() {
+			key = "reboot:" + strconv.FormatInt(c.state.RebootSince.Unix(), 10)
+		}
 		return []Finding{{
-			Key: "reboot:pending", Severity: Low, Title: "A restart is needed to finish a security update",
+			Key: key, Severity: Low, Title: "A restart is needed to finish a security update",
 			Detail: "An updated kernel or system library is installed but the old one is still running. Restart the " +
-				"box at a quiet moment (System → Updates).",
+				"box at a quiet moment: your name at the top right → Restart Goblin Gate. Installing updates does not restart it.",
 			Link: "/system/updates",
 		}}
 	}},
 	{"goblin-update", "Goblin Gate is up to date", func(c *ctx) []Finding {
-		if c.state.UpdateAvailable == "" {
-			return nil
+		var out []Finding
+		if len(c.state.PluginUpdates) > 0 {
+			out = append(out, Finding{
+				Key: "goblin-update:plugins", Severity: Low,
+				Title:  "Plugin updates are available: " + strings.Join(c.state.PluginUpdates, ", "),
+				Detail: "Plugins are updated together with Goblin Gate. Install the update on the Updates page.",
+				Link:   "/system/updates",
+			})
 		}
-		return []Finding{{
+		if c.state.UpdateAvailable == "" {
+			return out
+		}
+		return append(out, Finding{
 			Key: "goblin-update:" + c.state.UpdateAvailable, Severity: Low,
 			Title:  "Goblin Gate " + c.state.UpdateAvailable + " is available",
 			Detail: "Updates bring fixes, including security fixes. Installing one keeps the old version to roll back to if anything goes wrong.",
 			Link:   "/system/updates",
-		}}
+		})
 	}},
 	{"dns-filter", "Guest networks have a DNS filter", func(c *ctx) []Finding {
 		var out []Finding

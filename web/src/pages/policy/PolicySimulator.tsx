@@ -12,25 +12,41 @@ const input = 'w-full rounded border border-gray-300 px-2 py-1 text-sm dark:bord
 // datetime-local values are naive ("2026-10-17T14:30"); the API wants RFC 3339.
 const toRFC3339 = (v: string): string => new Date(v).toISOString()
 
+// toLocalInput turns an RFC 3339 time (a log event's) into a datetime-local value.
+const toLocalInput = (iso?: string): string => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
 interface Props {
   interfaces: string[] // candidate interface + vlan names for src_intf
   initial?: SimulateRequest // prefilled from ?simulate=1 or a log event
   onClose: () => void
+  // onOpenPolicy opens the matched policy in the editor; without it the
+  // links navigate to /policy?edit=<id>
+  onOpenPolicy?: (id: number) => void
 }
 
-export default function PolicySimulator({ interfaces, initial, onClose }: Props) {
+export default function PolicySimulator({ interfaces, initial, onClose, onOpenPolicy }: Props) {
   const [srcIP, setSrcIP] = useState(initial?.src_ip ?? '')
   const [dstIP, setDstIP] = useState(initial?.dst_ip ?? '')
   const [protocol, setProtocol] = useState<SimProtocol>(initial?.protocol ?? 'any')
   const [dstPort, setDstPort] = useState(initial?.dst_port != null ? String(initial.dst_port) : '')
   const [srcIntf, setSrcIntf] = useState(initial?.src_intf ?? '')
-  const [at, setAt] = useState('') // datetime-local; "" = now
+  const [at, setAt] = useState(() => toLocalInput(initial?.at)) // datetime-local; "" = now
   const [config, setConfig] = useState<'running' | 'candidate'>(initial?.config ?? 'running')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<SimulateResult | null>(null)
 
   const showPort = protocol === 'tcp' || protocol === 'udp'
+  const openPolicy = (id: number) => (e: React.MouseEvent) => {
+    if (!onOpenPolicy) return
+    e.preventDefault()
+    onOpenPolicy(id)
+  }
 
   const run = async () => {
     setBusy(true)
@@ -140,7 +156,7 @@ export default function PolicySimulator({ interfaces, initial, onClose }: Props)
           {result.translated && <p className="text-sm text-gray-600 dark:text-gray-300">{result.translated}</p>}
 
           {result.policy ? (
-            <Link to={`/policy?edit=${result.policy.id}`} className="inline-block rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 min-h-[40px] flex items-center justify-center">
+            <Link to={`/policy?edit=${result.policy.id}`} onClick={openPolicy(result.policy.id)} className="flex min-h-[40px] items-center justify-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">
               Matched policy: {result.policy.name}
             </Link>
           ) : (
@@ -168,7 +184,7 @@ export default function PolicySimulator({ interfaces, initial, onClose }: Props)
                   <span className="flex-1">
                     {s.name}
                     {result.policy?.id === s.id && (
-                      <Link to={`/policy?edit=${s.id}`} className="ml-1 text-blue-600 hover:underline dark:text-blue-400">open</Link>
+                      <Link to={`/policy?edit=${s.id}`} onClick={openPolicy(s.id)} className="ml-1 text-blue-600 hover:underline dark:text-blue-400">open</Link>
                     )}
                   </span>
                   <span className="text-xs text-gray-500">{s.reason}</span>

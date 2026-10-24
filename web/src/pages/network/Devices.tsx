@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Trash2, ExternalLink, Plus, ShieldAlert, Power } from 'lucide-react'
 import { listDevices, renameDevice, forgetDevice, wakeDevice, type DeviceInventory } from '../../api/devices'
 import { createBlock } from '../../api/sentry'
+import { APIRequestError } from '../../api/client'
 import { EditDrawer } from '../../components/EditDrawer'
 import { Dialog } from '../../components/Dialog'
 import { Badge } from '../../components/Badge'
@@ -43,6 +44,9 @@ export default function Devices() {
   const [blockReason, setBlockReason] = useState('')
   const [blockAllowInternal, setBlockAllowInternal] = useState(false)
   const [blockError, setBlockError] = useState<string | null>(null)
+  // the last try was refused because the IP is on one of the box's networks:
+  // the dialog then offers to block it anyway
+  const [blockProtected, setBlockProtected] = useState(false)
 
   const q = useQuery({
     queryKey: ['devices', interfaceFilter],
@@ -81,16 +85,14 @@ export default function Devices() {
     onSuccess: () => {
       setBlockOpen(false)
       setBlockError(null)
+      setBlockProtected(false)
       setBlockReason('')
       setBlockAllowInternal(false)
     },
     onError: (e) => {
-      const msg = (e as Error).message
-      if (msg.includes('protected_target')) {
-        setBlockError("This IP is inside one of the box's own networks. An admin can allow this explicitly.")
-      } else {
-        setBlockError(msg)
-      }
+      const isProtected = e instanceof APIRequestError && e.code === 'protected_target'
+      setBlockProtected(isProtected)
+      setBlockError(isProtected ? `${(e as Error).message}. Tick the box below to block it anyway.` : (e as Error).message)
     },
   })
 
@@ -233,7 +235,7 @@ export default function Devices() {
               <div><span className="text-gray-400">Interface:</span> {selected.interface ?? '—'}</div>
               <div><span className="text-gray-400">Vendor:</span> {selected.vendor ?? '—'}</div>
               <div><span className="text-gray-400">Hostname:</span> {selected.hostname ?? '—'}</div>
-              <div className="col-span-2"><span className="text-gray-400">IPs:</span> {selected.ips.join(', ')}</div>
+              <div className="sm:col-span-2"><span className="text-gray-400">IPs:</span> {selected.ips.join(', ')}</div>
               <div><span className="text-gray-400">First seen:</span> {new Date(selected.first_seen).toLocaleString()}</div>
               <div><span className="text-gray-400">Last seen:</span> {timeAgo(selected.last_seen, now)}</div>
             </div>
@@ -265,19 +267,19 @@ export default function Devices() {
               </button>
             </form>
 
-            {/* Shortcuts */}
-            <div className="space-y-2 border-t border-gray-200 pt-4 dark:border-gray-600">
+            {/* Shortcuts (they need an address) */}
+            {selected.ips.length > 0 && <div className="space-y-2 border-t border-gray-200 pt-4 dark:border-gray-600">
               <p className="text-xs font-semibold uppercase text-gray-400">Shortcuts</p>
               <button
                 type="button"
-                onClick={() => navigate(`/log?src_ip=${selected.ips[0]}`)}
+                onClick={() => navigate(`/log?src_ip=${encodeURIComponent(selected.ips[0])}`)}
                 className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
               >
                 <ExternalLink size={14} /> Show logs
               </button>
               <button
                 type="button"
-                onClick={() => navigate(`/network/addresses?new_host=${selected.ips[0]}`)}
+                onClick={() => navigate(`/network/addresses?new_host=${encodeURIComponent(selected.ips[0])}`)}
                 className="flex items-center gap-1 text-sm text-blue-600 hover:underline"
               >
                 <Plus size={14} /> Create address object
@@ -286,6 +288,9 @@ export default function Devices() {
                 type="button"
                 onClick={() => {
                   setBlockIp(selected.ips[0])
+                  setBlockError(null)
+                  setBlockProtected(false)
+                  setBlockAllowInternal(false)
                   setBlockOpen(true)
                 }}
                 className="flex items-center gap-1 text-sm text-red-600 hover:underline"
@@ -307,7 +312,7 @@ export default function Devices() {
               {wakeMut.isError && (
                 <p role="alert" className="text-xs text-red-600">{(wakeMut.error as Error).message}</p>
               )}
-            </div>
+            </div>}
 
             {/* Forget */}
             <div className="border-t border-gray-200 pt-4 dark:border-gray-600">
@@ -351,7 +356,7 @@ export default function Devices() {
             Reason (required, ≤500 chars)
             <textarea value={blockReason} onChange={(e) => setBlockReason(e.target.value)} rows={2} maxLength={500} className={inputClass} />
           </label>
-          {blockError?.includes('protected_target') && (
+          {blockProtected && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={blockAllowInternal} onChange={(e) => setBlockAllowInternal(e.target.checked)} />
               Allow (IP is inside one of the box's own networks)

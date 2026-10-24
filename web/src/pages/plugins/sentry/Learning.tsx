@@ -424,7 +424,7 @@ function VersionCard({
 
       {showReport && (
         <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
             <Stat label="Accuracy" value={pct(r.accuracy)} />
             <Stat label="Train / test" value={`${r.train} / ${r.test}`} />
             <Stat label="Blocked but ignored" value={String(r.blocked_ignored)} bad={r.blocked_ignored > 0} />

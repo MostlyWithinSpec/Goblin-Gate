@@ -57,7 +57,7 @@ function ProfileSelect({ label, options, value, onChange }: ProfileSelectProps) 
       {label}
       <select
         aria-label={label}
-        className="mt-1 block w-full rounded border-gray-300 dark:bg-gray-700 dark:border-gray-600 min-h-[40px]"
+        className="mt-1 block min-h-[40px] w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value || undefined)}
       >
