@@ -34,8 +34,8 @@ func TestRender(t *testing.T) {
 		TimesyncdPath: "[Time]\nNTP=0.pool.ntp.org 192.168.1.1\n",
 		SSHDPath:      "PermitRootLogin prohibit-password\n",
 		RootKeysPath:  "# laptop\n" + key("me@laptop") + "\n",
-		// no channel set = beta (pre-1.0); Debian security updates are on
-		GoblinSourcesPath: "Suites: beta\nComponents: main\nSigned-By: " + GoblinKeyring,
+		// no channel set = stable; Debian security updates are on
+		GoblinSourcesPath: "Suites: stable\nComponents: main\nSigned-By: " + GoblinKeyring,
 		DebianSourcesPath: "Suites: bookworm-security",
 		// security updates install by themselves unless set to manual
 		SecurityUpdatesPath: "APT::Periodic::Unattended-Upgrade \"1\";",

@@ -34,9 +34,10 @@ boxes: policies with security profiles, intrusion prevention, web and DNS filter
 real dashboards, and a config you can diff, commit and roll back. All of it is open, all of it has an API, and
 nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware to buy.
 
-> 🧪 **Beta.** Everything planned for 0.1.0 is in, and the core features pass automated end-to-end tests on
-> real VMs. From here on it's about fixing what you find. Try it in a VM or on a spare box first, keep your old
-> firewall's config at hand while you switch, and [tell the goblin](../../issues/new/choose) about anything odd.
+> ✅ **0.1.0, the first stable release.** Ten betas and weeks of daily use as a home firewall, and the core
+> features pass automated end-to-end tests on real VMs. It's still young: try it in a VM or on a spare box
+> first, keep your old firewall's config at hand while you switch, and [tell the goblin](../../issues/new/choose)
+> about anything odd.
 
 ## The goblin's powers
 
@@ -117,7 +118,8 @@ The download is about 10 MB.
 4. From a computer on the LAN port, open `https://<LAN address>` and run the setup wizard: admin password, WAN,
    LAN, security level, done.
 
-Already running an earlier beta? It updates itself from the beta channel: System → Updates.
+Already running a beta? It updates itself to 0.1.0 and then follows the stable channel, unless you picked
+beta under System → Updates (pick it there to keep getting betas).
 The VMware ESXi guide lives in [packaging/README.md](packaging/README.md).
 
 **The user guide is the [wiki](../../wiki)**: every page of the web UI, recipes (isolating a Wi-Fi VLAN,
@@ -163,9 +165,8 @@ Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/
 
 ## What's next
 
-- **Now:** the last beta. Daily use as a home firewall and more real hardware, then the first stable release,
-  0.1.0. No new features until then.
-- **After 0.1.0:** an OpenAPI description of the API, a built-in throughput test, measured benchmarks,
+- **Now:** 0.1.0, the first stable release. Fixes go to stable; new features land in the beta channel first.
+- **Next (0.2.0 betas):** an OpenAPI description of the API, a built-in throughput test, measured benchmarks,
   translations, a reverse proxy with Let's Encrypt, Home Assistant integration, more plugins.
 - **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
 

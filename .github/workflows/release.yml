@@ -98,10 +98,7 @@ jobs:
           run() { docker run --rm -v "$PWD:/w" -w /w -e APT_SIGNING_KEY debian:12 bash -c \
             "apt-get update -qq >/dev/null && apt-get install -y -qq apt-utils gnupg >/dev/null 2>&1 && bash scripts/apt-repo.sh pages/apt $1 $DEBS"; }
           run "$CHANNEL"
-          [ "$CHANNEL" = stable ] && run beta # beta always carries the newest release too
-          # bridge for boxes still on the old nightly suite: they get this release,
-          # which moves them to beta (config.Load); drop after 0.1.0
-          run nightly
+          if [ "$CHANNEL" = stable ]; then run beta; fi # beta always carries the newest release too
           cd pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

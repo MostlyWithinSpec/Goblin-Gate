@@ -26,7 +26,8 @@ $Root = Split-Path -Parent $PSScriptRoot
 $work = Join-Path ([IO.Path]::GetTempPath()) 'goblin-upgrade-path'
 $path = Join-Path $work 'upgrade'
 $old = $FromTag.TrimStart('v') -replace '-', '~'
-$src = Join-Path $work 'old-src'
+# one checkout per tag: a checkout left by a run from another tag would be built under this tag's version
+$src = Join-Path $work "old-src-$FromTag"
 $isoName = "goblin-gate-$old-amd64-unattended.iso"
 New-Item -ItemType Directory -Force (Join-Path $path 'debs'), (Join-Path $path 'key') | Out-Null
 if ($Rebuild) {
@@ -63,6 +64,7 @@ if (-not (Test-Path (Join-Path $src '.git'))) {
     git -C $Root worktree add -f --detach $src $FromTag | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "git worktree for $FromTag failed" }
 }
+if ((git -C $src rev-parse HEAD) -ne (git -C $Root rev-parse "$FromTag^{commit}")) { throw "$src is not at $FromTag" }
 
 function Build-Deb([string]$Tree, [string]$Version) {
     if (Test-Path (Join-Path $path "debs\goblin-gate_$($Version)_amd64.deb")) { return }

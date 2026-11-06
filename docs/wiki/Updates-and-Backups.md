@@ -6,11 +6,12 @@
 
 | Channel | What you get |
 |---|---|
-| stable | releases: tested longest, changes least |
-| beta | the feature channel: new features as soon as they are released, plus every stable release (the default before 1.0) |
+| stable | releases: tested longest, changes least (the default) |
+| beta | the feature channel: new features as soon as they are released, plus every stable release |
 
 Every build in either channel went through the full test run first: there are no untested nightly builds.
-A box that was on the old nightly channel follows beta.
+A box that never picked a channel follows stable. Since 0.1.0 that includes boxes installed from a beta: to keep
+getting betas, pick **beta** here. A box that was on the old nightly channel follows beta.
 
 The box checks every 6 hours; an `update_available` notification can tell you (System → Notifications).
 **Install** saves the current version first; if the new one does not start properly, the box **reinstalls

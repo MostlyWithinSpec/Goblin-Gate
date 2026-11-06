@@ -37,7 +37,8 @@ const (
 )
 
 // DefaultChannel is the update channel when system.update_channel is "".
-const DefaultChannel = "beta"
+// Since 0.1.0 that is stable; beta is opt-in (System -> Updates).
+const DefaultChannel = "stable"
 
 const debianSources = header + `Types: deb
 URIs: http://deb.debian.org/debian
