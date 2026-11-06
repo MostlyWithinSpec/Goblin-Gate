@@ -1,0 +1,20 @@
+Architectures: amd64
+Codename: stable
+Components: main
+Date: Fri, 06 Nov 2026 18:54:13 +0000
+Description: Goblin Gate packages (stable channel)
+Label: Goblin Gate
+Origin: Goblin Gate
+Suite: stable
+MD5Sum:
+ 08d7d18177c1aed20deba98ee4aee6ed             1934 main/binary-amd64/Packages
+ f66ab20ab766cb97427e6de4df3f6cce             1102 main/binary-amd64/Packages.gz
+SHA1:
+ c439c5d1bb060b31a6f7fa6981267b9a6e768ca5             1934 main/binary-amd64/Packages
+ 9c6aaf9c706ca026fc5153eb3d63ed9dde6da2b7             1102 main/binary-amd64/Packages.gz
+SHA256:
+ 97b9b605419fcef97315a920b236e72208377012b323a87ad67f8f3ad75456ed             1934 main/binary-amd64/Packages
+ 985b2eaf90705d3e87ce3ec5c98fe8c77e929e75c55f0501e681ec34d5da6bce             1102 main/binary-amd64/Packages.gz
+SHA512:
+ 6d658dcea9b764d3a2032d70c68bf44f7aeabf1d556a2d33ac5855a65c8c5d21e76321b2aa70fe112a751f87f45a30d28c450700ad45996aa0d7098813f3aa1f             1934 main/binary-amd64/Packages
+ b82bfd309e9c60ee6672aa176d27db701db52bb6bf759eb6a5ecc55c81e538ff730c48809c12b7e7720d929b0797f0a80c7f599741eacb641eb3c27f762064d6             1102 main/binary-amd64/Packages.gz
