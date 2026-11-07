@@ -46,12 +46,14 @@ func (s *Server) checks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, checks.Run(cfg, st, dismissed))
 }
 
+type dismissRequest struct {
+	Key string `json:"key"`
+}
+
 // POST /api/v1/checks/dismiss {key} hides a finding from the list and the
 // score until it is restored. Dismissals are box state, not config.
 func (s *Server) dismissFinding(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Key string `json:"key"`
-	}
+	var req dismissRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

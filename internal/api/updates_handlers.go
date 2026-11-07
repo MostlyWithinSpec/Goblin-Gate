@@ -24,6 +24,11 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.Updates.Check(r.Context(), maxAge))
 }
 
+type updateApplyRequest struct {
+	Version   string `json:"version"`
+	IncludeOS bool   `json:"include_os"`
+}
+
 // POST /api/v1/system/updates/apply {version?, include_os?} → 202: the update
 // runs in the background (goblind restarts during it); poll GET
 // /api/v1/system/updates and read "last" for progress and the result.
@@ -32,10 +37,7 @@ func (s *Server) applyUpdate(w http.ResponseWriter, r *http.Request) {
 		unavailable(w, "updates")
 		return
 	}
-	var req struct {
-		Version   string `json:"version"`
-		IncludeOS bool   `json:"include_os"`
-	}
+	var req updateApplyRequest
 	if r.ContentLength != 0 && !decodeJSON(w, r, &req) {
 		return
 	}

@@ -149,7 +149,7 @@ func (m *Manager) Sync(ctx context.Context, cfg *config.Config) {
 		// The running config may predate a package upgrade (a rollback
 		// skips the plugin checks): grant only what the manifest still
 		// asks for, and do not start a plugin whose settings no longer fit.
-		if msgs := in.Manifest.CheckSettings(p.Settings); len(msgs) > 0 {
+		if msgs := in.Manifest.CheckSettings(p.AllSettings()); len(msgs) > 0 {
 			m.logger().Warn("plugins: settings do not fit the installed version, not starting", "plugin", p.Name, "problems", msgs)
 			continue
 		}
@@ -193,9 +193,11 @@ func (m *Manager) Sync(ctx context.Context, cfg *config.Config) {
 
 func stampOf(p config.Plugin) string {
 	b, _ := json.Marshal(struct {
-		C []string       `json:"c"`
-		S map[string]any `json:"s"`
-	}{p.Capabilities, p.Settings})
+		C []string          `json:"c"`
+		S map[string]any    `json:"s"`
+		X map[string]string `json:"x"`
+		P []uint32          `json:"p"`
+	}{p.Capabilities, p.Settings, p.Secrets, p.Policies})
 	return string(b)
 }
 
@@ -241,8 +243,13 @@ type Status struct {
 	Capabilities []string       `json:"capabilities"` // approved in the config
 	Enabled      bool           `json:"enabled"`
 	Settings     map[string]any `json:"settings,omitempty"`
-	Schema       *Schema        `json:"settings_schema,omitempty"`
-	UI           *UI            `json:"ui,omitempty"`
+	// SecretsSet names the secret settings that have a stored value (the
+	// values are never shown).
+	SecretsSet []string `json:"secrets_set"`
+	// Policies are the IDs of the policies it may switch (policies:toggle).
+	Policies []uint32 `json:"policies"`
+	Schema   *Schema  `json:"settings_schema,omitempty"`
+	UI       *UI      `json:"ui,omitempty"`
 	// State: running | stopped | failed | invalid | not_installed
 	State   string `json:"state"`
 	Problem string `json:"problem,omitempty"`
@@ -258,7 +265,8 @@ func (m *Manager) List(ctx context.Context, cfg *config.Config) []Status {
 	var out []Status
 	for name, in := range installed {
 		p := byName[name]
-		st := Status{Name: name, Enabled: p.Enabled, Capabilities: orEmpty(p.Capabilities), Settings: p.Settings, Requested: []string{}, Problem: in.Problem}
+		st := Status{Name: name, Enabled: p.Enabled, Capabilities: orEmpty(p.Capabilities), Settings: p.Settings, Requested: []string{}, Problem: in.Problem,
+			SecretsSet: secretsSet(p), Policies: policiesOf(p)}
 		if mf := in.Manifest; mf != nil {
 			st.Version, st.Description, st.Schema, st.UI = mf.Version, mf.Description, mf.SettingsSchema, mf.UI
 			st.Requested = orEmpty(mf.Capabilities)
@@ -280,11 +288,30 @@ func (m *Manager) List(ctx context.Context, cfg *config.Config) []Status {
 	}
 	for name, p := range byName {
 		if _, ok := installed[name]; !ok {
-			out = append(out, Status{Name: name, Enabled: p.Enabled, Capabilities: orEmpty(p.Capabilities), Requested: []string{}, Settings: p.Settings, State: "not_installed"})
+			out = append(out, Status{Name: name, Enabled: p.Enabled, Capabilities: orEmpty(p.Capabilities), Requested: []string{}, Settings: p.Settings, State: "not_installed",
+				SecretsSet: secretsSet(p), Policies: policiesOf(p)})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+func secretsSet(p config.Plugin) []string {
+	out := []string{}
+	for k, v := range p.Secrets {
+		if v != "" {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func policiesOf(p config.Plugin) []uint32 {
+	if p.Policies == nil {
+		return []uint32{}
+	}
+	return slices.Clone(p.Policies)
 }
 
 func orEmpty(s []string) []string {

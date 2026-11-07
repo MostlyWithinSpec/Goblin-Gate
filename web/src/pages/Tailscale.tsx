@@ -10,6 +10,7 @@ import { TagInput } from '../components/TagInput'
 import { getTailscaleStatus, loginTailscale, logoutTailscale, patchTailscaleSettings, TailscaleStatus, TailscalePeer, TailscaleSettings } from '../api/tailscale'
 import { getNetworkConfig } from '../api/network'
 import { NetworkConfig } from '../api/network'
+import { t } from '../i18n'
 
 const TailscalePage: React.FC = () => {
   const [status, setStatus] = useState<TailscaleStatus | null>(null)
@@ -69,7 +70,7 @@ const TailscalePage: React.FC = () => {
         if (result.auth_url) {
           // Open the login page in a new tab: an https URL only (a control
           // server of your own, like Headscale, is fine), never anything else
-          if (!isHttpsURL(result.auth_url)) throw new Error('Tailscale returned a login link that is not https')
+          if (!isHttpsURL(result.auth_url)) throw new Error(t('tailscale.notHttpsLogin'))
           window.open(result.auth_url, '_blank', 'noopener,noreferrer')
           setLoginStatus('success')
           setIsLoginModalOpen(false)
@@ -79,7 +80,7 @@ const TailscalePage: React.FC = () => {
         }
       }
     } catch (err) {
-      setLoginError(`Could not start the login: ${(err as Error).message}`)
+      setLoginError(t('tailscale.loginFailed', { message: (err as Error).message }))
       setLoginStatus('error')
     } finally {
       // Reset login status after a short delay
@@ -91,7 +92,7 @@ const TailscalePage: React.FC = () => {
 
   // Handle logout
   const handleLogout = async () => {
-    if (!window.confirm('Log the box out of Tailscale? Subnet routes and the exit node stop until it logs in again.')) return
+    if (!window.confirm(t('tailscale.confirmLogout'))) return
     setLogoutStatus('logging_out')
     setLogoutError(null)
     try {
@@ -99,7 +100,7 @@ const TailscalePage: React.FC = () => {
       setLogoutStatus('success')
       queryClient.invalidateQueries(['tailscaleStatus'])
     } catch (err) {
-      setLogoutError(`Could not log out: ${(err as Error).message}`)
+      setLogoutError(t('tailscale.logoutFailed', { message: (err as Error).message }))
       setLogoutStatus('error')
     } finally {
       // Reset logout status after a short delay
@@ -130,7 +131,7 @@ const TailscalePage: React.FC = () => {
       })
       setIsSettingsOpen(true)
     } catch (err) {
-      setSettingsError(`Could not load the Tailscale settings: ${(err as Error).message}`)
+      setSettingsError(t('tailscale.loadSettingsFailed', { message: (err as Error).message }))
     }
   }
 
@@ -153,31 +154,31 @@ const TailscalePage: React.FC = () => {
       queryClient.invalidateQueries(['networkConfig'])
       queryClient.invalidateQueries(['configDiff'])
     } catch (err) {
-      setSettingsError(`Could not save: ${(err as Error).message}`)
+      setSettingsError(t('tailscale.saveFailed', { message: (err as Error).message }))
     }
   }
 
   // Status badge component
   const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     switch (status) {
-      case 'Connected':
-        return <Badge variant="success">Connected</Badge>
-      case 'Needs login':
-        return <Badge variant="warning">Needs login</Badge>
-      case 'Not installed':
-        return <Badge variant="error">Not installed</Badge>
+      case t('tailscale.connected'):
+        return <Badge variant="success">{t('tailscale.connected')}</Badge>
+      case t('tailscale.needsLogin'):
+        return <Badge variant="warning">{t('tailscale.needsLogin')}</Badge>
+      case t('tailscale.notInstalled'):
+        return <Badge variant="error">{t('tailscale.notInstalled')}</Badge>
       default:
-        return <Badge variant="secondary">Unknown</Badge>
+        return <Badge variant="secondary">{t('tailscale.unknown')}</Badge>
     }
   }
 
   // Get the status text
   const getStatusText = () => {
-    if (!status) return 'Unknown'
-    if (!status.available) return 'Not installed'
-    if (status.backend_state === 'Running') return 'Connected'
-    if (status.backend_state === 'NeedsLogin') return 'Needs login'
-    return status.backend_state || 'Unknown'
+    if (!status) return t('tailscale.unknown')
+    if (!status.available) return t('tailscale.notInstalled')
+    if (status.backend_state === 'Running') return t('tailscale.connected')
+    if (status.backend_state === 'NeedsLogin') return t('tailscale.needsLogin')
+    return status.backend_state || t('tailscale.unknown')
   }
 
   // Get the status variant for badge
@@ -193,51 +194,51 @@ const TailscalePage: React.FC = () => {
   const peersData = status?.peers?.map((peer) => ({
     name: peer.name,
     ips: peer.ips.join(', '),
-    os: peer.os || 'Unknown',
-    online: peer.online ? 'Online' : 'Offline',
-    lastSeen: peer.last_seen ? new Date(peer.last_seen).toLocaleString() : 'Never',
-    exitNode: peer.exit_node ? 'Yes' : 'No',
-    exitNodeOption: peer.exit_node_option ? 'Yes' : 'No',
-    routes: peer.routes?.join(', ') || 'None'
+    os: peer.os || t('tailscale.unknown'),
+    online: peer.online ? t('tailscale.online') : t('tailscale.offline'),
+    lastSeen: peer.last_seen ? new Date(peer.last_seen).toLocaleString() : t('tailscale.never'),
+    exitNode: peer.exit_node ? t('tailscale.yes') : t('tailscale.no'),
+    exitNodeOption: peer.exit_node_option ? t('tailscale.yes') : t('tailscale.no'),
+    routes: peer.routes?.join(', ') || t('tailscale.none')
   })) || []
 
   // Prepare columns for the peers table
   const peersColumns = [
-    { key: 'name', label: 'Name' },
-    { key: 'ips', label: 'IP Addresses' },
-    { key: 'os', label: 'OS' },
-    { key: 'online', label: 'Status' },
-    { key: 'lastSeen', label: 'Last Seen' },
-    { key: 'exitNode', label: 'Exit Node' },
-    { key: 'exitNodeOption', label: 'Exit Node Option' },
-    { key: 'routes', label: 'Routes' }
+    { key: 'name', label: t('tailscale.col.name') },
+    { key: 'ips', label: t('tailscale.col.ipAddresses') },
+    { key: 'os', label: t('tailscale.col.os') },
+    { key: 'online', label: t('tailscale.col.status') },
+    { key: 'lastSeen', label: t('tailscale.col.lastSeen') },
+    { key: 'exitNode', label: t('tailscale.col.exitNode') },
+    { key: 'exitNodeOption', label: t('tailscale.col.exitNodeOption') },
+    { key: 'routes', label: t('tailscale.col.routes') }
   ]
 
   if (isLoading) {
-    return <div className="p-6">Loading Tailscale status...</div>
+    return <div className="p-6">{t('tailscale.loadingStatus')}</div>
   }
 
   if (error) {
-    return <div className="p-6">Error loading Tailscale status: {(error as Error).message}</div>
+    return <div className="p-6">{t('tailscale.loadingStatusError', { message: (error as Error).message })}</div>
   }
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Tailscale</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('tailscale.title')}</h1>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => setIsLoginModalOpen(true)}>
-            Login
+            {t('tailscale.login')}
           </Button>
           <Button variant="outline" onClick={openSettings}>
-            Settings
+            {t('tailscale.settings')}
           </Button>
         </div>
       </div>
 
       {settingsSaved && (
         <div role="status" className="mb-4 rounded bg-green-50 p-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-          Tailscale settings saved. Use the commit bar to apply.
+          {t('tailscale.settingsSaved')}
         </div>
       )}
       {(settingsError && !isSettingsOpen) || logoutError ? (
@@ -250,26 +251,26 @@ const TailscalePage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold mb-2">Tailscale Status</h2>
+            <h2 className="text-lg font-semibold mb-2">{t('tailscale.status')}</h2>
             <div className="flex items-center space-x-4">
               <StatusBadge status={getStatusText()} />
               <span className="text-gray-600 dark:text-gray-300">
-                {status?.hostname ? `Hostname: ${status.hostname}` : 'Hostname: Unknown'}
+                {t('tailscale.hostname', { hostname: status?.hostname || t('tailscale.unknown') })}
               </span>
               {status?.ips && status.ips.length > 0 && (
                 <span className="text-gray-600 dark:text-gray-300">
-                  IPs: {status.ips.join(', ')}
+                  {t('tailscale.ips', { ips: status.ips.join(', ') })}
                 </span>
               )}
             </div>
           </div>
           <div className="mt-4 md:mt-0 flex space-x-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleLogout}
               disabled={logoutStatus === 'logging_out'}
             >
-              {logoutStatus === 'logging_out' ? 'Logging out...' : 'Logout'}
+              {logoutStatus === 'logging_out' ? t('tailscale.loggingOut') : t('tailscale.logout')}
             </Button>
           </div>
         </div>
@@ -279,28 +280,28 @@ const TailscalePage: React.FC = () => {
       {isLoginModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Login to Tailscale</h2>
+            <h2 className="text-xl font-bold mb-4">{t('tailscale.loginTitle')}</h2>
             <div className="mb-4">
-              <FormField label="Auth Key (optional)">
+              <FormField label={t('tailscale.authKey')}>
                 <input
                   type="password"
                   value={authKey}
                   onChange={(e) => setAuthKey(e.target.value)}
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
-                  placeholder="Enter auth key (tskey-...)"
+                  placeholder={t('tailscale.authKeyPlaceholder')}
                 />
               </FormField>
             </div>
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setIsLoginModalOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={handleLogin}
                 disabled={loginStatus === 'logging_in'}
               >
-                {loginStatus === 'logging_in' ? 'Logging in...' : 'Login'}
+                {loginStatus === 'logging_in' ? t('tailscale.loggingIn') : t('tailscale.login')}
               </Button>
             </div>
             {loginError && (
@@ -317,7 +318,7 @@ const TailscalePage: React.FC = () => {
         <EditDrawer
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
-          title="Tailscale Settings"
+          title={t('tailscale.settingsTitle')}
         >
           <div className="space-y-4">
             <div className="flex items-center">
@@ -328,32 +329,32 @@ const TailscalePage: React.FC = () => {
                 onChange={(e) => setSettings({...settings, enabled: e.target.checked})}
                 className="mr-2"
               />
-              <label htmlFor="enabled">Enable Tailscale</label>
+              <label htmlFor="enabled">{t('tailscale.enable')}</label>
             </div>
-            
-            <FormField label="Hostname">
+
+            <FormField label={t('tailscale.hostnameLabel')}>
               <input
                 type="text"
                 value={settings.hostname || ''}
                 onChange={(e) => setSettings({...settings, hostname: e.target.value})}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
-                placeholder="Enter hostname"
+                placeholder={t('tailscale.hostnamePlaceholder')}
               />
             </FormField>
-            
-            <FormField label="Advertise Routes">
+
+            <FormField label={t('tailscale.advertiseRoutes')}>
               <TagInput
                 value={settings.advertise_routes || []}
                 onChange={(value) => setSettings({...settings, advertise_routes: value})}
-                placeholder="Interface or VLAN name, then Enter"
+                placeholder={t('tailscale.advertiseRoutesPlaceholder')}
               />
               {(networkConfig?.interfaces ?? []).length > 0 && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Names, not addresses: {[...(networkConfig?.interfaces ?? []), ...(networkConfig?.vlans ?? [])].map((i) => i.name).join(', ')}
+                  {t('tailscale.advertiseRoutesHint')}: {[...(networkConfig?.interfaces ?? []), ...(networkConfig?.vlans ?? [])].map((i) => i.name).join(', ')}
                 </p>
               )}
             </FormField>
-            
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -362,9 +363,9 @@ const TailscalePage: React.FC = () => {
                 onChange={(e) => setSettings({...settings, exit_node: e.target.checked})}
                 className="mr-2"
               />
-              <label htmlFor="exit_node">Offer as Exit Node</label>
+              <label htmlFor="exit_node">{t('tailscale.offerExitNode')}</label>
             </div>
-            
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -373,9 +374,9 @@ const TailscalePage: React.FC = () => {
                 onChange={(e) => setSettings({...settings, accept_routes: e.target.checked})}
                 className="mr-2"
               />
-              <label htmlFor="accept_routes">Accept Routes</label>
+              <label htmlFor="accept_routes">{t('tailscale.acceptRoutes')}</label>
             </div>
-            
+
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -384,21 +385,21 @@ const TailscalePage: React.FC = () => {
                 onChange={(e) => setSettings({...settings, accept_dns: e.target.checked})}
                 className="mr-2"
               />
-              <label htmlFor="accept_dns">Accept DNS</label>
+              <label htmlFor="accept_dns">{t('tailscale.acceptDns')}</label>
             </div>
-            
-            <FormField label="Login Server">
+
+            <FormField label={t('tailscale.loginServer')}>
               <input
                 type="text"
                 value={settings.login_server || ''}
                 onChange={(e) => setSettings({...settings, login_server: e.target.value})}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
-                placeholder="Enter Headscale URL"
+                placeholder={t('tailscale.loginServerPlaceholder')}
               />
             </FormField>
-            
+
             <fieldset>
-              <legend className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Allow access to the box from the tailnet</legend>
+              <legend className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('tailscale.allowAccess')}</legend>
               <div className="flex gap-4">
                 {['ping', 'https', 'ssh'].map((a) => (
                   <label key={a} className="flex items-center gap-1 text-sm">
@@ -426,10 +427,10 @@ const TailscalePage: React.FC = () => {
             
             <div className="flex justify-end space-x-2 mt-6">
               <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button variant="primary" onClick={handleSaveSettings}>
-                Save Settings
+                {t('tailscale.saveSettings')}
               </Button>
             </div>
           </div>
@@ -438,7 +439,7 @@ const TailscalePage: React.FC = () => {
 
       {/* Peers Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold mb-4">Peers</h2>
+        <h2 className="text-lg font-semibold mb-4">{t('tailscale.peers')}</h2>
         <DataTable
           data={peersData}
           columns={peersColumns}

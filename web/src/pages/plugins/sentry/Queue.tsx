@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Shield, Check, X, Clock, Repeat } from 'lucide-react'
 import { Badge } from '../../../components/Badge'
 import { Dialog } from '../../../components/Dialog'
+import { t } from '../../../i18n'
 import SentryNav from './SentryNav'
 import {
   getSentryStatus,
@@ -14,8 +15,22 @@ import {
   type Answer
 } from '../../../api/sentry'
 
-const severityLabel = (s: number) =>
-  s === 1 ? 'High' : s === 2 ? 'Medium' : s === 3 ? 'Low' : s === 4 ? 'Info' : 'Unknown'
+// severityWord puts a severity number through the catalog. A const whose value is
+// a t() call at module load would freeze English, so every word gets its own key.
+function severityWord(s: number): string {
+  switch (s) {
+    case 1:
+      return t('sentry.sevHigh')
+    case 2:
+      return t('sentry.sevMedium')
+    case 3:
+      return t('sentry.sevLow')
+    case 4:
+      return t('sentry.sevInfo')
+    default:
+      return t('sentry.sevUnknown')
+  }
+}
 
 const severityVariant = (s: number): 'error' | 'warning' | 'secondary' | 'primary' =>
   s === 1 ? 'error' : s === 2 ? 'warning' : s <= 4 ? 'secondary' : 'primary'
@@ -49,8 +64,8 @@ export default function Queue() {
       <div>
         <SentryNav />
         <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
-          Goblin Sentry is not running. Enable it under{' '}
-          <Link to="/system/plugins" className="underline">System → Plugins</Link>.
+          {t('sentry.notRunningLead')}{' '}
+          <Link to="/system/plugins" className="underline">{t('sentry.systemPlugins')}</Link>.
         </div>
       </div>
     )
@@ -78,15 +93,10 @@ export default function Queue() {
       <SentryNav />
 
       <h2 className="mt-6 mb-3 text-lg font-semibold text-gray-800 dark:text-white">
-        Pending incidents{' '}
-        {statusQ.data && (
-          <span className="text-sm font-normal text-gray-500">
-            ({statusQ.data.counts.pending ?? 0})
-          </span>
-        )}
+        {t('sentry.pendingIncidents')}{' '}({statusQ.data?.counts.pending ?? 0})
       </h2>
 
-      {incidentsQ.isLoading && <p className="text-sm text-gray-500">Loading…</p>}
+      {incidentsQ.isLoading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
       {incidentsQ.isError && (
         <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">
           {(incidentsQ.error as Error).message}
@@ -100,7 +110,7 @@ export default function Queue() {
       )}
 
       {incidents.length === 0 && !incidentsQ.isLoading && (
-        <p className="text-sm text-gray-500">No incidents waiting for approval.</p>
+        <p className="text-sm text-gray-500">{t('sentry.noneWaiting')}</p>
       )}
 
       <div className="space-y-3">
@@ -118,19 +128,20 @@ export default function Queue() {
                 <div className="mb-1 flex flex-wrap items-center gap-2">
                   {inc.urgent && <Badge variant="error">urgent</Badge>}
                   <Badge variant={severityVariant(inc.alert.severity)}>
-                    {severityLabel(inc.alert.severity)}
+                    {severityWord(inc.alert.severity)}
                   </Badge>
                   <span className="text-xs text-gray-500">{inc.alert.signature}</span>
                 </div>
                 <p className="text-sm text-gray-800 dark:text-gray-200">{inc.summary}</p>
                 <p className="mt-1 text-xs text-gray-500">
-                  {inc.enrichment.direction} · from {inc.alert.src_ip}:{inc.alert.src_port ?? '—'} →{' '}
-                  {inc.alert.dst_ip}:{inc.alert.dst_port ?? '—'} · seen {inc.count}×
+                  {inc.enrichment.direction} · {t('sentry.fromLead')} {inc.alert.src_ip}:{inc.alert.src_port ?? '—'} →{' '}
+                  {inc.alert.dst_ip}:{inc.alert.dst_port ?? '—'} · {t('sentry.seenTimes', { count: inc.count })}
                 </p>
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                  Recommendation: <strong>{inc.recommendation.tool}</strong>
+                  {t('sentry.recommendation')} <strong>{inc.recommendation.tool}</strong>
                   {inc.recommendation.target && ` ${inc.recommendation.target}`}
-                  {inc.recommendation.minutes != null && ` for ${inc.recommendation.minutes} min`}
+                  {inc.recommendation.minutes != null &&
+                    ` ${t('sentry.forMinutes', { minutes: inc.recommendation.minutes })}`}
                 </p>
               </div>
             </div>
@@ -141,7 +152,7 @@ export default function Queue() {
                 onClick={() => { setAnswerError(null); setBlockTarget(inc); setMinutes(inc.recommendation.minutes ?? 60) }}
                 className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
               >
-                <Shield size={14} /> Block
+                <Shield size={14} /> {t('sentry.block')}
               </button>
               <button
                 type="button"
@@ -149,7 +160,7 @@ export default function Queue() {
                 disabled={busy}
                 className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
-                <X size={14} /> Ignore
+                <X size={14} /> {t('sentry.ignore')}
               </button>
               <button
                 type="button"
@@ -157,7 +168,7 @@ export default function Queue() {
                 disabled={busy}
                 className="flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
               >
-                <Check size={14} /> Approve
+                <Check size={14} /> {t('sentry.approve')}
               </button>
               <button
                 type="button"
@@ -165,26 +176,26 @@ export default function Queue() {
                 disabled={busy}
                 className="flex items-center gap-1 rounded border border-blue-300 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
               >
-                <Repeat size={14} /> Always do this
+                <Repeat size={14} /> {t('sentry.alwaysDoThis')}
               </button>
             </div>
 
             <Link to={`/plugins/sentry/incidents/${inc.id}`} className="mt-2 inline-block text-xs text-blue-600 hover:underline dark:text-blue-400">
-              View details →
+              {t('sentry.viewDetails')}
             </Link>
           </div>
         ))}
       </div>
 
       {/* Block confirm dialog */}
-      <Dialog open={!!blockTarget} onClose={() => setBlockTarget(null)} title="Confirm block" size="small">
+      <Dialog open={!!blockTarget} onClose={() => setBlockTarget(null)} title={t('sentry.confirmBlockTitle')} size="small">
         {blockTarget && (
           <div className="space-y-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Block <strong>{blockTarget.alert.src_ip}</strong> for a temporary period?
+              {t('sentry.blockLead')} <strong>{blockTarget.alert.src_ip}</strong> {t('sentry.blockTail')}
             </p>
             <label className="block text-sm">
-              Duration (minutes)
+              {t('sentry.durationMinutes')}
               <input
                 type="number"
                 min={1}
@@ -199,7 +210,7 @@ export default function Queue() {
             )}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setBlockTarget(null)} className="rounded border border-gray-300 px-3 py-1 text-sm">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -207,7 +218,7 @@ export default function Queue() {
                 onClick={() => doAnswer(blockTarget, 'block', minutes)}
                 className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700 disabled:opacity-50"
               >
-                Block
+                {t('sentry.block')}
               </button>
             </div>
           </div>
@@ -215,21 +226,21 @@ export default function Queue() {
       </Dialog>
 
       {/* Always confirm dialog */}
-      <Dialog open={!!alwaysTarget} onClose={() => setAlwaysTarget(null)} title="Always do this" size="small">
+      <Dialog open={!!alwaysTarget} onClose={() => setAlwaysTarget(null)} title={t('sentry.alwaysDoThis')} size="small">
         {alwaysTarget && (
           <div className="space-y-4">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              Create a rule that automatically{' '}
+              {t('sentry.createRuleLead')}{' '}
               <strong>{alwaysTarget.recommendation.tool}</strong>
-              {alwaysTarget.recommendation.target && ` ${alwaysTarget.recommendation.target}`} for matching
-              traffic in the future. This will be added to your rules list.
+              {alwaysTarget.recommendation.target && ` ${alwaysTarget.recommendation.target}`} {t('sentry.createRuleMid')}{' '}
+              {t('sentry.createRuleRest')}
             </p>
             {answerMut.isError && (
               <p role="alert" className="text-sm text-red-600">{(answerMut.error as Error).message}</p>
             )}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setAlwaysTarget(null)} className="rounded border border-gray-300 px-3 py-1 text-sm">
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -237,7 +248,7 @@ export default function Queue() {
                 onClick={() => doAnswer(alwaysTarget, 'always')}
                 className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                Create rule
+                {t('sentry.createRule')}
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@ vi.mock('../api/system', async (orig) => {
   const real = await orig<typeof import('../api/system')>()
   return { ...real, rebootBox: vi.fn() }
 })
+vi.mock('../api/prefs', () => ({ getPrefs: vi.fn().mockResolvedValue({}), savePrefs: vi.fn() }))
 import * as auth from '../api/auth'
 import * as sys from '../api/system'
 import UserMenu from '../components/UserMenu'

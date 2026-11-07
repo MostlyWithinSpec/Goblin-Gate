@@ -2,6 +2,7 @@
 // control). Mirrors internal/config/validate.go; the server stays
 // authoritative.
 import type { Action3, App } from '../../api/objects'
+import { t } from '../../i18n'
 
 const LABEL = /^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/
 
@@ -55,6 +56,34 @@ export function summarize(m?: Record<string, string>): string {
   const n: Record<string, number> = {}
   for (const a of Object.values(m ?? {})) if (a !== 'allow') n[a] = (n[a] ?? 0) + 1
   return Object.entries(n).map(([a, c]) => `${c} ${a}`).join(', ')
+}
+
+// domainCounts writes the blocked/allow list sizes the way the filter columns
+// show them ("2 blocked, 1 allowed").
+export function domainCounts(blocked?: string[], allowed?: string[]): string {
+  return t('profiles.domainCounts', { blocked: (blocked ?? []).length, allowed: (allowed ?? []).length })
+}
+
+// blockSeverityText says what an IPS profile blocks ("high + medium").
+export function blockSeverityText(severity: number): string {
+  return severity === 1 ? t('ips.blocksHigh') : severity === 3 ? t('ips.blocksAll') : t('ips.blocksHighMedium')
+}
+
+// categoriesLabel names the rule category checklist, naming the categories the
+// default set leaves out.
+export function categoriesLabel(): string {
+  return t('ips.categoriesLabel', { excluded: ET_DEFAULT_EXCLUDED.join(', ') })
+}
+
+// unusedProfiles warns that profiles are defined but no policy applies them.
+// The old page wrote it across two source lines, so the sentence is built from
+// both halves in the same order the page shows them.
+export function unusedProfiles(names: string): string {
+  return (
+    t('profiles.notAppliedLead', { names }) + ' ' +
+    t('profiles.notAppliedWorks') + ' ' +
+    t('profiles.notAppliedSource')
+  )
 }
 
 // --- IPS (task 032) ---

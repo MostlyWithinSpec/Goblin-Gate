@@ -349,3 +349,40 @@ func TestRoutesAreKnownCapabilities(t *testing.T) {
 		}
 	}
 }
+
+// The first-party manifests must parse; a secret must be a string without
+// a default.
+func TestShippedManifests(t *testing.T) {
+	for _, name := range []string{"sentry", "homeassistant"} {
+		data, err := os.ReadFile(filepath.Join("..", "..", "plugins", name, "plugin.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m, err := ParseManifest(data, name)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if name == "homeassistant" && !slices.Equal(m.SecretKeys(), []string{"password"}) {
+			t.Errorf("homeassistant secrets: %v", m.SecretKeys())
+		}
+	}
+	for _, bad := range []string{
+		`{"name":"x","version":"1","settings_schema":{"type":"object","properties":{"n":{"type":"integer","secret":true}}}}`,
+		`{"name":"x","version":"1","settings_schema":{"type":"object","properties":{"s":{"type":"string","secret":true,"default":"pw"}}}}`,
+	} {
+		if _, err := ParseManifest([]byte(bad), "x"); err == nil || !strings.Contains(err.Error(), "secret") {
+			t.Errorf("%s: %v", bad, err)
+		}
+	}
+	m, _ := ParseManifest([]byte(`{"name":"x","version":"1","settings_schema":{"type":"object","properties":{"pw":{"type":"string","secret":true},"host":{"type":"string"}}}}`), "x")
+	settings, secrets := m.SplitSettings(map[string]any{"host": "a", "pw": ""}, map[string]string{"pw": "old"})
+	if settings["host"] != "a" || settings["pw"] != nil || secrets["pw"] != "old" {
+		t.Errorf("blank keeps: %v %v", settings, secrets)
+	}
+	if _, secrets := m.SplitSettings(map[string]any{"pw": nil}, map[string]string{"pw": "old"}); secrets != nil {
+		t.Errorf("null clears: %v", secrets)
+	}
+	if _, secrets := m.SplitSettings(map[string]any{"pw": "new"}, map[string]string{"pw": "old"}); secrets["pw"] != "new" {
+		t.Errorf("typed replaces: %v", secrets)
+	}
+}

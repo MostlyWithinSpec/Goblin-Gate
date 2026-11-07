@@ -61,6 +61,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkPolicies()
 	v.checkSchedules()
 	v.checkUPnP()
+	v.checkReverseProxy()
 	v.checkRouting()
 	v.checkPortForwards()
 	v.checkDHCP()

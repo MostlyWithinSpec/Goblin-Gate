@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Square, Play, AlertTriangle } from 'lucide-react'
 import { getCandidate } from '../../api/objects'
+import { t } from '../../i18n'
 import {
   startCapture,
   getCapture,
@@ -71,7 +72,7 @@ export default function PacketCapture() {
   const start = async () => {
     setStartError(null)
     if (!iface) {
-      setStartError('Pick an interface.')
+      setStartError(t('capture.pickInterface'))
       return
     }
     const req: StartCaptureRequest = { interface: iface }
@@ -112,14 +113,14 @@ export default function PacketCapture() {
   if (statusQ.isError && (statusQ.error as { code?: string })?.code === 'capture_unavailable') {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-800">
-        <p className="text-sm text-gray-500">Packet capture runs on the firewall itself.</p>
+        <p className="text-sm text-gray-500">{t('capture.unavailable')}</p>
       </div>
     )
   }
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">Packet capture</h2>
+      <h2 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">{t('capture.title')}</h2>
 
       {/* Start form */}
       {!captureId && (
@@ -131,26 +132,26 @@ export default function PacketCapture() {
           }}
         >
           <label className="block">
-            <span className={labelClass}>Interface</span>
+            <span className={labelClass}>{t('capture.interface')}</span>
             <select value={iface} onChange={(e) => setIface(e.target.value)} className={inputClass}>
-              <option value="">Select…</option>
+              <option value="">{t('capture.selectInterface')}</option>
               {interfaces.map((n) => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className={labelClass}>Host (IP)</span>
-            <input type="text" placeholder="e.g. 192.168.1.50" value={host} onChange={(e) => setHost(e.target.value)} className={inputClass} />
+            <span className={labelClass}>{t('capture.host')}</span>
+            <input type="text" placeholder={t('capture.hostPlaceholder')} value={host} onChange={(e) => setHost(e.target.value)} className={inputClass} />
           </label>
           <label className="block">
-            <span className={labelClass}>Port</span>
-            <input type="number" min={1} max={65535} placeholder="any" value={port} onChange={(e) => setPort(e.target.value)} className={inputClass} />
+            <span className={labelClass}>{t('capture.port')}</span>
+            <input type="number" min={1} max={65535} placeholder={t('capture.any')} value={port} onChange={(e) => setPort(e.target.value)} className={inputClass} />
           </label>
           <label className="block">
-            <span className={labelClass}>Protocol</span>
+            <span className={labelClass}>{t('capture.protocol')}</span>
             <select value={protocol} onChange={(e) => setProtocol(e.target.value as typeof protocol)} className={inputClass}>
-              <option value="">any</option>
+              <option value="">{t('capture.any')}</option>
               <option value="tcp">tcp</option>
               <option value="udp">udp</option>
               <option value="icmp">icmp</option>
@@ -159,11 +160,11 @@ export default function PacketCapture() {
             </select>
           </label>
           <label className="block">
-            <span className={labelClass}>Max packets</span>
+            <span className={labelClass}>{t('capture.maxPackets')}</span>
             <input type="number" min={1} max={10000} value={maxPackets} onChange={(e) => setMaxPackets(e.target.value)} className={inputClass} />
           </label>
           <label className="block">
-            <span className={labelClass}>Max seconds</span>
+            <span className={labelClass}>{t('capture.maxSeconds')}</span>
             <input type="number" min={1} max={300} value={maxSeconds} onChange={(e) => setMaxSeconds(e.target.value)} className={inputClass} />
           </label>
 
@@ -173,16 +174,16 @@ export default function PacketCapture() {
           {busyCaptureId !== null && (
             <div role="alert" className="col-span-full flex items-center gap-2 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
               <AlertTriangle size={16} />
-              A capture is already running.{' '}
+              {t('capture.alreadyRunning')}{' '}
               {busyCaptureId && (
-                <button type="button" className="underline" onClick={() => setCaptureId(busyCaptureId)}>View it</button>
+                <button type="button" className="underline" onClick={() => setCaptureId(busyCaptureId)}>{t('capture.viewIt')}</button>
               )}
             </div>
           )}
 
           <div className="col-span-full flex items-end">
             <button type="submit" className="flex items-center gap-1 rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">
-              <Play size={16} /> Start capture
+              <Play size={16} /> {t('capture.start')}
             </button>
           </div>
         </form>
@@ -193,21 +194,21 @@ export default function PacketCapture() {
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
             <span data-testid="capture-state" className="font-medium">
-              {state === 'running' ? 'Capturing…' : state === 'done' ? 'Done' : state === 'failed' ? 'Failed' : '…'}
+              {state === 'running' ? t('capture.capturing') : state === 'done' ? t('capture.done') : state === 'failed' ? t('capture.failed') : '…'}
             </span>
             {statusQ.data && (
               <>
-                <span>{statusQ.data.packets} packets</span>
-                <span>{statusQ.data.bytes} bytes</span>
-                <span className="text-gray-500">filter: <code>{statusQ.data.filter}</code></span>
+                <span>{t('capture.packets', { count: statusQ.data.packets })}</span>
+                <span>{t('capture.bytes', { count: statusQ.data.bytes })}</span>
+                <span className="text-gray-500">{t('capture.filterLabel')} <code>{statusQ.data.filter}</code></span>
               </>
             )}
             {dropped > 0 && (
-              <span className="text-red-600">{dropped} dropped</span>
+              <span className="text-red-600">{t('capture.dropped', { count: dropped })}</span>
             )}
             {state === 'running' && (
               <button type="button" onClick={() => void stop()} className="flex items-center gap-1 rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700">
-                <Square size={14} /> Stop
+                <Square size={14} /> {t('capture.stop')}
               </button>
             )}
             {state !== 'running' && (
@@ -222,27 +223,12 @@ export default function PacketCapture() {
                 }}
                 className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
               >
-                New capture
-              </button>
-            )}
-            {state !== 'running' && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCaptureId(null)
-                  setRows([])
-                  setDropped(0)
-                  setBusyCaptureId(null)
-                  setStartError(null)
-                }}
-                className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
-              >
-                New capture
+                {t('capture.new')}
               </button>
             )}
             {state === 'done' && (
               <a href={capturePcapUrl(captureId)} className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">
-                <Download size={14} /> Download pcap
+                <Download size={14} /> {t('capture.download')}
               </a>
             )}
           </div>
@@ -251,7 +237,7 @@ export default function PacketCapture() {
             <p role="alert" className="mb-3 text-sm text-red-600">{statusQ.data.error}</p>
           )}
           {state === 'done' && (
-            <p className="mb-3 text-xs text-gray-500">Open the pcap in Wireshark to inspect it.</p>
+            <p className="mb-3 text-xs text-gray-500">{t('capture.wireshark')}</p>
           )}
 
           {/* Live table */}
@@ -259,9 +245,12 @@ export default function PacketCapture() {
             <table className="min-w-full divide-y divide-gray-200 bg-white text-sm dark:divide-gray-700 dark:bg-gray-800 dark:text-gray-200">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  {['Time', 'Source', 'Destination', 'Protocol', 'Length', 'Info'].map((h) => (
-                    <th key={h} className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{h}</th>
-                  ))}
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.time')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.source')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.destination')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.protocol')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.length')}</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('capture.col.info')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -276,7 +265,7 @@ export default function PacketCapture() {
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">Waiting for packets…</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">{t('capture.waiting')}</td></tr>
                 )}
               </tbody>
             </table>

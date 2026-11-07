@@ -5,6 +5,7 @@ import type { ValidationError } from '../../api/policy'
 import { EditDrawer } from '../../components/EditDrawer'
 import { EditParam } from '../../components/ConfigList'
 import { useInRouterContext } from 'react-router-dom'
+import { t } from '../../i18n'
 import { validatePortForward, type Errors } from './networkLogic'
 
 const empty = (wan: string[]): PortForward => ({ name: '', in_intf: wan[0] ?? '', ext_port: '', protocol: 'tcp', to_addr: '', to_port: '' })
@@ -71,7 +72,7 @@ export default function PortForwards() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Virtual IPs / Port Forwards</h2>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('portForwards.title')}</h2>
         <button
           type="button"
           disabled={!loaded}
@@ -81,7 +82,7 @@ export default function PortForwards() {
           }}
           className="flex min-h-[40px] items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          <Plus size={16} /> New port forward
+          <Plus size={16} /> {t('portForwards.newForward')}
         </button>
       </div>
       {inRouter && loaded && (
@@ -105,8 +106,8 @@ export default function PortForwards() {
       <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
           <tr>
-            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 dark:bg-gray-700">Name</th><th className="px-3 py-2">Interface</th><th className="px-3 py-2">External</th>
-            <th className="px-3 py-2">Protocol</th><th className="px-3 py-2">Internal</th><th className="px-3 py-2">From</th><th className="px-3 py-2"></th>
+            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 dark:bg-gray-700">{t('portForwards.col.name')}</th><th className="px-3 py-2">{t('portForwards.col.interface')}</th><th className="px-3 py-2">{t('portForwards.col.external')}</th>
+            <th className="px-3 py-2">{t('portForwards.col.protocol')}</th><th className="px-3 py-2">{t('portForwards.col.internal')}</th><th className="px-3 py-2">{t('portForwards.col.from')}</th><th className="px-3 py-2"></th>
           </tr>
         </thead>
         <tbody>
@@ -121,48 +122,48 @@ export default function PortForwards() {
               <td className="px-3 py-1">{pf.ext_port}</td>
               <td className="px-3 py-1 uppercase">{pf.protocol}</td>
               <td className="px-3 py-1">{pf.to_addr}:{pf.to_port || pf.ext_port}</td>
-              <td className="px-3 py-1">{pf.source?.length ? pf.source.join(', ') : <span className="text-gray-500">anyone</span>}</td>
+              <td className="px-3 py-1">{pf.source?.length ? pf.source.join(', ') : <span className="text-gray-500">{t('portForwards.anyone')}</span>}</td>
               <td className="px-3 py-1 text-right">
-                <button type="button" aria-label={`Delete ${pf.name}`} onClick={() => window.confirm(`Delete port forward "${pf.name}"?`) && save(items.filter((_, j) => j !== i))} className="text-red-600">
+                <button type="button" aria-label={t('portForwards.deleteForward', { name: pf.name })} onClick={() => window.confirm(t('portForwards.deleteForwardConfirm', { name: pf.name })) && save(items.filter((_, j) => j !== i))} className="text-red-600">
                   <Trash2 size={16} />
                 </button>
               </td>
             </tr>
           ))}
           {loaded && items.length === 0 && (
-            <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No port forwards.</td></tr>
+            <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">{t('portForwards.empty')}</td></tr>
           )}
         </tbody>
       </table>
       </div>
 
       {editing && (
-        <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? 'New port forward' : `Edit ${editing.pf.name}`}>
+        <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? t('portForwards.newForward') : t('portForwards.editForward', { name: editing.pf.name })}>
           <form onSubmit={submit} noValidate className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
             {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
-            <label className="block">Name<input aria-label="Name" className={input} value={editing.pf.name} onChange={(e) => set('name', e.target.value)} />{err('name')}</label>
+            <label className="block">{t('portForwards.name')}<input aria-label={t('portForwards.name')} className={input} value={editing.pf.name} onChange={(e) => set('name', e.target.value)} />{err('name')}</label>
             <label className="block">
-              Incoming interface
-              <select aria-label="Incoming interface" className={input} value={editing.pf.in_intf} onChange={(e) => set('in_intf', e.target.value)}>
-                {wan.length === 0 && <option value="">no WAN interface</option>}
+              {t('portForwards.incoming')}
+              <select aria-label={t('portForwards.incoming')} className={input} value={editing.pf.in_intf} onChange={(e) => set('in_intf', e.target.value)}>
+                {wan.length === 0 && <option value="">{t('portForwards.noWan')}</option>}
                 {wan.map((w) => <option key={w} value={w}>{w}</option>)}
               </select>
               {err('in_intf')}
             </label>
-            <label className="block">External port<input aria-label="External port" placeholder="443 or 8000-8100" className={input} value={editing.pf.ext_port} onChange={(e) => set('ext_port', e.target.value)} />{err('ext_port')}</label>
+            <label className="block">{t('portForwards.extPort')}<input aria-label={t('portForwards.extPort')} placeholder={t('portForwards.extPortPlaceholder')} className={input} value={editing.pf.ext_port} onChange={(e) => set('ext_port', e.target.value)} />{err('ext_port')}</label>
             <label className="block">
-              Protocol
-              <select aria-label="Protocol" className={input} value={editing.pf.protocol} onChange={(e) => set('protocol', e.target.value as PortForward['protocol'])}>
+              {t('portForwards.protocol')}
+              <select aria-label={t('portForwards.protocol')} className={input} value={editing.pf.protocol} onChange={(e) => set('protocol', e.target.value as PortForward['protocol'])}>
                 <option value="tcp">TCP</option><option value="udp">UDP</option>
               </select>
             </label>
-            <label className="block">Internal address<input aria-label="Internal address" placeholder="192.168.1.10" className={input} value={editing.pf.to_addr} onChange={(e) => set('to_addr', e.target.value)} />{err('to_addr')}</label>
-            <label className="block">Internal port<input aria-label="Internal port" placeholder="same as external" className={input} value={editing.pf.to_port} onChange={(e) => set('to_port', e.target.value)} />{err('to_port')}</label>
+            <label className="block">{t('portForwards.internalAddress')}<input aria-label={t('portForwards.internalAddress')} placeholder={t('portForwards.internalAddressPlaceholder')} className={input} value={editing.pf.to_addr} onChange={(e) => set('to_addr', e.target.value)} />{err('to_addr')}</label>
+            <label className="block">{t('portForwards.internalPort')}<input aria-label={t('portForwards.internalPort')} placeholder={t('portForwards.internalPortPlaceholder')} className={input} value={editing.pf.to_port} onChange={(e) => set('to_port', e.target.value)} />{err('to_port')}</label>
             <fieldset>
-              <legend>Allowed sources</legend>
-              <p className="text-xs text-gray-500">Only these addresses may use the forward; none ticked lets anyone in. Country objects (Network → Addresses) limit it to some countries.</p>
+              <legend>{t('portForwards.allowedSources')}</legend>
+              <p className="text-xs text-gray-500">{t('portForwards.sourcesNote')}</p>
               <div className="mt-1 max-h-40 overflow-y-auto rounded border border-gray-200 p-1 dark:border-gray-600">
-                {sources.length === 0 && <p className="px-1 text-xs text-gray-500">No address objects yet.</p>}
+                {sources.length === 0 && <p className="px-1 text-xs text-gray-500">{t('portForwards.noAddressObjects')}</p>}
                 {sources.map((o) => {
                   const on = editing.pf.source?.includes(o.name) ?? false
                   return (
@@ -179,8 +180,8 @@ export default function PortForwards() {
               </div>
             </fieldset>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="rounded border border-gray-300 px-3 py-1">Cancel</button>
-              <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">Save</button>
+              <button type="button" onClick={() => setEditing(null)} className="rounded border border-gray-300 px-3 py-1">{t('common.cancel')}</button>
+              <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">{t('portForwards.save')}</button>
             </div>
           </form>
         </EditDrawer>

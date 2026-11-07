@@ -231,6 +231,18 @@ var groups = []group{
 		},
 	},
 	{
+		// Reverse proxy (Caddy): runs while its config exists. After the nft
+		// group, which redirects WAN ports 80 and 443 to it.
+		name:   "caddy",
+		prefix: "/etc/goblingate/caddy/",
+		activate: func(files []string) [][]string {
+			if len(files) == 0 {
+				return [][]string{ifUnit(caddyUnit, "disable --now")}
+			}
+			return [][]string{{"systemctl", "enable", caddyUnit}, {"systemctl", "restart", caddyUnit}}
+		},
+	},
+	{
 		// UPS through NUT (task 112). The files hold upsd/upsmon passwords:
 		// root and the nut group only. A driver or upsd that can't start (no
 		// UPS plugged in yet) doesn't fail the commit: the UPS page shows it.
@@ -269,6 +281,19 @@ var groups = []group{
 			return out
 		},
 	},
+	{
+		// Network card offloads: a script of ethtool -K commands (task 119);
+		// goblin-nic.service runs it again at boot.
+		name:   "nic",
+		prefix: "/etc/goblingate/nic/",
+		activate: func(files []string) [][]string {
+			var out [][]string
+			for _, f := range files {
+				out = append(out, []string{"sh", f})
+			}
+			return out
+		},
+	},
 }
 
 // NUT's units (Debian's nut-server and nut-client packages).
@@ -279,6 +304,9 @@ const (
 
 // upnpUnit runs miniupnpd (internal/render/upnp.Unit).
 const upnpUnit = "goblin-miniupnpd.service"
+
+// caddyUnit runs the reverse proxy (internal/render/caddy.Unit).
+const caddyUnit = "goblin-caddy.service"
 
 // ifUnit runs `systemctl <verb> <unit>` only when the unit is installed, so a
 // box without it (no sshd, a different time daemon) can still commit.

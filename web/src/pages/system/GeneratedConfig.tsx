@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, Check, FileCode2, GitCompare, Search } from 'lucide-react'
 import { inputClass } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import {
   getGeneratedFiles,
   getGeneratedFile,
@@ -149,7 +150,7 @@ const GeneratedConfig: React.FC = () => {
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {c}
+              {c === 'running' ? t('generated.running') : t('generated.candidate')}
             </button>
           ))}
         </div>
@@ -176,9 +177,9 @@ const GeneratedConfig: React.FC = () => {
         {/* File list grouped by renderer */}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 max-h-[70vh] overflow-y-auto">
           {loading ? (
-            <p className="p-2 text-sm text-gray-500">Loading…</p>
+            <p className="p-2 text-sm text-gray-500">{t('generated.loading')}</p>
           ) : groups.size === 0 ? (
-            <p className="p-2 text-sm text-gray-500">{search ? 'No matching files.' : 'No generated files.'}</p>
+            <p className="p-2 text-sm text-gray-500">{search ? t('generated.noMatch') : t('generated.noFiles')}</p>
           ) : (
             [...groups.entries()].map(([renderer, list]) => (
               <div key={renderer} className="mb-3 last:mb-0">
@@ -201,7 +202,7 @@ const GeneratedConfig: React.FC = () => {
                         <span className="truncate">{f.path}</span>
                         {f.redacted && (
                           <span className="ml-auto shrink-0 rounded bg-yellow-100 px-1.5 text-[10px] font-medium text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300">
-                            redacted
+                            {t('generated.redacted')}
                           </span>
                         )}
                       </button>
@@ -216,7 +217,7 @@ const GeneratedConfig: React.FC = () => {
         {/* Content / diff pane */}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
           {!selected ? (
-            <p className="p-4 text-sm text-gray-500">Select a file to view its generated content.</p>
+            <p className="p-4 text-sm text-gray-500">{t('generated.selectFile')}</p>
           ) : (
             <div className="flex h-full flex-col">
               <div className="flex items-center gap-2 border-b border-gray-200 p-2 dark:border-gray-700">
@@ -232,7 +233,7 @@ const GeneratedConfig: React.FC = () => {
                           : 'border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      <GitCompare size={12} /> {showDiff ? 'Hide diff' : 'Diff vs running'}
+                      <GitCompare size={12} /> {showDiff ? t('generated.diffHide') : t('generated.diffShow')}
                     </button>
                   )}
                   {content && !showDiff && (
@@ -241,7 +242,7 @@ const GeneratedConfig: React.FC = () => {
                       onClick={copyContent}
                       className="inline-flex items-center gap-1 rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
                     >
-                      {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy'}
+                      {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? t('generated.copied') : t('generated.copy')}
                     </button>
                   )}
                 </div>
@@ -256,10 +257,10 @@ const GeneratedConfig: React.FC = () => {
 
                 {showDiff ? (
                   diff === null ? (
-                    <p className="p-3 text-sm text-gray-500">Loading diff…</p>
+                    <p className="p-3 text-sm text-gray-500">{t('generated.loadingDiff')}</p>
                   ) : diff === '' ? (
                     <p className="p-3 text-sm text-gray-500" data-testid="diff-unchanged">
-                      No differences from running config.
+                      {t('generated.noDifferences')}
                     </p>
                   ) : (
                     <div data-testid="unified-diff" className="py-1">
@@ -272,8 +273,8 @@ const GeneratedConfig: React.FC = () => {
                   <>
                     {(content.redacted || content.truncated) && (
                       <div className="m-2 rounded bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                        {content.redacted && 'Secrets are redacted in this view. '}
-                        {content.truncated && 'File is truncated (over 2 MB).'}
+                        {content.redacted && `${t('generated.redactedNote')} `}
+                        {content.truncated && t('generated.truncatedNote')}
                       </div>
                     )}
                     <pre className="p-2 font-mono text-xs leading-5 text-gray-800 dark:text-gray-100">
@@ -286,7 +287,7 @@ const GeneratedConfig: React.FC = () => {
                     </pre>
                   </>
                 ) : (
-                  !contentError && <p className="p-3 text-sm text-gray-500">Loading…</p>
+                  !contentError && <p className="p-3 text-sm text-gray-500">{t('generated.loading')}</p>
                 )}
               </div>
             </div>

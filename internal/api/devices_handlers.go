@@ -42,6 +42,10 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"devices": devs})
 }
 
+type deviceNameRequest struct {
+	Name string `json:"name"`
+}
+
 // PATCH /api/v1/devices/{mac} {name} → the updated device. A name of at most
 // 63 characters labels it; "" clears the label.
 func (s *Server) patchDevice(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +53,7 @@ func (s *Server) patchDevice(w http.ResponseWriter, r *http.Request) {
 		s.devicesUnavailable(w)
 		return
 	}
-	var req struct {
-		Name string `json:"name"`
-	}
+	var req deviceNameRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

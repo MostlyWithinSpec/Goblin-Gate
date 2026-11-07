@@ -4,15 +4,16 @@ import { RefreshCw } from 'lucide-react'
 import type { DDNS, DDNSStatus } from '../../api/objects'
 import { getDDNSStatus, updateDDNSNow } from '../../api/objects'
 import { ConfigList, inputClass, omitEmpty, type Column, type FormCtx } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import { wanInterfaces, validateDDNS } from './networkLogic'
 
 function relTime(s?: string): string {
   if (!s) return '—'
   const d = Date.now() - new Date(s).getTime()
-  if (d < 60_000) return 'just now'
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)} min ago`
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} h ago`
-  return `${Math.floor(d / 86_400_000)} d ago`
+  if (d < 60_000) return t('ddns.justNow')
+  if (d < 3_600_000) return t('ddns.minutesAgo', { count: Math.floor(d / 60_000) })
+  if (d < 86_400_000) return t('ddns.hoursAgo', { count: Math.floor(d / 3_600_000) })
+  return t('ddns.daysAgo', { count: Math.floor(d / 86_400_000) })
 }
 
 // UpdateNow asks the box to update one entry now and says how it went (an
@@ -23,7 +24,7 @@ function UpdateNow({ name, onDone }: { name: string; onDone: () => void }) {
     setState({ busy: true })
     updateDDNSNow(name)
       .then(() => {
-        setState({ busy: false, ok: true, msg: 'updated' })
+        setState({ busy: false, ok: true, msg: t('ddns.updated') })
         onDone()
       })
       .catch((e: Error) => setState({ busy: false, ok: false, msg: e.message }))
@@ -31,7 +32,7 @@ function UpdateNow({ name, onDone }: { name: string; onDone: () => void }) {
   return (
     <span className="mr-2 inline-flex items-center gap-1 align-middle">
       <button type="button" disabled={state.busy} onClick={run} className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline disabled:opacity-50">
-        <RefreshCw size={12} className={state.busy ? 'animate-spin' : ''} /> Update now
+        <RefreshCw size={12} className={state.busy ? 'animate-spin' : ''} /> {t('ddns.updateNow')}
       </button>
       {state.msg && (
         <span role={state.ok ? 'status' : 'alert'} className={`max-w-[14rem] truncate text-xs ${state.ok ? 'text-green-600' : 'text-red-600'}`} title={state.msg}>
@@ -47,17 +48,17 @@ export default function DynamicDNS() {
   const byName = new Map<string, DDNSStatus>((q.data ?? []).map((e) => [e.name, e]))
 
   const columns: Column<DDNS>[] = [
-    { label: 'Provider', render: (d) => d.provider },
-    { label: 'Hostname', render: (d) => d.hostname },
-    { label: 'Interface', render: (d) => d.interface ?? 'wan1' },
+    { label: t('ddns.col.provider'), render: (d) => d.provider },
+    { label: t('ddns.col.hostname'), render: (d) => d.hostname },
+    { label: t('ddns.col.interface'), render: (d) => d.interface ?? 'wan1' },
     {
-      label: 'Status',
+      label: t('ddns.col.status'),
       render: (d) => {
         const s = byName.get(d.name)
         if (!s) return <span className="text-gray-400">—</span>
         return (
           <div className="space-y-0.5 text-xs">
-            <div>{s.ip ?? 'no IP yet'}</div>
+            <div>{s.ip ?? t('ddns.noIpYet')}</div>
             <div className="text-gray-500">{relTime(s.last_update)}</div>
             {s.last_error && <div className="text-red-600">{s.last_error}</div>}
           </div>
@@ -68,7 +69,7 @@ export default function DynamicDNS() {
 
   return (
     <ConfigList<DDNS>
-      title="Dynamic DNS"
+      title={t('ddns.title')}
       path="ddns"
       select={(cfg) => cfg.ddns}
       empty={() => ({ name: '', enabled: true, provider: 'cloudflare', hostname: '' })}
@@ -85,62 +86,65 @@ export default function DynamicDNS() {
         if (!out.token?.trim()) delete out.token
         return omitEmpty(out) as DDNS
       }}
-      newLabel="New entry"
+      newLabel={t('ddns.newEntry')}
       form={(item, set, ctx: FormCtx) => {
         const wan = wanInterfaces(ctx.cfg)
+        const unchanged = ctx.isNew ? '' : t('ddns.unchanged')
         return (
           <>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={item.enabled !== false} onChange={(e) => set({ enabled: e.target.checked })} /> Enabled
+              <input type="checkbox" checked={item.enabled !== false} onChange={(e) => set({ enabled: e.target.checked })} /> {t('ddns.enabled')}
             </label>
             <label className="block">
-              Provider
-              <select aria-label="Provider" className={inputClass} value={item.provider} onChange={(e) => set({ provider: e.target.value as DDNS['provider'] })}>
+              {t('ddns.provider')}
+              <select aria-label={t('ddns.provider')} className={inputClass} value={item.provider} onChange={(e) => set({ provider: e.target.value as DDNS['provider'] })}>
                 <option value="cloudflare">Cloudflare</option>
                 <option value="duckdns">DuckDNS</option>
-                <option value="custom">Custom URL</option>
+                <option value="custom">{t('ddns.provider.custom')}</option>
               </select>
             </label>
             <label className="block">
-              Hostname
-              <input aria-label="Hostname" placeholder="vpn.example.com" className={inputClass} value={item.hostname ?? ''} onChange={(e) => set({ hostname: e.target.value })} />
+              {t('ddns.hostname')}
+              <input aria-label={t('ddns.hostname')} placeholder={t('ddns.hostnamePlaceholder')} className={inputClass} value={item.hostname ?? ''} onChange={(e) => set({ hostname: e.target.value })} />
               {ctx.err('hostname')}
             </label>
             <label className="block">
-              WAN interface
-              <select aria-label="WAN interface" className={inputClass} value={item.interface ?? ''} onChange={(e) => set({ interface: e.target.value || undefined })}>
-                <option value="">wan1 (default)</option>
+              {t('ddns.wanInterface')}
+              <select aria-label={t('ddns.wanInterface')} className={inputClass} value={item.interface ?? ''} onChange={(e) => set({ interface: e.target.value || undefined })}>
+                <option value="">{t('ddns.wanDefault')}</option>
                 {wan.map((w) => <option key={w} value={w}>{w}</option>)}
               </select>
             </label>
             {item.provider === 'cloudflare' && (
               <>
                 <label className="block">
-                  API token
-                  <input aria-label="API token" type="password" placeholder={ctx.isNew ? '' : 'unchanged'} className={inputClass} value={item.token ?? ''} onChange={(e) => set({ token: e.target.value })} />
+                  {t('ddns.apiToken')}
+                  <input aria-label={t('ddns.apiToken')} type="password" placeholder={unchanged} className={inputClass} value={item.token ?? ''} onChange={(e) => set({ token: e.target.value })} />
                   {ctx.err('token')}
-                  <p className="mt-1 text-xs text-gray-500">an API token with Zone → DNS → Edit</p>
+                  <p className="mt-1 text-xs text-gray-500">{t('ddns.apiTokenNote')}</p>
                 </label>
                 <label className="block">
-                  Zone ID
-                  <input aria-label="Zone ID" className={inputClass} value={item.zone_id ?? ''} onChange={(e) => set({ zone_id: e.target.value })} />
+                  {t('ddns.zoneId')}
+                  <input aria-label={t('ddns.zoneId')} className={inputClass} value={item.zone_id ?? ''} onChange={(e) => set({ zone_id: e.target.value })} />
                   {ctx.err('zone_id')}
                 </label>
               </>
             )}
             {item.provider === 'duckdns' && (
               <label className="block">
-                Token
-                <input aria-label="Token" type="password" placeholder={ctx.isNew ? '' : 'unchanged'} className={inputClass} value={item.token ?? ''} onChange={(e) => set({ token: e.target.value })} />
+                {t('ddns.token')}
+                <input aria-label={t('ddns.token')} type="password" placeholder={unchanged} className={inputClass} value={item.token ?? ''} onChange={(e) => set({ token: e.target.value })} />
                 {ctx.err('token')}
               </label>
             )}
             {item.provider === 'custom' && (
               <label className="block">
-                Update URL
-                <input aria-label="Update URL" placeholder="https://example.com/update?ip={ip}" className={inputClass} value={item.url ?? ''} onChange={(e) => set({ url: e.target.value })} />
+                {t('ddns.updateUrl')}
+                <input aria-label={t('ddns.updateUrl')} placeholder={t('ddns.updateUrlPlaceholder')} className={inputClass} value={item.url ?? ''} onChange={(e) => set({ url: e.target.value })} />
                 {ctx.err('url')}
-                <p className="mt-1 text-xs text-gray-500">Must start with https:// and contain {'{ip}'}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {t('ddns.updateUrlNote')} {'{ip}'}
+                </p>
               </label>
             )}
           </>

@@ -2,10 +2,12 @@
 // addressing. Interfaces and VLANs share one name space.
 import { useEffect, useState } from 'react'
 import { Checklist, ConfigList, inputClass, omitEmpty, type FormCtx } from '../../components/ConfigList'
-import { getDevices, type Device, type Interface, type IPv6, type SQM, type VLAN } from '../../api/objects'
+import { getDevices, type Device, type Interface, type IPv6, type Offloads, type SQM, type VLAN } from '../../api/objects'
 import { getSystemStatus, type SQMStatus } from '../../api/config'
 import { Badge } from '../../components/Badge'
 import { validateAddressing, validateIPv6, validateSQM } from './networkLogic'
+import { Dialog } from '../../components/Dialog'
+import { t } from '../../i18n'
 
 type Addressed = Interface | VLAN
 
@@ -57,6 +59,13 @@ function cleanAddressing<T extends Addressed>(x: T): T {
     if (!s || (s.enabled !== true && s.download_mbit === undefined && s.upload_mbit === undefined)) delete (out as Interface).sqm
     else (out as Interface).sqm = { enabled: !!s.enabled, download_mbit: s.download_mbit, upload_mbit: s.upload_mbit }
   }
+  // Offloads: a field set to the driver default is left out, and so is an
+  // object with nothing left in it.
+  if ('offloads' in out) {
+    const o = Object.fromEntries(Object.entries((out as Interface).offloads ?? {}).filter(([, v]) => typeof v === 'boolean'))
+    if (Object.keys(o).length === 0) delete (out as Interface).offloads
+    else (out as Interface).offloads = o as Offloads
+  }
   return omitEmpty(out)
 }
 
@@ -85,14 +94,14 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold">IPv6</h4>
+      <h4 className="text-sm font-semibold">{t('ipv6.title')}</h4>
       <label className="block">
-        IPv6 mode
-        <select aria-label="IPv6 mode" className={inputClass} value={v.mode} onChange={(e) => setV6({ mode: e.target.value as IPv6['mode'] })}>
-          <option value="none">None</option>
-          {wan && <option value="dhcp6">DHCPv6 client</option>}
-          {!wan && <option value="delegated">Delegated (from uplink)</option>}
-          <option value="static">Static</option>
+        {t('ipv6.mode')}
+        <select aria-label={t('ipv6.mode')} className={inputClass} value={v.mode} onChange={(e) => setV6({ mode: e.target.value as IPv6['mode'] })}>
+          <option value="none">{t('ipv6.modeNone')}</option>
+          {wan && <option value="dhcp6">{t('ipv6.dhcp6')}</option>}
+          {!wan && <option value="delegated">{t('ipv6.delegated')}</option>}
+          <option value="static">{t('interfaces.mode.static')}</option>
         </select>
       </label>
       {ctx.err('mode')}
@@ -100,14 +109,14 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
       {v.mode === 'static' && (
         <>
           <label className="block">
-            Address
-            <input aria-label="IPv6 address" className={inputClass} placeholder="2001:db8::1/64" value={v.address ?? ''} onChange={(e) => setV6({ address: e.target.value.trim() })} />
+            {t('ipv6.address')}
+            <input aria-label={t('ipv6.addressAria')} className={inputClass} placeholder="2001:db8::1/64" value={v.address ?? ''} onChange={(e) => setV6({ address: e.target.value.trim() })} />
             {ctx.err('ipv6_address')}
           </label>
           {wan && (
             <label className="block">
-              Gateway
-              <input aria-label="IPv6 gateway" className={inputClass} placeholder="2001:db8::1" value={v.gateway ?? ''} onChange={(e) => setV6({ gateway: e.target.value.trim() })} />
+              {t('ipv6.gateway')}
+              <input aria-label={t('ipv6.gatewayAria')} className={inputClass} placeholder="2001:db8::1" value={v.gateway ?? ''} onChange={(e) => setV6({ gateway: e.target.value.trim() })} />
               {ctx.err('ipv6_gateway')}
             </label>
           )}
@@ -116,8 +125,8 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
 
       {v.mode === 'dhcp6' && (
         <label className="block">
-          Prefix delegation size
-          <input aria-label="IPv6 PD size" type="number" min={48} max={64} className={inputClass} placeholder="56" value={v.pd_size ?? ''} onChange={(e) => setV6({ pd_size: e.target.value ? Number(e.target.value) : undefined })} />
+          {t('ipv6.pdSize')}
+          <input aria-label={t('ipv6.pdAria')} type="number" min={48} max={64} className={inputClass} placeholder="56" value={v.pd_size ?? ''} onChange={(e) => setV6({ pd_size: e.target.value ? Number(e.target.value) : undefined })} />
           {ctx.err('ipv6_pd_size')}
         </label>
       )}
@@ -125,9 +134,9 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
       {v.mode === 'delegated' && (
         <>
           <label className="block">
-            Uplink
-            <select aria-label="IPv6 uplink" className={inputClass} value={v.uplink ?? ''} onChange={(e) => setV6({ uplink: e.target.value })}>
-              <option value="">Automatic</option>
+            {t('ipv6.uplink')}
+            <select aria-label={t('ipv6.uplinkAria')} className={inputClass} value={v.uplink ?? ''} onChange={(e) => setV6({ uplink: e.target.value })}>
+              <option value="">{t('ipv6.automatic')}</option>
               {uplinks.map((u) => (
                 <option key={u} value={u}>{u}</option>
               ))}
@@ -135,8 +144,8 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
             {ctx.err('ipv6_uplink')}
           </label>
           <label className="block">
-            Prefix ID
-            <input aria-label="IPv6 prefix ID" type="number" min={0} className={inputClass} placeholder="auto" value={v.prefix_id ?? ''} onChange={(e) => setV6({ prefix_id: e.target.value ? Number(e.target.value) : undefined })} />
+            {t('ipv6.prefixId')}
+            <input aria-label={t('ipv6.prefixIdAria')} type="number" min={0} className={inputClass} placeholder="auto" value={v.prefix_id ?? ''} onChange={(e) => setV6({ prefix_id: e.target.value ? Number(e.target.value) : undefined })} />
             {ctx.err('ipv6_prefix_id')}
           </label>
         </>
@@ -146,12 +155,12 @@ function IPv6Fields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p: Parti
         <>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={v.ra?.enabled ?? true} onChange={(e) => setV6({ ra: { enabled: e.target.checked, dns: v.ra?.dns ?? true } })} />
-            Router advertisements
+            {t('ipv6.ra')}
           </label>
           {(v.ra?.enabled ?? true) && (
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={v.ra?.dns ?? true} onChange={(e) => setV6({ ra: { enabled: true, dns: e.target.checked } })} />
-              Announce DNS
+              {t('ipv6.announceDns')}
             </label>
           )}
         </>
@@ -165,39 +174,39 @@ function AddressingFields<T extends Addressed>({ x, set, ctx }: { x: T; set: (p:
   return (
     <>
       <label className="block">
-        Mode
-        <select aria-label="Mode" className={inputClass} value={x.mode} onChange={(e) => put({ mode: e.target.value })}>
-          <option value="static">Static</option>
-          <option value="dhcp">DHCP client</option>
-          <option value="none">None</option>
+        {t('interfaces.mode')}
+        <select aria-label={t('interfaces.mode')} className={inputClass} value={x.mode} onChange={(e) => put({ mode: e.target.value })}>
+          <option value="static">{t('interfaces.mode.static')}</option>
+          <option value="dhcp">{t('interfaces.mode.dhcpClient')}</option>
+          <option value="none">{t('ipv6.modeNone')}</option>
         </select>
       </label>
       {x.mode === 'static' && (
         <>
           <label className="block">
-            Address
-            <input aria-label="Address" className={inputClass} placeholder="192.168.1.1/24" value={x.address ?? ''} onChange={(e) => put({ address: e.target.value.trim() })} />
+            {t('interfaces.address')}
+            <input aria-label={t('interfaces.address')} className={inputClass} placeholder="192.168.1.1/24" value={x.address ?? ''} onChange={(e) => put({ address: e.target.value.trim() })} />
             {ctx.err('address')}
           </label>
           <label className="block">
-            Gateway
-            <input aria-label="Gateway" className={inputClass} placeholder="only for an upstream link" value={x.gateway ?? ''} onChange={(e) => put({ gateway: e.target.value.trim() })} />
+            {t('interfaces.gateway')}
+            <input aria-label={t('interfaces.gateway')} className={inputClass} placeholder={t('interfaces.gatewayPlaceholder')} value={x.gateway ?? ''} onChange={(e) => put({ gateway: e.target.value.trim() })} />
             {ctx.err('gateway')}
           </label>
         </>
       )}
       <label className="block">
-        MTU
-        <input aria-label="MTU" type="number" className={inputClass} placeholder="1500" value={x.mtu ?? ''} onChange={(e) => put({ mtu: e.target.value ? Number(e.target.value) : undefined })} />
+        {t('interfaces.mtu')}
+        <input aria-label={t('interfaces.mtu')} type="number" className={inputClass} placeholder="1500" value={x.mtu ?? ''} onChange={(e) => put({ mtu: e.target.value ? Number(e.target.value) : undefined })} />
         {ctx.err('mtu')}
       </label>
-      <Checklist label="Allow access to the box" options={['ping', 'https', 'ssh']} value={x.allow_access ?? []} onChange={(allow_access) => put({ allow_access })} />
+      <Checklist label={t('interfaces.access')} options={['ping', 'https', 'ssh']} value={x.allow_access ?? []} onChange={(allow_access) => put({ allow_access })} />
       <label className="block">
-        Description
-        <input aria-label="Description" className={inputClass} value={x.description ?? ''} onChange={(e) => put({ description: e.target.value })} />
+        {t('interfaces.description')}
+        <input aria-label={t('interfaces.description')} className={inputClass} value={x.description ?? ''} onChange={(e) => put({ description: e.target.value })} />
       </label>
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={x.enabled} onChange={(e) => put({ enabled: e.target.checked })} /> Enabled
+        <input type="checkbox" checked={x.enabled} onChange={(e) => put({ enabled: e.target.checked })} /> {t('interfaces.enabled')}
       </label>
     </>
   )
@@ -209,27 +218,86 @@ function SQMFields({ x, set, ctx }: { x: Interface; set: (p: Partial<Interface>)
   const setS = (p: Partial<SQM>) => set({ sqm: { ...s, ...p } })
   return (
     <div className="space-y-3 rounded border border-gray-200 p-3 dark:border-gray-600">
-      <h4 className="text-sm font-semibold">Smart queue (reduces lag when the line is busy)</h4>
+      <h4 className="text-sm font-semibold">{t('interfaces.sqmTitle')}</h4>
       <label className="flex items-center gap-2">
-        <input type="checkbox" aria-label="Enable smart queue" checked={s.enabled} onChange={(e) => setS({ enabled: e.target.checked })} />
-        Enable smart queue
+        <input type="checkbox" aria-label={t('interfaces.sqmEnable')} checked={s.enabled} onChange={(e) => setS({ enabled: e.target.checked })} />
+        {t('interfaces.sqmEnable')}
       </label>
       {ctx.err('sqm')}
       {s.enabled && (
         <>
           <label className="block">
-            Download speed (Mbit/s)
-            <input aria-label="SQM download Mbit" type="number" min={1} max={100000} className={inputClass} placeholder="943" value={s.download_mbit ?? ''} onChange={(e) => setS({ download_mbit: e.target.value ? Number(e.target.value) : undefined })} />
+            {t('interfaces.sqmDownload')}
+            <input aria-label={t('interfaces.sqmDownloadAria')} type="number" min={1} max={100000} className={inputClass} placeholder="943" value={s.download_mbit ?? ''} onChange={(e) => setS({ download_mbit: e.target.value ? Number(e.target.value) : undefined })} />
             {ctx.err('sqm_download')}
           </label>
           <label className="block">
-            Upload speed (Mbit/s)
-            <input aria-label="SQM upload Mbit" type="number" min={1} max={100000} className={inputClass} placeholder="94" value={s.upload_mbit ?? ''} onChange={(e) => setS({ upload_mbit: e.target.value ? Number(e.target.value) : undefined })} />
+            {t('interfaces.sqmUpload')}
+            <input aria-label={t('interfaces.sqmUploadAria')} type="number" min={1} max={100000} className={inputClass} placeholder="94" value={s.upload_mbit ?? ''} onChange={(e) => setS({ upload_mbit: e.target.value ? Number(e.target.value) : undefined })} />
             {ctx.err('sqm_upload')}
           </label>
-          <p className="text-xs opacity-70">Run a speed test without smart queue, then enter about 90% of the result.</p>
+          <p className="text-xs opacity-70">{t('interfaces.sqmNote')}</p>
         </>
       )}
+    </div>
+  )
+}
+
+const offloadKeys: [keyof Offloads, string][] = [
+  ['gro', 'GRO'],
+  ['gso', 'GSO'],
+  ['tso', 'TSO'],
+  ['lro', 'LRO'],
+  ['rx_checksum', 'RX checksum'],
+  ['tx_checksum', 'TX checksum'],
+]
+
+// OffloadFields: network card offload overrides. Hidden until the admin has
+// read the warning, unless an override is already set.
+function OffloadFields({ x, set }: { x: Interface; set: (p: Partial<Interface>) => void }) {
+  const o: Offloads = x.offloads ?? {}
+  const anySet = Object.values(o).some((v) => typeof v === 'boolean')
+  const [shown, setShown] = useState(anySet)
+  const [asking, setAsking] = useState(false)
+  const put = (k: keyof Offloads, v: string) => {
+    const next: Offloads = { ...o }
+    if (v === '') delete next[k]
+    else next[k] = v === 'on'
+    set({ offloads: next })
+  }
+  return (
+    <div className="space-y-3 rounded border border-gray-200 p-3 dark:border-gray-600">
+      <h4 className="text-sm font-semibold">{t('offloads.title')}</h4>
+      {!shown ? (
+        <button type="button" className="text-sm text-blue-600 hover:underline dark:text-blue-400" onClick={() => setAsking(true)}>
+          {t('offloads.change')}
+        </button>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {offloadKeys.map(([k, label]) => (
+              <label key={k} className="block text-sm">
+                {label}
+                <select aria-label={t('offloads.aria', { name: label })} className={inputClass} value={o[k] === undefined ? '' : o[k] ? 'on' : 'off'} onChange={(e) => put(k, e.target.value)}>
+                  <option value="">{t('offloads.default')}</option>
+                  <option value="on">{t('offloads.on')}</option>
+                  <option value="off">{t('offloads.off')}</option>
+                </select>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs opacity-70">{t('offloads.note')}</p>
+        </>
+      )}
+      <Dialog open={asking} onClose={() => setAsking(false)} title={t('offloads.warnTitle')} size="small">
+        <div className="space-y-3 text-sm">
+          <p>{t('offloads.warn')}</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setAsking(false)}>{t('common.cancel')}</button>
+            <button type="button" className="rounded bg-amber-600 px-3 py-1.5 text-white hover:bg-amber-700" onClick={() => { setAsking(false); setShown(true) }}>{t('offloads.understood')}</button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   )
 }
@@ -240,7 +308,7 @@ const v6addr = (x: Addressed) => {
   if (x.ipv6.mode === 'static') return x.ipv6.address ?? ''
   return x.ipv6.mode
 }
-const status = (x: Addressed) => (x.enabled ? <Badge variant="success">enabled</Badge> : <Badge variant="secondary">disabled</Badge>)
+const status = (x: Addressed) => (x.enabled ? <Badge variant="success">{t('interfaces.state.enabled')}</Badge> : <Badge variant="secondary">{t('interfaces.state.disabled')}</Badge>)
 
 export default function Interfaces() {
   const [devices, setDevices] = useState<Device[] | null>(null)
@@ -257,16 +325,16 @@ export default function Interfaces() {
   const sqmBadge = (x: Interface) => {
     if (!x.sqm?.enabled) return null
     const live = sqmStatus.find((s) => s.interface === x.name)
-    const active = live ? (live.active ? 'active' : 'not active') : 'unknown'
-    return <span title={`smart queue ${active}`}><Badge variant="secondary">SQM</Badge></span>
+    const active = live ? (live.active ? t('interfaces.sqmActive') : t('interfaces.sqmInactive')) : t('common.unknown')
+    return <span title={t('interfaces.sqmBadge', { state: active })}><Badge variant="secondary">SQM</Badge></span>
   }
 
   return (
     <div className="space-y-8">
       <ConfigList<Interface>
-        title="Interfaces"
+        title={t('interfaces.title')}
         path="interfaces"
-        newLabel="New interface"
+        newLabel={t('interfaces.newInterface')}
         select={(c) => c.interfaces}
         empty={() => ({ name: '', device: '', role: 'lan', mode: 'static', enabled: true })}
         clean={cleanAddressing}
@@ -274,68 +342,69 @@ export default function Interfaces() {
           ...validateAddressing(x),
           ...validateIPv6(x.ipv6, x.role, cfg),
           ...validateSQM(x.sqm, x.role),
-          ...(x.device ? {} : { device: 'Pick the network device' }),
-          ...((cfg.vlans ?? []).some((v) => v.name === x.name) ? { name: 'A VLAN has this name' } : {}),
+          ...(x.device ? {} : { device: t('interfaces.pickDevice') }),
+          ...((cfg.vlans ?? []).some((v) => v.name === x.name) ? { name: t('interfaces.vlanNameTaken') } : {}),
         })}
         columns={[
           {
-            label: 'Device',
+            label: t('interfaces.col.device'),
             render: (x) => (
               <>
                 <code>{x.device}</code>
-                {missing(x.device) && <span className="ml-1 text-red-600">(missing)</span>}
+                {missing(x.device) && <span className="ml-1 text-red-600">{t('interfaces.deviceMissing')}</span>}
               </>
             ),
           },
-          { label: 'Role', render: (x) => x.role },
-          { label: 'Address', render: addr },
-          { label: 'IPv6', render: v6addr },
-          { label: 'Access', render: (x) => (x.allow_access ?? []).join(', ') },
-          { label: 'SQM', render: sqmBadge },
-          { label: 'Status', render: status },
+          { label: t('interfaces.col.role'), render: (x) => x.role },
+          { label: t('interfaces.col.address'), render: addr },
+          { label: t('interfaces.col.ipv6'), render: v6addr },
+          { label: t('interfaces.col.access'), render: (x) => (x.allow_access ?? []).join(', ') },
+          { label: t('interfaces.col.sqm'), render: sqmBadge },
+          { label: t('interfaces.col.status'), render: status },
         ]}
         form={(x, set, ctx) => (
           <>
             <label className="block">
-              Device
+              {t('interfaces.col.device')}
               {devices && devices.length > 0 ? (
-                <select aria-label="Device" className={inputClass} value={x.device} onChange={(e) => set({ device: e.target.value })}>
+                <select aria-label={t('interfaces.deviceAria')} className={inputClass} value={x.device} onChange={(e) => set({ device: e.target.value })}>
                   <option value="">—</option>
                   {devices.map((d) => (
                     <option key={d.name} value={d.name}>
                       {d.name}
                       {d.mac ? ` (${d.mac})` : ''}
-                      {d.up ? '' : ' down'}
+                      {d.up ? '' : t('interfaces.downSuffix')}
                     </option>
                   ))}
-                  {missing(x.device) && <option value={x.device}>{x.device} (missing)</option>}
+                  {missing(x.device) && <option value={x.device}>{t('interfaces.deviceMissingName', { name: x.device })}</option>}
                 </select>
               ) : (
-                <input aria-label="Device" className={inputClass} placeholder="eth0" value={x.device} onChange={(e) => set({ device: e.target.value.trim() })} />
+                <input aria-label={t('interfaces.deviceAria')} className={inputClass} placeholder="eth0" value={x.device} onChange={(e) => set({ device: e.target.value.trim() })} />
               )}
               {ctx.err('device')}
             </label>
             <label className="block">
-              Role
-              <select aria-label="Role" className={inputClass} value={x.role} onChange={(e) => set({ role: e.target.value })}>
-                <option value="wan">WAN</option>
-                <option value="lan">LAN</option>
+              {t('interfaces.col.role')}
+              <select aria-label={t('interfaces.col.role')} className={inputClass} value={x.role} onChange={(e) => set({ role: e.target.value })}>
+                <option value="wan">{t('interfaces.role.wan')}</option>
+                <option value="lan">{t('interfaces.role.lan')}</option>
                 <option value="dmz">DMZ</option>
-                <option value="guest">Guest</option>
-                <option value="mgmt">Management</option>
+                <option value="guest">{t('interfaces.role.guest')}</option>
+                <option value="mgmt">{t('interfaces.role.mgmt')}</option>
               </select>
             </label>
             <AddressingFields x={x} set={set} ctx={ctx} />
             {x.role === 'wan' && <SQMFields x={x} set={set} ctx={ctx} />}
             <IPv6Fields x={x} set={set} ctx={ctx} />
+            <OffloadFields x={x} set={set} />
           </>
         )}
       />
 
       <ConfigList<VLAN>
-        title="VLANs"
+        title={t('vlans.title')}
         path="vlans"
-        newLabel="New VLAN"
+        newLabel={t('interfaces.newVlan')}
         select={(c) => c.vlans}
         empty={(c) => ({ name: '', parent: c.interfaces?.[0]?.name ?? '', vlan_id: 10, mode: 'static', enabled: true })}
         clean={cleanAddressing}
@@ -344,30 +413,30 @@ export default function Interfaces() {
           return {
             ...validateAddressing(x),
             ...validateIPv6(x.ipv6, role, cfg),
-            ...(Number.isInteger(x.vlan_id) && x.vlan_id >= 1 && x.vlan_id <= 4094 ? {} : { vlan_id: 'VLAN ID must be 1-4094' }),
-            ...((cfg.interfaces ?? []).some((i) => i.name === x.parent) ? {} : { parent: 'Pick the parent interface' }),
-            ...((cfg.interfaces ?? []).some((i) => i.name === x.name) ? { name: 'An interface has this name' } : {}),
+            ...(Number.isInteger(x.vlan_id) && x.vlan_id >= 1 && x.vlan_id <= 4094 ? {} : { vlan_id: t('interfaces.vlanRange') }),
+            ...((cfg.interfaces ?? []).some((i) => i.name === x.parent) ? {} : { parent: t('interfaces.pickParent') }),
+            ...((cfg.interfaces ?? []).some((i) => i.name === x.name) ? { name: t('interfaces.nameTaken') } : {}),
           }
         }}
         columns={[
-          { label: 'Parent', render: (x) => x.parent },
-          { label: 'VLAN ID', render: (x) => x.vlan_id },
-          { label: 'Address', render: addr },
-          { label: 'IPv6', render: v6addr },
-          { label: 'Status', render: status },
+          { label: t('vlans.col.parent'), render: (x) => x.parent },
+          { label: t('vlans.col.vlanId'), render: (x) => x.vlan_id },
+          { label: t('vlans.col.address'), render: addr },
+          { label: t('vlans.col.ipv6'), render: v6addr },
+          { label: t('vlans.col.status'), render: status },
         ]}
         form={(x, set, ctx) => (
           <>
             <label className="block">
-              Parent interface
-              <select aria-label="Parent interface" className={inputClass} value={x.parent} onChange={(e) => set({ parent: e.target.value })}>
+              {t('vlans.parent')}
+              <select aria-label={t('vlans.parent')} className={inputClass} value={x.parent} onChange={(e) => set({ parent: e.target.value })}>
                 {(ctx.cfg.interfaces ?? []).map((i) => <option key={i.name} value={i.name}>{i.name}</option>)}
               </select>
               {ctx.err('parent')}
             </label>
             <label className="block">
-              VLAN ID
-              <input aria-label="VLAN ID" type="number" className={inputClass} value={x.vlan_id} onChange={(e) => set({ vlan_id: Number(e.target.value) })} />
+              {t('vlans.vlanId')}
+              <input aria-label={t('vlans.vlanId')} type="number" className={inputClass} value={x.vlan_id} onChange={(e) => set({ vlan_id: Number(e.target.value) })} />
               {ctx.err('vlan_id')}
             </label>
             <AddressingFields x={x} set={set} ctx={ctx} />

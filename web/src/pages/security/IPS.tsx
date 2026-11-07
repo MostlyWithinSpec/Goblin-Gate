@@ -7,15 +7,17 @@ import { Badge } from '../../components/Badge'
 import { EditDrawer } from '../../components/EditDrawer'
 import { getCandidate, getIPSRules, patchSection, type IPSProfile, type IPSRulesStatus } from '../../api/objects'
 import { listLogs, type LogEvent } from '../../api/stats'
-import { ET_CATEGORIES, ET_DEFAULT_EXCLUDED, addSuppress, groupBySignature, parseSignature, validateIPS, type Suppress } from './profileLogic'
+import { ET_CATEGORIES, addSuppress, blockSeverityText, categoriesLabel, groupBySignature, parseSignature, validateIPS, type Suppress } from './profileLogic'
+import { t } from '../../i18n'
 
 // Suricata severity: 1 = high, 2 = medium, 3 = low.
-const sevLabel: Record<string, string> = { '1': 'high', '2': 'medium', '3': 'low' }
+const sevLabel: Record<string, () => string> = { '1': () => t('ips.sevHigh'), '2': () => t('ips.sevMedium'), '3': () => t('ips.sevLow') }
 const sevVariant = (s?: string) => (s === '1' ? 'error' : s === '2' ? 'warning' : 'secondary')
 const actVariant = (a: string) => (a === 'drop' || a === 'deny' ? 'error' : 'warning')
 
 export function SeverityChip({ severity }: { severity?: string }) {
-  return <Badge variant={sevVariant(severity)}>{sevLabel[severity ?? ''] ?? (severity || '?')}</Badge>
+  const label = sevLabel[severity ?? '']
+  return <Badge variant={sevVariant(severity)}>{label ? label() : severity || '?'}</Badge>
 }
 
 // ExceptionDialog adds a suppress entry for an event's rule to a profile.
@@ -41,44 +43,44 @@ function ExceptionDialog({ event, onClose, onDone }: { event: LogEvent; onClose:
     const next = profiles.map((p) => (p.name === target ? addSuppress(p, s) : p))
     try {
       await patchSection('profiles.ips', next)
-      onDone(`Exception for rule ${sid} added to ${target}. Commit to apply it.`)
+      onDone(t('ips.exceptionAdded', { sid, profile: target }))
     } catch (e) {
       setError((e as Error).message)
     }
   }
   return (
-    <EditDrawer isOpen onClose={onClose} title="Create exception">
+    <EditDrawer isOpen onClose={onClose} title={t('ips.createException')}>
       <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
         <p>
-          Rule <code>{sid ?? '?'}</code>: {msg}
+          {t('ips.rule')} <code>{sid ?? '?'}</code>: {msg}
         </p>
-        {sid === null && <p role="alert" className="text-red-600">This event has no rule id.</p>}
+        {sid === null && <p role="alert" className="text-red-600">{t('ips.noRuleId')}</p>}
         {error && <p role="alert" className="text-red-600">{error}</p>}
         <label className="block">
-          Profile
+          {t('ips.profile')}
           <select aria-label="Profile" className={inputClass} value={target} onChange={(e) => setTarget(e.target.value)}>
             {(profiles ?? []).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
         </label>
         <fieldset>
-          <legend>Silence the rule</legend>
+          <legend>{t('ips.silenceRule')}</legend>
           {event.src_ip && (
             <label className="flex items-center gap-2">
-              <input type="radio" name="scope" checked={scope === 'by_src'} onChange={() => setScope('by_src')} /> only from {event.src_ip}
+              <input type="radio" name="scope" checked={scope === 'by_src'} onChange={() => setScope('by_src')} /> {t('ips.onlyFrom', { ip: event.src_ip })}
             </label>
           )}
           {event.dst_ip && (
             <label className="flex items-center gap-2">
-              <input type="radio" name="scope" checked={scope === 'by_dst'} onChange={() => setScope('by_dst')} /> only to {event.dst_ip}
+              <input type="radio" name="scope" checked={scope === 'by_dst'} onChange={() => setScope('by_dst')} /> {t('ips.onlyTo', { ip: event.dst_ip })}
             </label>
           )}
           <label className="flex items-center gap-2">
-            <input type="radio" name="scope" checked={scope === ''} onChange={() => setScope('')} /> everywhere
+            <input type="radio" name="scope" checked={scope === ''} onChange={() => setScope('')} /> {t('ips.everywhere')}
           </label>
         </fieldset>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1">Cancel</button>
-          <button type="button" disabled={!target || sid === null} onClick={save} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">Add exception</button>
+          <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1">{t('common.cancel')}</button>
+          <button type="button" disabled={!target || sid === null} onClick={save} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">{t('ips.addException')}</button>
         </div>
       </div>
     </EditDrawer>
@@ -101,12 +103,12 @@ export function IPSEvents() {
   return (
     <div className="mt-8">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Events (last 24 h)</h2>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('ips.eventsTitle')}</h2>
         <div className="flex items-center gap-3 text-sm">
           <label className="flex items-center gap-1">
-            <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} /> Group by signature
+            <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} /> {t('ips.groupBySignature')}
           </label>
-          <Link to={logLink()} className="text-blue-600 hover:underline">Open in log viewer</Link>
+          <Link to={logLink()} className="text-blue-600 hover:underline">{t('ips.openInLog')}</Link>
         </div>
       </div>
       {notice && <p role="status" className="mb-2 rounded bg-green-50 p-2 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-200">{notice}</p>}
@@ -115,14 +117,14 @@ export function IPSEvents() {
         <table className="min-w-full text-sm text-gray-700 dark:text-gray-200" data-testid="ips-events">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
             {grouped ? (
-              <tr><th className="px-3 py-2">Severity</th><th className="px-3 py-2">Signature</th><th className="px-3 py-2">Count</th><th className="px-3 py-2">Last seen</th></tr>
+              <tr><th className="px-3 py-2">{t('ips.colSeverity')}</th><th className="px-3 py-2">{t('ips.colSignature')}</th><th className="px-3 py-2">{t('ips.colCount')}</th><th className="px-3 py-2">{t('ips.colLastSeen')}</th></tr>
             ) : (
-              <tr><th className="px-3 py-2">Time</th><th className="px-3 py-2">Severity</th><th className="px-3 py-2">Signature</th><th className="px-3 py-2">Source → Destination</th><th className="px-3 py-2">Action</th><th className="px-3 py-2"></th></tr>
+              <tr><th className="px-3 py-2">{t('ips.colTime')}</th><th className="px-3 py-2">{t('ips.colSeverity')}</th><th className="px-3 py-2">{t('ips.colSignature')}</th><th className="px-3 py-2">{t('ips.colSrcDst')}</th><th className="px-3 py-2">{t('ips.colAction')}</th><th className="px-3 py-2"></th></tr>
             )}
           </thead>
           <tbody>
-            {events === null && !error && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">Loading…</td></tr>}
-            {events?.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No IPS events in the last 24 hours.</td></tr>}
+            {events === null && !error && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">{t('common.loading')}</td></tr>}
+            {events?.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">{t('ips.noEvents')}</td></tr>}
             {grouped
               ? groupBySignature(events ?? []).map((g) => (
                   <tr key={g.signature} className="border-t border-gray-100 dark:border-gray-700">
@@ -140,7 +142,7 @@ export function IPSEvents() {
                     <td className="whitespace-nowrap px-3 py-1">{e.src_ip}{e.src_port ? `:${e.src_port}` : ''} → {e.dst_ip}{e.dst_port ? `:${e.dst_port}` : ''}</td>
                     <td className="px-3 py-1"><Badge variant={actVariant(e.action)}>{e.action}</Badge></td>
                     <td className="px-3 py-1 text-right">
-                      <button type="button" onClick={() => setException(e)} className="text-blue-600 hover:underline">Create exception</button>
+                      <button type="button" onClick={() => setException(e)} className="text-blue-600 hover:underline">{t('ips.createException')}</button>
                     </td>
                   </tr>
                 ))}
@@ -165,21 +167,21 @@ function SuppressList({ value, onChange }: { value: Suppress[]; onChange: (v: Su
   const set = (i: number, patch: Partial<Suppress>) => onChange(value.map((s, j) => (j === i ? { ...s, ...patch } : s)))
   return (
     <fieldset>
-      <legend>Exceptions (silenced rules)</legend>
-      {value.length === 0 && <p className="text-xs text-gray-500">None. Use "Create exception" on an event below to add one.</p>}
+      <legend>{t('ips.exceptionsLegend')}</legend>
+      {value.length === 0 && <p className="text-xs text-gray-500">{t('ips.noExceptions')}</p>}
       {value.map((s, i) => (
         <div key={i} className="mt-1 flex gap-1">
           <input aria-label={`SID ${i + 1}`} type="number" className={inputClass + ' mt-0 w-28'} value={s.sid || ''} onChange={(e) => set(i, { sid: Number(e.target.value) })} />
           <select aria-label={`Scope ${i + 1}`} className={inputClass + ' mt-0'} value={s.track ?? ''} onChange={(e) => set(i, { track: e.target.value || undefined, ip: e.target.value ? s.ip : undefined })}>
-            <option value="">everywhere</option>
-            <option value="by_src">from</option>
-            <option value="by_dst">to</option>
+            <option value="">{t('ips.everywhere')}</option>
+            <option value="by_src">{t('ips.scopeFrom')}</option>
+            <option value="by_dst">{t('ips.scopeTo')}</option>
           </select>
           {s.track && <input aria-label={`IP ${i + 1}`} className={inputClass + ' mt-0'} placeholder="192.168.1.5" value={s.ip ?? ''} onChange={(e) => set(i, { ip: e.target.value.trim() })} />}
           <button type="button" aria-label={`Remove exception ${i + 1}`} onClick={() => onChange(value.filter((_, j) => j !== i))} className="px-1 text-red-600">×</button>
         </div>
       ))}
-      <button type="button" onClick={() => onChange([...value, { sid: 0 }])} className="mt-1 text-xs text-blue-600">+ Add exception</button>
+      <button type="button" onClick={() => onChange([...value, { sid: 0 }])} className="mt-1 text-xs text-blue-600">{t('ips.addExceptionLink')}</button>
     </fieldset>
   )
 }
@@ -214,53 +216,53 @@ export function RuleSource() {
   }
   return (
     <section aria-label="Rule source" className="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-white">Rules</h2>
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('ips.rulesTitle')}</h2>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-300" data-testid="ips-ruleset">
         {status ? (
           <>
-            In use: <strong>{status.ruleset}</strong>
-            {status.rules ? `, ${status.rules.toLocaleString()} rules` : ''}
-            {status.last_update ? `, downloaded ${new Date(status.last_update).toLocaleString()}` : ''}
+            {t('ips.rulesInUse')} <strong>{status.ruleset}</strong>
+            {status.rules ? `, ${t('ips.rulesCount', { rules: status.rules.toLocaleString() })}` : ''}
+            {status.last_update ? `, ${t('ips.rulesDownloaded', { when: new Date(status.last_update).toLocaleString() })}` : ''}
           </>
         ) : (
-          <>In use: {stored ? 'ET Pro' : 'ET Open'}</>
+          <>{t('ips.rulesInUse')} {stored ? 'ET Pro' : 'ET Open'}</>
         )}
       </p>
       {status?.last_error && (
         <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
-          Last download failed: {status.last_error}
+          {t('ips.downloadFailed', { error: status.last_error })}
         </p>
       )}
       <form
         className="mt-3 flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault()
-          if (code.trim()) save({ etpro_code: code.trim() }, 'Saved. Commit to switch to ET Pro; the rules download right after.')
+          if (code.trim()) save({ etpro_code: code.trim() }, t('ips.savedEtPro'))
         }}
       >
         <label className="block text-sm">
-          ET Pro code
+          {t('ips.etProCode')}
           <input
             type="password"
             autoComplete="off"
             aria-label="ET Pro code"
             className={inputClass}
-            placeholder={stored ? 'unchanged' : 'optional'}
+            placeholder={stored ? t('ips.unchanged') : t('ips.optional')}
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
         </label>
         <button type="submit" disabled={!code.trim()} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
-          Save code
+          {t('ips.saveCode')}
         </button>
         {stored && (
-          <button type="button" onClick={() => save({}, 'Saved. Commit to go back to ET Open.')} className="rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600">
-            Remove code
+          <button type="button" onClick={() => save({}, t('ips.savedEtOpen'))} className="rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600">
+            {t('ips.removeCode')}
           </button>
         )}
       </form>
       <p className="mt-1 text-xs text-gray-500">
-        With an ET Pro subscription from Proofpoint, paste its code to use ET Pro instead of the free ET Open rules.
+        {t('ips.etProHint')}
       </p>
       {message && (
         <p role={message.ok ? 'status' : 'alert'} className={`mt-2 text-sm ${message.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -276,13 +278,13 @@ export default function IPS() {
     <div className="p-6">
       <RuleSource />
       <ConfigList<IPSProfile>
-        title="Intrusion Prevention (IPS)"
+        title={t('ips.title')}
         path="profiles.ips"
-        newLabel="New IPS profile"
+        newLabel={t('ips.newProfile')}
         intro={
           <>
-            Each profile in use runs its own Suricata with the ET Open (or ET Pro) rules, downloaded daily. <em>Prevent</em> drops traffic that matches rules at or above
-            the blocking severity and only logs the rest; <em>detect</em> only logs. Pick a profile in a policy to inspect its traffic.
+            {t('ips.introStart')} <em>{t('ips.modePreventShort')}</em> {t('ips.introPrevent')}
+            {t('ips.introPreventRest')} <em>{t('ips.modeDetectShort')}</em> {t('ips.introEnd')}
           </>
         }
         select={(c) => c.profiles?.ips}
@@ -298,38 +300,38 @@ export default function IPS() {
         }
         validate={validateIPS}
         columns={[
-          { label: 'Mode', render: (p) => (p.mode === 'detect' ? 'detect' : 'prevent') },
-          { label: 'Blocks', render: (p) => (p.mode === 'detect' ? '—' : ({ 1: 'high', 2: 'high + medium', 3: 'all' } as Record<number, string>)[p.block_severity ?? 2]) },
-          { label: 'Categories', render: (p) => ((p.categories ?? []).length ? (p.categories ?? []).join(', ') : 'default') },
-          { label: 'Exceptions', render: (p) => (p.suppress ?? []).length || '' },
+          { label: t('ips.colMode'), render: (p) => (p.mode === 'detect' ? 'detect' : 'prevent') },
+          { label: t('ips.colBlocks'), render: (p) => (p.mode === 'detect' ? '—' : blockSeverityText(p.block_severity ?? 2)) },
+          { label: t('ips.colCategories'), render: (p) => ((p.categories ?? []).length ? (p.categories ?? []).join(', ') : t('ips.categoriesDefault')) },
+          { label: t('ips.colExceptions'), render: (p) => (p.suppress ?? []).length || '' },
         ]}
         after={() => <IPSEvents />}
         form={(p, set, { err }) => (
           <>
             <label className="block">
-              Comment
+              {t('ips.comment')}
               <input aria-label="Comment" className={inputClass} value={p.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
             </label>
             <label className="block">
-              Mode
+              {t('ips.mode')}
               <select aria-label="Mode" className={inputClass} value={p.mode ?? 'prevent'} onChange={(e) => set({ mode: e.target.value as IPSProfile['mode'] })}>
-                <option value="prevent">Prevent (block)</option>
-                <option value="detect">Detect only (log)</option>
+                <option value="prevent">{t('ips.modePrevent')}</option>
+                <option value="detect">{t('ips.modeDetect')}</option>
               </select>
             </label>
             {p.mode !== 'detect' && (
               <label className="block">
-                Block from severity
+                {t('ips.blockFromSeverity')}
                 <select aria-label="Block severity" className={inputClass} value={p.block_severity ?? 2} onChange={(e) => set({ block_severity: Number(e.target.value) })}>
-                  <option value={1}>High only</option>
-                  <option value={2}>High and medium</option>
-                  <option value={3}>All</option>
+                  <option value={1}>{t('ips.sevHighOnly')}</option>
+                  <option value={2}>{t('ips.sevHighMedium')}</option>
+                  <option value={3}>{t('ips.sevAll')}</option>
                 </select>
                 {err('block_severity')}
               </label>
             )}
             <Checklist
-              label={`Rule categories (none ticked = all but ${ET_DEFAULT_EXCLUDED.join(', ')})`}
+              label={categoriesLabel()}
               options={[...new Set([...ET_CATEGORIES, ...(p.categories ?? [])])]}
               value={p.categories ?? []}
               onChange={(categories) => set({ categories })}

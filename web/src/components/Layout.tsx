@@ -42,13 +42,14 @@ import { getSystemStatus } from '../api/config'
 import { getPlugins } from '../api/plugins'
 import { useQuery } from '@tanstack/react-query'
 import { SearchModal } from './SearchModal'
+import { t } from '../i18n'
 
 // ConnectionBadge shows whether goblind answers (GET /api/v1/system/status
 // every 15 s).
 const ConnectionBadge: React.FC = () => {
   const q = useQuery({ queryKey: ['system', 'status', 'badge'], queryFn: getSystemStatus, refetchInterval: 15000, retry: false })
   const online = q.isSuccess
-  const label = q.isLoading ? 'Connecting' : online ? 'Online' : 'Offline'
+  const label = q.isLoading ? t('status.connecting') : online ? t('status.online') : t('status.offline')
   const reboot = q.data?.reboot_required
   const pkgs = q.data?.reboot_packages ?? []
   return (
@@ -57,14 +58,14 @@ const ConnectionBadge: React.FC = () => {
       <Link
         to="/system/updates"
         className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-        title={`A security update is installed and needs a restart to take effect${pkgs.length ? ` (${pkgs.join(', ')})` : ''}. Restart from the account menu (top right) when it suits you.`}
+        title={pkgs.length ? t('status.restartHintPackages', { packages: pkgs.join(', ') }) : t('status.restartHint')}
       >
-        Restart needed
+        {t('status.restartNeeded')}
       </Link>
     )}
     <div
       className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full px-3 py-1 text-sm font-medium"
-      title={online ? 'Goblin Gate is answering' : 'Goblin Gate is not answering'}
+      title={online ? t('status.answering') : t('status.notAnswering')}
     >
       <span className="inline-flex items-center">
         <span className={`w-2 h-2 rounded-full mr-2 ${q.isLoading ? 'bg-gray-400' : online ? 'bg-green-500' : 'bg-red-500'}`}></span>
@@ -93,8 +94,8 @@ export const DemoBanner: React.FC = () => {
   if (!q.data?.demo) return null
   return (
     <div role="note" className="flex-shrink-0 bg-violet-600 px-4 py-1.5 text-center text-xs text-white md:text-sm">
-      Demo: try anything, nothing here is real and it all resets every hour. Accounts, uploads and outside connections are off.{' '}
-      <a className="font-semibold underline" href="https://github.com/MostlyWithinSpec/Goblin-Gate#summoning-a-goblin">Install Goblin Gate</a>
+      {t('demo.banner')}{' '}
+      <a className="font-semibold underline" href="https://github.com/MostlyWithinSpec/Goblin-Gate#summoning-a-goblin">{t('demo.install')}</a>
     </div>
   )
 }
@@ -175,70 +176,40 @@ const Layout: React.FC = () => {
 
   // Navigation items
   const navItems = [
-    {
-      name: 'Dashboard',
-      path: '/',
-      icon: Home,
-      group: 'Dashboard'
-    },
-    { name: 'Goblin Checks', path: '/checks', icon: ShieldCheck, group: 'Dashboard' },
-    {
-      name: 'Network',
-      path: '/network',
-      icon: Network,
-      group: 'Network'
-    },
-    {
-      name: 'Policy & Objects',
-      path: '/policy',
-      icon: Shield,
-      group: 'Policy & Objects'
-    },
-    { name: 'Schedules', path: '/policy/schedules', icon: Clock, group: 'Policy & Objects' },
-    { name: 'Custom Rules', path: '/policy/custom-rules', icon: Terminal, group: 'Policy & Objects' },
-    { name: 'Templates', path: '/templates', icon: Wand2, group: 'Policy & Objects' },
-    {
-      name: 'Security Profiles',
-      path: '/security',
-      icon: Lock,
-      group: 'Security Profiles'
-    },
-    { name: 'Threat Feeds', path: '/security/feeds', icon: Rss, group: 'Security Profiles' },
-    { name: 'DNS Filter', path: '/security/dns-filter', icon: Filter, group: 'Security Profiles' },
-    { name: 'Web Filter', path: '/security/web-filter', icon: Globe, group: 'Security Profiles' },
-    { name: 'Application Control', path: '/security/apps', icon: AppWindow, group: 'Security Profiles' },
-    { name: 'IPS', path: '/security/ips', icon: ShieldAlert, group: 'Security Profiles' },
-    { name: 'CrowdSec', path: '/security/crowdsec', icon: ShieldAlert, group: 'Security Profiles' },
-    { name: 'Tailscale', path: '/vpn/tailscale', icon: Waypoints, group: 'VPN' },
-    { name: 'WireGuard', path: '/vpn/wireguard', icon: KeyRound, group: 'VPN' },
-    { name: 'VPN Providers', path: '/vpn/providers', icon: Server, group: 'VPN' },
-    {
-      name: 'Log & Report',
-      path: '/log',
-      icon: Activity,
-      group: 'Log & Report'
-    },
-    { name: 'Live Events', path: '/events', icon: Rss, group: 'Log & Report' },
-    {
-      name: 'System',
-      path: '/system',
-      icon: Settings,
-      group: 'System'
-    },
-    { name: 'Revisions', path: '/system/revisions', icon: History, group: 'System' },
-    { name: 'Notifications', path: '/system/notifications', icon: Bell, group: 'System' },
-    { name: 'Plugins', path: '/system/plugins', icon: Puzzle, group: 'System' },
-    { name: 'Updates', path: '/system/updates', icon: Download, group: 'System' },
-    { name: 'UPS', path: '/system/ups', icon: BatteryCharging, group: 'System' },
-    { name: 'Snapshots', path: '/system/snapshots', icon: Camera, group: 'System' }
+    { name: t('nav.dashboard'), path: '/', icon: Home, group: t('nav.group.dashboard') },
+    { name: t('nav.goblinChecks'), path: '/checks', icon: ShieldCheck, group: t('nav.group.dashboard') },
+    { name: t('nav.network'), path: '/network', icon: Network, group: t('nav.group.network') },
+    { name: t('nav.policyAndObjects'), path: '/policy', icon: Shield, group: t('nav.group.policyAndObjects') },
+    { name: t('nav.schedules'), path: '/policy/schedules', icon: Clock, group: t('nav.group.policyAndObjects') },
+    { name: t('nav.customRules'), path: '/policy/custom-rules', icon: Terminal, group: t('nav.group.policyAndObjects') },
+    { name: t('nav.templates'), path: '/templates', icon: Wand2, group: t('nav.group.policyAndObjects') },
+    { name: t('nav.securityProfiles'), path: '/security', icon: Lock, group: t('nav.group.securityProfiles') },
+    { name: t('nav.threatFeeds'), path: '/security/feeds', icon: Rss, group: t('nav.group.securityProfiles') },
+    { name: t('nav.dnsFilter'), path: '/security/dns-filter', icon: Filter, group: t('nav.group.securityProfiles') },
+    { name: t('nav.webFilter'), path: '/security/web-filter', icon: Globe, group: t('nav.group.securityProfiles') },
+    { name: t('nav.applicationControl'), path: '/security/apps', icon: AppWindow, group: t('nav.group.securityProfiles') },
+    { name: t('nav.ips'), path: '/security/ips', icon: ShieldAlert, group: t('nav.group.securityProfiles') },
+    { name: t('nav.crowdsec'), path: '/security/crowdsec', icon: ShieldAlert, group: t('nav.group.securityProfiles') },
+    { name: t('nav.tailscale'), path: '/vpn/tailscale', icon: Waypoints, group: t('nav.group.vpn') },
+    { name: t('nav.wireguard'), path: '/vpn/wireguard', icon: KeyRound, group: t('nav.group.vpn') },
+    { name: t('nav.vpnProviders'), path: '/vpn/providers', icon: Server, group: t('nav.group.vpn') },
+    { name: t('nav.logAndReport'), path: '/log', icon: Activity, group: t('nav.group.logAndReport') },
+    { name: t('nav.liveEvents'), path: '/events', icon: Rss, group: t('nav.group.logAndReport') },
+    { name: t('nav.system'), path: '/system', icon: Settings, group: t('nav.group.system') },
+    { name: t('nav.revisions'), path: '/system/revisions', icon: History, group: t('nav.group.system') },
+    { name: t('nav.notifications'), path: '/system/notifications', icon: Bell, group: t('nav.group.system') },
+    { name: t('nav.plugins'), path: '/system/plugins', icon: Puzzle, group: t('nav.group.system') },
+    { name: t('nav.updates'), path: '/system/updates', icon: Download, group: t('nav.group.system') },
+    { name: t('nav.ups'), path: '/system/ups', icon: BatteryCharging, group: t('nav.group.system') },
+    { name: t('nav.snapshots'), path: '/system/snapshots', icon: Camera, group: t('nav.group.system') }
   ]
 
   if (sentryInstalled) {
     navItems.push(
-      { name: 'Queue', path: '/plugins/sentry', icon: Inbox, group: 'Goblin SOC' },
-      { name: 'Incidents', path: '/plugins/sentry/incidents', icon: ScrollText, group: 'Goblin SOC' },
-      { name: 'Rules', path: '/plugins/sentry/rules', icon: ListOrdered, group: 'Goblin SOC' },
-      { name: 'Blocks', path: '/plugins/sentry/blocks', icon: Ban, group: 'Goblin SOC' }
+      { name: t('nav.queue'), path: '/plugins/sentry', icon: Inbox, group: t('nav.group.goblinSoc') },
+      { name: t('nav.incidents'), path: '/plugins/sentry/incidents', icon: ScrollText, group: t('nav.group.goblinSoc') },
+      { name: t('nav.rules'), path: '/plugins/sentry/rules', icon: ListOrdered, group: t('nav.group.goblinSoc') },
+      { name: t('nav.blocks'), path: '/plugins/sentry/blocks', icon: Ban, group: t('nav.group.goblinSoc') }
     )
   }
 
@@ -254,7 +225,7 @@ const Layout: React.FC = () => {
           sticky nav inside it is not swallowed by a clipping ancestor. */}
       <aside
         id="sidebar"
-        aria-label="Main navigation"
+        aria-label={t('layout.mainNavigation')}
         aria-hidden={phone ? !isMobileMenuOpen : undefined}
         data-testid="sidebar"
         className={`fixed md:sticky inset-y-0 left-0 z-[60] md:z-auto flex w-64 flex-shrink-0 transform flex-col bg-white shadow-lg transition-transform duration-300 ease-in-out dark:bg-gray-900/80 dark:backdrop-blur md:translate-x-0 md:shadow-none dark:border-r dark:border-gray-700 ${
@@ -272,7 +243,7 @@ const Layout: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(false)}
-            aria-label="Close menu"
+            aria-label={t('layout.closeMenu')}
             className="flex h-10 w-10 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 md:hidden"
           >
             <X size={20} />
@@ -305,7 +276,7 @@ const Layout: React.FC = () => {
                         <Icon size={18} className="mr-3" />
                         <span className="flex-1">{item.name}</span>
                         {updateAvailable && (item.path === '/system' || item.path === '/system/updates') && (
-                          <span className="ml-2 h-2 w-2 rounded-full bg-green-500" title="Update available" />
+                          <span className="ml-2 h-2 w-2 rounded-full bg-green-500" title={t('layout.updateAvailable')} />
                         )}
                       </Link>
                     )
@@ -318,12 +289,12 @@ const Layout: React.FC = () => {
         {/* Sidebar footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">{dark ? 'Dark theme' : 'Light theme'}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">{dark ? t('layout.themeDark') : t('layout.themeLight')}</span>
             <button
               type="button"
               onClick={() => setDark(toggleTheme() === 'dark')}
-              aria-label="Switch colour theme"
-              title={dark ? 'Switch to the light theme' : 'Switch to the dark theme'}
+              aria-label={t('layout.switchTheme')}
+              title={dark ? t('layout.switchToLight') : t('layout.switchToDark')}
               className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
             >
               {dark ? '☀️' : '🌙'}
@@ -351,7 +322,7 @@ const Layout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen((open) => !open)}
-                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                aria-label={isMobileMenuOpen ? t('layout.closeMenu') : t('layout.openMenu')}
                 aria-expanded={isMobileMenuOpen}
                 aria-controls="sidebar"
                 className="mr-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 md:hidden"
@@ -367,17 +338,17 @@ const Layout: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsSearchOpen(true)}
-                title="Global search (Ctrl+K)"
-                aria-label="Global search"
+                title={t('layout.searchTitle')}
+                aria-label={t('layout.globalSearch')}
                 className="flex h-10 items-center gap-2 rounded-md bg-gray-100 px-3 text-sm text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
               >
                 <Search size={18} />
-                <span className="hidden md:inline">Search</span>
+                <span className="hidden md:inline">{t('layout.search')}</span>
               </button>
               <Link
                 to="/log"
-                title="Log & Report"
-                aria-label="Log & Report"
+                title={t('nav.logAndReport')}
+                aria-label={t('nav.logAndReport')}
                 className="hidden h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:flex"
               >
                 <Activity size={20} />

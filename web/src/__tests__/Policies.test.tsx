@@ -144,7 +144,7 @@ describe('Policy editor', () => {
     fireEvent.click(within(incoming).getByLabelText('guest'))
     const outgoing = within(drawer).getByText('Outgoing interface').closest('fieldset')!
     fireEvent.click(within(outgoing).getByLabelText('wan1'))
-    const service = within(drawer).getByText('Service').closest('fieldset')!
+    const service = within(drawer).getByText('Service', { selector: 'legend' }).closest('fieldset')!
     fireEvent.click(within(service).getByLabelText('web')) // replaces "any"
     fireEvent.click(within(drawer).getByRole('button', { name: 'basic' }))
     fireEvent.click(within(drawer).getByRole('button', { name: 'Create' }))

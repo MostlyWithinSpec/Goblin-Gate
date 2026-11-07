@@ -6,5 +6,7 @@ tailscale
 miniupnpd-nftables
 nut-client
 nut-server
+iperf3
+caddy
 openssh-server
 open-vm-tools

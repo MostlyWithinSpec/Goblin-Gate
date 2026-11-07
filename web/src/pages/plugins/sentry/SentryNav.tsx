@@ -1,13 +1,32 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
+import { t } from '../../../i18n'
 
-const items = [
-  { to: '/plugins/sentry', label: 'Queue', end: true },
-  { to: '/plugins/sentry/incidents', label: 'Incidents' },
-  { to: '/plugins/sentry/rules', label: 'Rules' },
-  { to: '/plugins/sentry/blocks', label: 'Blocks' },
-  { to: '/plugins/sentry/learning', label: 'Learning' }
+// Each tab takes its label from navTabName: a constant whose value is a t() call at
+// module load would freeze English, and the keys must stay literal for the catalog
+// check, so they live in a switch.
+const items: { to: string; key: string; end?: boolean }[] = [
+  { to: '/plugins/sentry', key: 'queue', end: true },
+  { to: '/plugins/sentry/incidents', key: 'incidents' },
+  { to: '/plugins/sentry/rules', key: 'rules' },
+  { to: '/plugins/sentry/blocks', key: 'blocks' },
+  { to: '/plugins/sentry/learning', key: 'learning' }
 ]
+
+function navTabName(key: string): string {
+  switch (key) {
+    case 'incidents':
+      return t('sentry.navIncidents')
+    case 'rules':
+      return t('sentry.navRules')
+    case 'blocks':
+      return t('sentry.navBlocks')
+    case 'learning':
+      return t('sentry.navLearning')
+    default:
+      return t('sentry.navQueue')
+  }
+}
 
 export default function SentryNav() {
   return (
@@ -25,7 +44,7 @@ export default function SentryNav() {
             }`
           }
         >
-          {it.label}
+          {navTabName(it.key)}
         </NavLink>
       ))}
     </div>

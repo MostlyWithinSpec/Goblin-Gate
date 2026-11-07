@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { listFlows, listFlowDevices, formatRate, type Flow, type FlowDevice } from '../../api/flows'
+import { t } from '../../i18n'
 
 const REFRESH = 3_000
 const SPARK_SAMPLES = 60
@@ -37,17 +38,17 @@ function FlowsPanel({ ip, onClose }: { ip: string; onClose: () => void }) {
   return (
     <div className="mt-6">
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h3 className="text-base font-semibold text-gray-800 dark:text-white">Flows for {ip}</h3>
+        <h3 className="text-base font-semibold text-gray-800 dark:text-white">{t('live.flowsFor', { ip })}</h3>
         <input
           type="search"
-          aria-label="Filter flows"
-          placeholder="Filter (protocol, address, port, state)"
+          aria-label={t('live.filterAria')}
+          placeholder={t('live.filterPlaceholder')}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="rounded border border-gray-300 px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600"
         />
         <button type="button" onClick={onClose} className="ml-auto rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700">
-          Close
+          {t('common.close')}
         </button>
       </div>
       {q.isError && (
@@ -57,9 +58,13 @@ function FlowsPanel({ ip, onClose }: { ip: string; onClose: () => void }) {
         <table className="min-w-full divide-y divide-gray-200 bg-white text-sm dark:divide-gray-700 dark:bg-gray-800 dark:text-gray-200">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              {['Protocol', 'Remote address', 'State', 'Download', 'Upload', 'Total bytes', 'Age'].map((h) => (
-                <th key={h} className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{h}</th>
-              ))}
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.protocol')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.remote')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.state')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.download')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.upload')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.total')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.age')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -67,7 +72,7 @@ function FlowsPanel({ ip, onClose }: { ip: string; onClose: () => void }) {
               <FlowRow key={i} flow={f} ip={ip} />
             ))}
             {!q.isLoading && flows.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No matching flows.</td></tr>
+              <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">{t('live.noMatchingFlows')}</td></tr>
             )}
           </tbody>
         </table>
@@ -91,7 +96,7 @@ function FlowRow({ flow, ip }: { flow: Flow; ip: string }) {
       <td className="px-3 py-1" data-testid={`flow-down-${remote}`}>{formatRate(down)}</td>
       <td className="px-3 py-1">{formatRate(up)}</td>
       <td className="px-3 py-1">{(flow.bytes_out + flow.bytes_in).toLocaleString()}</td>
-      <td className="px-3 py-1">{flow.age_seconds !== undefined ? `${flow.age_seconds}s` : '—'}</td>
+      <td className="px-3 py-1">{flow.age_seconds !== undefined ? t('live.seconds', { count: flow.age_seconds }) : '—'}</td>
     </tr>
   )
 }
@@ -121,14 +126,14 @@ export default function Live() {
   if (q.isError && (q.error as { code?: string })?.code === 'flows_unavailable') {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-800">
-        <p className="text-sm text-gray-500">Live flows are read on the firewall itself.</p>
+        <p className="text-sm text-gray-500">{t('live.unavailable')}</p>
       </div>
     )
   }
 
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">Live</h2>
+      <h2 className="mb-4 text-xl font-semibold text-gray-800 dark:text-white">{t('live.title')}</h2>
       {q.isError && (q.error as { code?: string })?.code !== 'flows_unavailable' && (
         <p role="alert" className="mb-3 text-sm text-red-600">{(q.error as Error).message}</p>
       )}
@@ -136,9 +141,11 @@ export default function Live() {
         <table className="min-w-full divide-y divide-gray-200 bg-white text-sm dark:divide-gray-700 dark:bg-gray-800 dark:text-gray-200">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              {['Device', 'Download', 'Upload', 'Flows', 'Last 3 min'].map((h) => (
-                <th key={h} className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{h}</th>
-              ))}
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.device')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.download')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.upload')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.flows')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('live.col.last3')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -160,7 +167,7 @@ export default function Live() {
               </tr>
             ))}
             {!q.isLoading && devices.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">No active flows yet.</td></tr>
+              <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">{t('live.noFlows')}</td></tr>
             )}
           </tbody>
         </table>

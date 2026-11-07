@@ -8,6 +8,7 @@ import { getApps, profileInterfaces, type Action3, type App, type AppCtrlProfile
 import { listLogs, type LogEvent } from '../../api/stats'
 import { UsedBy } from './DNSFilterProfiles'
 import { appAction, groupApps, setGroup, setOverride, summarize } from './profileLogic'
+import { t } from '../../i18n'
 
 const ACTIONS: Action3[] = ['allow', 'monitor', 'block']
 const variant = { allow: 'success', monitor: 'primary', block: 'error' } as const
@@ -22,15 +23,15 @@ export function AppEvents({ apps }: { apps: App[] }) {
   const name = (id?: string) => apps.find((a) => a.id === id)?.name ?? id
   return (
     <div className="mt-6 rounded bg-white p-4 text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
-      <h3 className="mb-2 font-semibold">Recent application events</h3>
+      <h3 className="mb-2 font-semibold">{t('appControl.recentEvents')}</h3>
       {events === null ? (
-        <p className="text-gray-500">Loading…</p>
+        <p className="text-gray-500">{t('common.loading')}</p>
       ) : events.length === 0 ? (
-        <p className="text-gray-500">No application events yet.</p>
+        <p className="text-gray-500">{t('appControl.noEvents')}</p>
       ) : (
         <table className="min-w-full text-xs" data-testid="app-events">
           <thead className="text-left uppercase text-gray-500">
-            <tr><th className="py-1">Time</th><th>Client</th><th>App</th><th>Group</th><th>Domain</th><th>Action</th></tr>
+            <tr><th className="py-1">{t('appControl.colTime')}</th><th>{t('appControl.colClient')}</th><th>{t('appControl.colApp')}</th><th>{t('appControl.colGroup')}</th><th>{t('appControl.colDomain')}</th><th>{t('appControl.colAction')}</th></tr>
           </thead>
           <tbody>
             {events.map((e) => (
@@ -40,7 +41,7 @@ export function AppEvents({ apps }: { apps: App[] }) {
                 <td>{name(e.app)}</td>
                 <td>{e.category}</td>
                 <td><code>{e.message}</code></td>
-                <td><Badge variant={e.action === 'deny' ? 'error' : 'success'}>{e.action === 'deny' ? 'blocked' : e.action}</Badge></td>
+                <td><Badge variant={e.action === 'deny' ? 'error' : 'success'}>{e.action === 'deny' ? t('appControl.blocked') : e.action}</Badge></td>
               </tr>
             ))}
           </tbody>
@@ -60,19 +61,19 @@ export default function AppControl() {
 
   return (
     <div className="p-6">
-      {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">Could not load the application catalog: {error}</div>}
+      {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{t('appControl.catalogError', { error })}</div>}
       <ConfigList<AppCtrlProfile>
-        title="Application Control"
+        title={t('appControl.title')}
         path="profiles.appctrl"
-        newLabel="New application profile"
-        intro="Applications are recognized by the domain names they look up (DNS), so apps that use fixed IP addresses or a VPN are not seen. A profile applies to the source interfaces of the first policy that selects it."
+        newLabel={t('appControl.newProfile')}
+        intro={t('appControl.intro')}
         select={(c) => c.profiles?.appctrl}
         empty={() => ({ name: '', groups: {}, apps: {} })}
         clean={(p) => omitEmpty({ ...p, comment: p.comment?.trim() })}
         columns={[
-          { label: 'Groups', render: (p) => summarize(p.groups) || 'allow all' },
-          { label: 'App overrides', render: (p) => summarize(p.apps) || Object.keys(p.apps ?? {}).length || '' },
-          { label: 'Comment', render: (p) => p.comment },
+          { label: t('appControl.colGroups'), render: (p) => summarize(p.groups) || t('appControl.allowAll') },
+          { label: t('appControl.colOverrides'), render: (p) => summarize(p.apps) || Object.keys(p.apps ?? {}).length || '' },
+          { label: t('appControl.colComment'), render: (p) => p.comment },
         ]}
         after={(cfg, items) => (
           <>
@@ -83,7 +84,7 @@ export default function AppControl() {
         form={(p, set) => (
           <>
             <label className="block">
-              Comment
+              {t('appControl.comment')}
               <input aria-label="Comment" className={inputClass} value={p.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
             </label>
             {grouped.map(([group, list]) => (
@@ -112,7 +113,7 @@ export default function AppControl() {
                             value={p.apps?.[app.id] ?? ''}
                             onChange={(e) => set({ apps: setOverride(p, app.id, e.target.value as Action3 | '').apps })}
                           >
-                            <option value="">as group</option>
+                            <option value="">{t('appControl.asGroup')}</option>
                             {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
                           </select>
                         </td>

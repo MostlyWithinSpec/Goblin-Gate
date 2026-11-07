@@ -80,6 +80,10 @@ docs/                 user and developer docs
   characters of `[A-Za-z0-9_.-]`.
 - TypeScript: strict, no `any`; components in `web/src/components`, pages in `web/src/pages`, API calls only
   through `web/src/api/`.
+- Every visible string in the web UI goes through `t('<area>.<what>')` from `web/src/i18n`
+  with its English text in `web/src/i18n/locales/en.json`: placeholders `{name}` instead of
+  string concatenation, `t('x', { count })` with keys `x_one`/`x_other` for plurals, keys
+  only as string literals. `src/__tests__/i18n.test.tsx` fails on a missing or unused key.
 - Web pages use the **real API only**, never mock data in a page. Config lists are edited with
   `web/src/components/ConfigList.tsx` and the calls in `web/src/api/objects.ts` (see
   `pages/network/Addresses.tsx`). Tests mock the API module with `vi.mock`.

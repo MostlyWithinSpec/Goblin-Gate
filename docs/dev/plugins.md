@@ -45,6 +45,11 @@ goblind decides when the plugin runs.
 - `settings_schema` is a small subset of JSON Schema: an object whose properties have `type` (`string`,
   `integer`, `number`, `boolean`, or `array` of strings), optional `enum`, `minimum`/`maximum`,
   `maxLength`, `default`; plus `required`. Unknown settings are rejected.
+- `"secret": true` on a string setting (no default) marks a password or token. It is stored apart from the
+  other settings (`secrets` in the plugin's config entry) and redacted wherever configs are shown: other
+  plugins, read-only users, the plugin list and the git backup never see it. The plugin gets it with its
+  settings from `GET /api/v1/plugin/self`. The admin UI shows only whether it is set; saving the form with
+  it empty keeps the stored value, `null` clears it.
 - `min_goblind` (a Debian version) stops an old goblind from running a plugin built for a newer API.
 
 A manifest that does not validate makes the plugin show as `invalid` with the reason; it is never started.
@@ -54,11 +59,13 @@ A manifest that does not validate makes the plugin show as `invalid` with the re
 | Capability | Allows |
 |---|---|
 | `events:read` | `GET /api/v1/logs` (traffic, IPS, DNS and system events) |
-| `stats:read` | `GET /api/v1/stats/*`, `POST /api/v1/stats/query` |
+| `stats:read` | `GET /api/v1/stats/*`, `POST /api/v1/stats/query`, `GET /api/v1/gateways/status`, `GET /api/v1/wan/status` |
 | `config:read` | `GET /api/v1/config/running` |
 | `notify:send` | `POST /api/v1/plugin/notify` (an alert through the admin's notification rules) |
 | `blocks:read` | `GET /api/v1/blocks` (active temporary blocks) |
 | `blocks:write` | `POST /api/v1/blocks`, `DELETE /api/v1/blocks/{ip}` (see below) |
+| `devices:read` | `GET /api/v1/devices` (the device inventory: MAC, addresses, names, last seen) |
+| `policies:toggle` | `GET /api/v1/plugin/policies`, `PUT /api/v1/plugin/policies/{id}` (see below) |
 
 Every plugin may call `GET /api/v1/plugin/self` (its own name, approved capabilities and settings)
 without a capability. Every other endpoint is refused with `403 scope_denied`, including everything that
@@ -74,13 +81,26 @@ every address inside its own networks (LAN side, VPNs). A plugin may add 30 bloc
 its own blocks, and every attempt is audited (`block_add`, `block_remove`) and sent as the `block_added`
 notification. Admins use the same endpoints and may block an internal address with `allow_internal: true`.
 
+### Policy switches
+
+With `policies:toggle`, a plugin may switch on and off the policies the admin listed for it
+(`"policies": [id, ...]` in its config entry, set with `PUT /api/v1/plugins/{name}/policies`) and nothing
+else. `GET /api/v1/plugin/policies` returns them as running now (`{policies: [{id, name, enabled}]}`);
+`PUT /api/v1/plugin/policies/{id} {enabled}` switches one and commits just that change as a new revision by
+`plugin:<name>`, so it is in the history and can be rolled back. An admin's uncommitted edits in the
+candidate stay and get the same switch. goblind refuses a policy that is not listed (`403`), any switch
+while a commit-confirm waits (`409 confirm_pending`), and more than 60 switches per hour per plugin
+(`429`); every attempt is audited (`policy_switch`). List only policies whose both states are safe: a
+plugin, or whoever can talk to it, can choose either.
+
 ## Lifecycle
 
 Config:
 
 ```json
 "plugins": [
-  {"name": "hello", "enabled": true, "capabilities": ["events:read"], "settings": {"greeting": "hi"}}
+  {"name": "hello", "enabled": true, "capabilities": ["events:read"], "settings": {"greeting": "hi"},
+   "secrets": {"token": "..."}, "policies": [14]}
 ]
 ```
 
@@ -107,10 +127,11 @@ API (admin):
 
 | Endpoint | |
 |---|---|
-| `GET /api/v1/plugins` | installed plugins: manifest, config state, status (`running`, `stopped`, `failed`, `invalid`, `not_installed`) |
+| `GET /api/v1/plugins` | installed plugins: manifest, config state (`secrets_set` names the secrets that have a value, `policies` the switchable policy IDs), status (`running`, `stopped`, `failed`, `invalid`, `not_installed`) |
 | `POST /api/v1/plugins/{name}/enable` `{capabilities?}` | enables it in the candidate (default: every capability it asks for) |
 | `POST /api/v1/plugins/{name}/disable` | disables it in the candidate |
-| `PUT /api/v1/plugins/{name}/settings` `{settings}` | validates against the schema and stores in the candidate |
+| `PUT /api/v1/plugins/{name}/settings` `{settings}` | validates against the schema and stores in the candidate (secrets apart) |
+| `PUT /api/v1/plugins/{name}/policies` `{policies}` | the policy IDs it may switch (needs `policies:toggle` approved) |
 
 Enable, disable and settings change the candidate; commit to apply.
 

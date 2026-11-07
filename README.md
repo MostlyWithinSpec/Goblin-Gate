@@ -165,9 +165,9 @@ Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/
 
 ## What's next
 
-- **Now:** 0.1.0, the first stable release. Fixes go to stable; new features land in the beta channel first.
-- **Next (0.2.0 betas):** an OpenAPI description of the API, a built-in throughput test, measured benchmarks,
-  translations, a reverse proxy with Let's Encrypt, Home Assistant integration, more plugins.
+- **Now:** 0.1.0 stable, and the 0.2.0 betas on the beta channel. Fixes go to stable; new features land in the beta channel first.
+- **In the 0.2.0 betas:** an OpenAPI description of the API, a built-in throughput test, translations, a reverse proxy with Let's Encrypt,
+  Home Assistant integration. Still to come: measured benchmarks, more plugins.
 - **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
 
 The full roadmap lives on the [project page](https://networkgoblin.dev/gate/).

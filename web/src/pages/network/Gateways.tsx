@@ -6,6 +6,7 @@ import { ConfigList, inputClass, type FormCtx } from '../../components/ConfigLis
 import { Badge } from '../../components/Badge'
 import { patchSection, type Candidate, type Gateway, type GatewayMonitor } from '../../api/objects'
 import { getGatewayStatus, type TargetStatus } from '../../api/gateways'
+import { t } from '../../i18n'
 import { validateGateway, wanInterfaces, wireGuardClients } from './networkLogic'
 
 function Num({ label, value, onChange, min, max }: { label: string; value: number | undefined; onChange: (v: number | undefined) => void; min?: number; max?: number }) {
@@ -30,22 +31,22 @@ function MonitorFields({ g, set, err }: { g: Gateway; set: (patch: Partial<Gatew
   const setMonitor = (patch: Partial<GatewayMonitor>) => set({ monitor: { ...m, ...patch } })
   return (
     <fieldset className="rounded border border-gray-200 p-3 dark:border-gray-700">
-      <legend className="px-1 text-sm font-semibold text-gray-800 dark:text-gray-200">Health monitor</legend>
+      <legend className="px-1 text-sm font-semibold text-gray-800 dark:text-gray-200">{t('gateways.healthMonitor')}</legend>
       <label className="mb-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" checked={!!m.disabled} onChange={(e) => setMonitor({ disabled: e.target.checked ? true : undefined })} />
-        Keep this gateway always up (no pings)
+        {t('gateways.alwaysUp')}
       </label>
       {!m.disabled && (
         <>
           <label className="block">
-            Monitor IP
-            <input aria-label="Monitor IP" className={inputClass} placeholder="auto (public resolver)" value={m.ip ?? ''} onChange={(e) => setMonitor({ ip: e.target.value })} />
+            {t('gateways.monitorIp')}
+            <input aria-label={t('gateways.monitorIp')} className={inputClass} placeholder={t('gateways.monitorIpPlaceholder')} value={m.ip ?? ''} onChange={(e) => setMonitor({ ip: e.target.value })} />
             {err('monitor.ip')}
           </label>
           <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Num label="Interval (s)" value={m.interval_seconds} onChange={(v) => setMonitor({ interval_seconds: v })} min={1} max={60} />
-            <Num label="Loss %" value={m.loss_percent} onChange={(v) => setMonitor({ loss_percent: v })} min={0} max={100} />
-            <Num label="Latency (ms)" value={m.latency_ms} onChange={(v) => setMonitor({ latency_ms: v })} min={0} />
+            <Num label={t('gateways.interval')} value={m.interval_seconds} onChange={(v) => setMonitor({ interval_seconds: v })} min={1} max={60} />
+            <Num label={t('gateways.lossPercent')} value={m.loss_percent} onChange={(v) => setMonitor({ loss_percent: v })} min={0} max={100} />
+            <Num label={t('gateways.latencyMs')} value={m.latency_ms} onChange={(v) => setMonitor({ latency_ms: v })} min={0} />
           </div>
           {err('monitor')}
         </>
@@ -54,11 +55,14 @@ function MonitorFields({ g, set, err }: { g: Gateway; set: (patch: Partial<Gatew
   )
 }
 
-function targetLine(t: TargetStatus) {
-  const mode = t.mode === 'blackhole' ? 'blackhole (kill switch)' : t.mode
+function targetLine(status: TargetStatus) {
+  const mode = status.mode === 'blackhole' ? t('gateways.modeBlackhole') : status.mode
   return (
     <span className="text-xs text-gray-600 dark:text-gray-400">
-      {t.active?.length ? t.active.join(', ') : '(none)'} · {mode}
+      {t('gateways.targetLine', {
+        active: status.active?.length ? status.active.join(', ') : t('gateways.none'),
+        mode,
+      })}
     </span>
   )
 }
@@ -87,33 +91,33 @@ function StatusPanel({ cfg, gatewayNames }: { cfg: Candidate; gatewayNames: stri
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">WAN status</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{t('gateways.wanStatus')}</h3>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          Default route
+          {t('gateways.defaultRoute')}
           <select
-            aria-label="Default route"
+            aria-label={t('gateways.defaultRoute')}
             className="rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600"
             value={def}
             onChange={(e) => changeDefault(e.target.value)}
           >
-            <option value="">automatic (failover in list order)</option>
+            <option value="">{t('gateways.defaultAutomatic')}</option>
             {gateways.map((n) => <option key={n} value={n}>{n}</option>)}
-            {groups.map((n) => <option key={n} value={n}>group: {n}</option>)}
+            {groups.map((n) => <option key={n} value={n}>{t('gateways.groupOption', { name: n })}</option>)}
           </select>
         </label>
       </div>
       {defError && <div role="alert" className="mb-2 rounded bg-red-50 p-2 text-sm text-red-700">{defError}</div>}
-      {defSaved && <p role="status" className="mb-2 text-sm text-green-700 dark:text-green-400">Default route saved. Use the commit bar to apply.</p>}
-      {q.isLoading && <p className="text-sm text-gray-500">Loading status…</p>}
-      {q.isError && <p className="text-sm text-gray-500">Gateway status is not available.</p>}
+      {defSaved && <p role="status" className="mb-2 text-sm text-green-700 dark:text-green-400">{t('gateways.defaultSaved')}</p>}
+      {q.isLoading && <p className="text-sm text-gray-500">{t('gateways.loadingStatus')}</p>}
+      {q.isError && <p className="text-sm text-gray-500">{t('gateways.statusUnavailable')}</p>}
       {q.data && (
         <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
             <tr>
-              <th className="px-3 py-2">Gateway</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Loss</th>
-              <th className="px-3 py-2">Latency</th>
+              <th className="px-3 py-2">{t('gateways.col.gateway')}</th>
+              <th className="px-3 py-2">{t('gateways.col.status')}</th>
+              <th className="px-3 py-2">{t('gateways.col.loss')}</th>
+              <th className="px-3 py-2">{t('gateways.col.latency')}</th>
             </tr>
           </thead>
           <tbody>
@@ -125,22 +129,22 @@ function StatusPanel({ cfg, gatewayNames }: { cfg: Candidate; gatewayNames: stri
                   {s.reason && <span className="ml-2 text-xs text-gray-500">{s.reason}</span>}
                 </td>
                 <td className="px-3 py-1 tabular-nums">{s.loss_percent}%</td>
-                <td className="px-3 py-1 tabular-nums">{s.latency_ms} ms</td>
+                <td className="px-3 py-1 tabular-nums">{t('gateways.latencyValue', { ms: s.latency_ms })}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
       {q.data && (
-        <ul aria-label="Routing targets" className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+        <ul aria-label={t('gateways.routingTargets')} className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
           {q.data.default && (
             <li>
-              Default route: {targetLine(q.data.default)}
+              {t('gateways.defaultRouteLine')} {targetLine(q.data.default)}
             </li>
           )}
-          {(q.data.targets ?? []).map((t) => (
-            <li key={t.name}>
-              {t.group ? 'Group' : 'Gateway'} {t.name}: {targetLine(t)}
+          {(q.data.targets ?? []).map((tg) => (
+            <li key={tg.name}>
+              {tg.group ? t('gateways.groupLabel') : t('gateways.gatewayLabel')} {tg.name}: {targetLine(tg)}
             </li>
           ))}
         </ul>
@@ -152,10 +156,10 @@ function StatusPanel({ cfg, gatewayNames }: { cfg: Candidate; gatewayNames: stri
 export default function Gateways() {
   return (
     <ConfigList<Gateway>
-      title="Gateways"
+      title={t('gateways.title')}
       path="gateways"
-      newLabel="New gateway"
-      intro="One gateway per WAN interface or WireGuard tunnel. Once you define gateways, every enabled WAN needs one."
+      newLabel={t('gateways.newGateway')}
+      intro={t('gateways.intro')}
       select={(c) => c.gateways}
       empty={() => ({ name: '', interface: '', address: '', monitor: {} })}
       clean={(g) => {
@@ -176,9 +180,9 @@ export default function Gateways() {
       }}
       validate={(g, cfg) => validateGateway(g, cfg)}
       columns={[
-        { label: 'Interface', render: (g) => g.interface },
-        { label: 'Address', render: (g) => (g.address ? (g.address === 'dhcp' ? 'DHCP' : g.address) : '—') },
-        { label: 'Monitor', render: (g) => (g.monitor?.disabled ? 'off' : g.monitor?.ip ?? 'auto') },
+        { label: t('gateways.col.interface'), render: (g) => g.interface },
+        { label: t('gateways.col.address'), render: (g) => (g.address ? (g.address === 'dhcp' ? 'DHCP' : g.address) : '—') },
+        { label: t('gateways.col.monitor'), render: (g) => (g.monitor?.disabled ? t('gateways.monitorOff') : g.monitor?.ip ?? t('gateways.monitorAuto')) },
       ]}
       after={(cfg, items) => <StatusPanel cfg={cfg} gatewayNames={items.map((g) => g.name)} />}
       form={(g, set, { cfg, err }) => {
@@ -188,20 +192,20 @@ export default function Gateways() {
         return (
           <>
             <label className="block">
-              Interface
-              <select aria-label="Interface" className={inputClass} value={g.interface} onChange={(e) => set({ interface: e.target.value, address: '' })}>
-                <option value="">Pick an interface</option>
+              {t('gateways.interface')}
+              <select aria-label={t('gateways.interface')} className={inputClass} value={g.interface} onChange={(e) => set({ interface: e.target.value, address: '' })}>
+                <option value="">{t('gateways.pickInterface')}</option>
                 {wans.map((n) => <option key={n} value={n}>{n}</option>)}
-                {clients.map((n) => <option key={n} value={n}>{n} (tunnel)</option>)}
+                {clients.map((n) => <option key={n} value={n}>{t('gateways.tunnelOption', { name: n })}</option>)}
               </select>
               {err('interface')}
             </label>
             {isTunnel ? (
-              <p className="text-sm text-gray-500">Tunnels have no address; traffic is routed by the provider.</p>
+              <p className="text-sm text-gray-500">{t('gateways.tunnelNote')}</p>
             ) : (
               <label className="block">
-                Address
-                <input aria-label="Address" className={inputClass} placeholder='IPv4 or "dhcp"' value={g.address ?? ''} onChange={(e) => set({ address: e.target.value })} />
+                {t('gateways.address')}
+                <input aria-label={t('gateways.address')} className={inputClass} placeholder={t('gateways.addressPlaceholder')} value={g.address ?? ''} onChange={(e) => set({ address: e.target.value })} />
                 {err('address')}
               </label>
             )}

@@ -10,6 +10,7 @@ import {
   type UPnpMapping,
 } from '../../api/network'
 import type { ValidationError } from '../../api/policy'
+import { t } from '../../i18n'
 import { portOrRange, type Errors } from './networkLogic'
 
 const input = 'mt-1 block w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600'
@@ -31,29 +32,29 @@ function Mappings() {
   }, [])
 
   const fmtExpiry = (iso?: string) => {
-    if (!iso) return 'until removed'
+    if (!iso) return t('upnp.untilRemoved')
     const diff = new Date(iso).getTime() - Date.now()
-    if (diff <= 0) return 'expiring'
+    if (diff <= 0) return t('upnp.expiring')
     const s = Math.floor(diff / 1000)
-    if (s < 60) return `${s}s`
+    if (s < 60) return t('upnp.seconds', { count: s })
     const m = Math.floor(s / 60)
-    if (m < 60) return `${m}m ${s % 60}s`
+    if (m < 60) return t('upnp.minutesSeconds', { minutes: m, seconds: s % 60 })
     const h = Math.floor(m / 60)
-    return `${h}h ${m % 60}m`
+    return t('upnp.hoursMinutes', { hours: h, minutes: m % 60 })
   }
 
   return (
     <section className="mt-6">
-      <h3 className="mb-2 font-semibold text-gray-800 dark:text-white">Active mappings</h3>
+      <h3 className="mb-2 font-semibold text-gray-800 dark:text-white">{t('upnp.activeMappings')}</h3>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {!data && !error && <p className="text-sm text-gray-500">Loading…</p>}
+      {!data && !error && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
       {data && data.mappings.length === 0 && (
-        <p className="text-sm text-gray-500">{data.enabled ? 'No active mappings.' : 'UPnP is disabled.'}</p>
+        <p className="text-sm text-gray-500">{data.enabled ? t('upnp.noMappings') : t('upnp.disabled')}</p>
       )}
       {data && data.mappings.length > 0 && (
         <table className="min-w-full text-sm dark:text-gray-200">
           <thead className="text-left text-xs uppercase text-gray-500">
-            <tr><th className="px-2 py-1">Protocol</th><th className="px-2 py-1">External port</th><th className="px-2 py-1">Internal</th><th className="px-2 py-1">Description</th><th className="px-2 py-1">Expires in</th></tr>
+            <tr><th className="px-2 py-1">{t('upnp.col.protocol')}</th><th className="px-2 py-1">{t('upnp.col.externalPort')}</th><th className="px-2 py-1">{t('upnp.col.internal')}</th><th className="px-2 py-1">{t('upnp.col.description')}</th><th className="px-2 py-1">{t('upnp.col.expires')}</th></tr>
           </thead>
           <tbody>
             {data.mappings.map((m) => (
@@ -115,17 +116,17 @@ export default function UPnP() {
     if (!cfg) return
     const errs: Errors = {}
     if (cfg.enabled && (!cfg.interfaces || cfg.interfaces.length === 0)) {
-      errs.interfaces = 'Select at least one interface when UPnP is enabled.'
+      errs.interfaces = t('upnp.needInterface')
     }
     cfg.allow?.forEach((a, i) => {
       if (!a.ports.trim()) {
-        errs[`allow_${i}_ports`] = 'Port range is required.'
+        errs[`allow_${i}_ports`] = t('upnp.portsRequired')
       } else if (!portOrRange(a.ports)) {
-        errs[`allow_${i}_ports`] = 'Invalid port range (use 1-65535, e.g. 80 or 1000-2000.)'
+        errs[`allow_${i}_ports`] = t('upnp.portsInvalid')
       }
     })
     if (cfg.max_lease !== undefined && (cfg.max_lease < 0 || cfg.max_lease > 604800)) {
-      errs.max_lease = 'Max lease must be between 0 and 604800 seconds.'
+      errs.max_lease = t('upnp.leaseRange')
     }
     setErrors(errs)
     if (Object.keys(errs).length) return
@@ -159,8 +160,8 @@ export default function UPnP() {
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">UPnP</h2>
-        <p className="mt-1 text-sm text-gray-500">UPnP lets devices open ports without asking; keep secure mode on.</p>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('upnp.title')}</h2>
+        <p className="mt-1 text-sm text-gray-500">{t('upnp.intro')}</p>
       </div>
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
@@ -169,7 +170,7 @@ export default function UPnP() {
         </ul>
       )}
 
-      <form onSubmit={submit} noValidate aria-label="UPnP settings" className="space-y-4 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
+      <form onSubmit={submit} noValidate aria-label={t('upnp.settings')} className="space-y-4 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -177,14 +178,14 @@ export default function UPnP() {
             onChange={(e) => setCfg((c) => (c ? { ...c, enabled: e.target.checked } : c))}
             className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
           />
-          <span>Enable UPnP</span>
+          <span>{t('upnp.enable')}</span>
         </label>
 
         {cfg.enabled && (
           <>
             <fieldset>
-              <legend className="mb-1 font-medium">Served interfaces</legend>
-              {lanIfs.length === 0 && <p className="text-xs text-gray-500">No static LAN interfaces available.</p>}
+              <legend className="mb-1 font-medium">{t('upnp.servedInterfaces')}</legend>
+              {lanIfs.length === 0 && <p className="text-xs text-gray-500">{t('upnp.noLanInterfaces')}</p>}
               <div className="flex flex-wrap gap-3">
                 {lanIfs.map((i) => (
                   <label key={i.name} className="flex items-center gap-1.5">
@@ -209,7 +210,7 @@ export default function UPnP() {
                   onChange={(e) => setCfg((c) => (c ? { ...c, nat_pmp: e.target.checked } : c))}
                   className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
                 />
-                <span>NAT-PMP</span>
+                <span>{t('upnp.natPmp')}</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -218,39 +219,39 @@ export default function UPnP() {
                   onChange={(e) => setCfg((c) => (c ? { ...c, secure_mode: e.target.checked } : c))}
                   className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
                 />
-                <span>Secure mode</span>
+                <span>{t('upnp.secureMode')}</span>
               </label>
-              <label className="flex items-center gap-2" title="Use when the box sits behind another router (private WAN address); that router must forward everything to the box.">
+              <label className="flex items-center gap-2" title={t('upnp.stunHint')}>
                 <input
                   type="checkbox"
                   checked={cfg.stun ?? false}
                   onChange={(e) => setCfg((c) => (c ? { ...c, stun: e.target.checked } : c))}
                   className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
                 />
-                <span>STUN (behind another router)</span>
+                <span>{t('upnp.stun')}</span>
               </label>
             </div>
 
             <fieldset>
-              <legend className="mb-1 font-medium">Allow list</legend>
-              <p className="mb-2 text-xs text-gray-500">Restrict which LAN clients can map which internal ports. Empty = every client on the served interfaces, ports 1024-65535.</p>
+              <legend className="mb-1 font-medium">{t('upnp.allowList')}</legend>
+              <p className="mb-2 text-xs text-gray-500">{t('upnp.allowNote')}</p>
               {(cfg.allow ?? []).length > 0 && (
                 <table className="min-w-full">
                   <thead className="text-left text-xs uppercase text-gray-500">
-                    <tr><th>Address</th><th>Ports</th><th></th></tr>
+                    <tr><th>{t('upnp.col.address')}</th><th>{t('upnp.col.ports')}</th><th></th></tr>
                   </thead>
                   <tbody>
                     {(cfg.allow ?? []).map((a, i) => (
                       <tr key={i}>
                         <td>
-                          <input aria-label={`Allow ${i + 1} address`} className={input} placeholder="192.168.1.0/24" value={a.address} onChange={(e) => setAllow(i, 'address', e.target.value)} />
+                          <input aria-label={t('upnp.allowAddress', { n: i + 1 })} className={input} placeholder={t('upnp.allowAddressPlaceholder')} value={a.address} onChange={(e) => setAllow(i, 'address', e.target.value)} />
                         </td>
                         <td>
-                          <input aria-label={`Allow ${i + 1} ports`} className={input} placeholder="1024-65535 or 8080" value={a.ports} onChange={(e) => setAllow(i, 'ports', e.target.value)} />
+                          <input aria-label={t('upnp.allowPorts', { n: i + 1 })} className={input} placeholder={t('upnp.allowPortsPlaceholder')} value={a.ports} onChange={(e) => setAllow(i, 'ports', e.target.value)} />
                           {err(`allow_${i}_ports`)}
                         </td>
                         <td>
-                          <button type="button" aria-label={`Remove allow ${i + 1}`} className="text-red-600" onClick={() => setCfg((c) => (c ? { ...c, allow: c.allow!.filter((_, j) => j !== i) } : c))}>
+                          <button type="button" aria-label={t('upnp.removeAllow', { n: i + 1 })} className="text-red-600" onClick={() => setCfg((c) => (c ? { ...c, allow: c.allow!.filter((_, j) => j !== i) } : c))}>
                             <Trash2 size={14} />
                           </button>
                         </td>
@@ -260,18 +261,18 @@ export default function UPnP() {
                 </table>
               )}
               <button type="button" className="mt-1 flex items-center gap-1 text-sm text-blue-600" onClick={() => setCfg((c) => (c ? { ...c, allow: [...(c.allow ?? []), { address: '', ports: '' }] } : c))}>
-                <Plus size={14} /> Add allow entry
+                <Plus size={14} /> {t('upnp.addAllowEntry')}
               </button>
             </fieldset>
 
             <label className="block w-48">
-              Max lease (seconds)
+              {t('upnp.maxLease')}
               <input
-                aria-label="Max lease seconds"
+                aria-label={t('upnp.maxLeaseAria')}
                 type="number"
                 min={0}
                 max={604800}
-                placeholder="default"
+                placeholder={t('upnp.maxLeasePlaceholder')}
                 className={input}
                 value={cfg.max_lease ?? ''}
                 onChange={(e) => setCfg((c) => (c ? { ...c, max_lease: e.target.value === '' ? undefined : Number(e.target.value) } : c))}
@@ -282,9 +283,9 @@ export default function UPnP() {
         )}
 
         <div className="flex items-center justify-end gap-3">
-          {saved && <span role="status" className="text-green-700 dark:text-green-400">Saved. Use the commit bar to apply.</span>}
+          {saved && <span role="status" className="text-green-700 dark:text-green-400">{t('upnp.saved')}</span>}
           <button type="submit" disabled={!loaded} className="rounded bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50">
-            Save
+            {t('upnp.save')}
           </button>
         </div>
       </form>

@@ -42,21 +42,23 @@ func (s *Server) captureError(w http.ResponseWriter, err error) {
 	}
 }
 
+type captureRequest struct {
+	Interface  string `json:"interface"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Protocol   string `json:"protocol"`
+	MaxPackets int    `json:"max_packets"`
+	MaxSeconds int    `json:"max_seconds"`
+	Snaplen    int    `json:"snaplen"`
+}
+
 // POST /api/v1/capture {interface, host?, port?, protocol?, max_packets?,
 // max_seconds?, snaplen?} → 201 Status.
 func (s *Server) startCapture(w http.ResponseWriter, r *http.Request) {
 	if !s.captureAdmin(w, r) {
 		return
 	}
-	var req struct {
-		Interface  string `json:"interface"`
-		Host       string `json:"host"`
-		Port       int    `json:"port"`
-		Protocol   string `json:"protocol"`
-		MaxPackets int    `json:"max_packets"`
-		MaxSeconds int    `json:"max_seconds"`
-		Snaplen    int    `json:"snaplen"`
-	}
+	var req captureRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

@@ -6,6 +6,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { getCandidate, patchSection, type Candidate, type Route } from '../../api/objects'
 import { EditDrawer } from '../../components/EditDrawer'
 import { inputClass } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import { validateRoute, type Errors } from './networkLogic'
 
 export default function StaticRoutes() {
@@ -50,7 +51,7 @@ export default function StaticRoutes() {
     const r = clean(editing.route)
     const errs = validateRoute(r, cfg)
     if (!errs.destination && routes.some((x, i) => i !== editing.index && x.destination === r.destination))
-      errs.destination = 'This destination already has a route'
+      errs.destination = t('staticRoutes.duplicateDestination')
     setErrors(errs)
     if (Object.keys(errs).length) return
     // the drawer stays open when the save fails, so the edits are not lost
@@ -70,27 +71,27 @@ export default function StaticRoutes() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Static Routes</h2>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('staticRoutes.title')}</h2>
         <button
           type="button"
           disabled={!cfg}
           onClick={() => cfg && open({ destination: '', gateway: gateways[0] ?? '' }, null)}
           className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          <Plus size={16} /> New route
+          <Plus size={16} /> {t('staticRoutes.newRoute')}
         </button>
       </div>
       <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-        Send a subnet through a specific gateway instead of the default route.
+        {t('staticRoutes.intro')}
       </p>
       {error && !editing && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
       <div className="overflow-x-auto">
         <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
             <tr>
-              <th className="px-3 py-2">Destination</th>
-              <th className="px-3 py-2">Gateway</th>
-              <th className="px-3 py-2">Comment</th>
+              <th className="px-3 py-2">{t('staticRoutes.col.destination')}</th>
+              <th className="px-3 py-2">{t('staticRoutes.col.gateway')}</th>
+              <th className="px-3 py-2">{t('staticRoutes.col.comment')}</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -105,46 +106,46 @@ export default function StaticRoutes() {
                 <td className="px-3 py-1">{r.gateway}</td>
                 <td className="px-3 py-1">{r.comment}</td>
                 <td className="whitespace-nowrap px-3 py-1 text-right">
-                  <button type="button" aria-label={`Delete ${r.destination}`} onClick={() => window.confirm(`Delete the route to ${r.destination}?`) && save(routes.filter((_, j) => j !== i))} className="ml-2 text-red-600">
+                  <button type="button" aria-label={t('staticRoutes.deleteRoute', { destination: r.destination })} onClick={() => window.confirm(t('staticRoutes.deleteRouteConfirm', { destination: r.destination })) && save(routes.filter((_, j) => j !== i))} className="ml-2 text-red-600">
                     <Trash2 size={16} />
                   </button>
                 </td>
               </tr>
             ))}
             {cfg && routes.length === 0 && (
-              <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">Nothing configured yet.</td></tr>
+              <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">{t('staticRoutes.empty')}</td></tr>
             )}
             {!cfg && !error && (
-              <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">Loading…</td></tr>
+              <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">{t('common.loading')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       {editing && cfg && (
-        <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? 'New route' : `Edit ${editing.route.destination}`}>
+        <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? t('staticRoutes.newRoute') : t('staticRoutes.editRoute', { destination: editing.route.destination })}>
           <form onSubmit={submit} noValidate className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
             {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
             <label className="block">
-              Destination
-              <input aria-label="Destination" className={inputClass} placeholder="192.168.2.0/24" value={editing.route.destination} onChange={(e) => set({ destination: e.target.value })} />
+              {t('staticRoutes.destination')}
+              <input aria-label={t('staticRoutes.destination')} className={inputClass} placeholder={t('staticRoutes.destinationPlaceholder')} value={editing.route.destination} onChange={(e) => set({ destination: e.target.value })} />
               {err('destination')}
             </label>
             <label className="block">
-              Gateway
-              <select aria-label="Gateway" className={inputClass} value={editing.route.gateway} onChange={(e) => set({ gateway: e.target.value })}>
-                <option value="">Pick a gateway</option>
+              {t('staticRoutes.gateway')}
+              <select aria-label={t('staticRoutes.gateway')} className={inputClass} value={editing.route.gateway} onChange={(e) => set({ gateway: e.target.value })}>
+                <option value="">{t('staticRoutes.pickGateway')}</option>
                 {gateways.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
               {err('gateway')}
             </label>
             <label className="block">
-              Comment
-              <input aria-label="Comment" className={inputClass} value={editing.route.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
+              {t('staticRoutes.comment')}
+              <input aria-label={t('staticRoutes.comment')} className={inputClass} value={editing.route.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
             </label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="rounded border border-gray-300 px-3 py-1 dark:border-gray-600 dark:text-gray-200">Cancel</button>
-              <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">Save</button>
+              <button type="button" onClick={() => setEditing(null)} className="rounded border border-gray-300 px-3 py-1 dark:border-gray-600 dark:text-gray-200">{t('common.cancel')}</button>
+              <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">{t('staticRoutes.save')}</button>
             </div>
           </form>
         </EditDrawer>

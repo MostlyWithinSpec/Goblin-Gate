@@ -21,6 +21,7 @@ out for". If something here does not match what you see, please open an issue.
 | Name a device or a network once and reuse it | [[Objects]] |
 | Add a VLAN or change an interface | [[Interfaces and VLANs]] |
 | Open a port to a server at home | [NAT, Port Forwards and UPnP](NAT-Port-Forwards-and-UPnP) |
+| Publish a web service on its own HTTPS name | [Reverse Proxy](Reverse-Proxy) |
 | Give out addresses, name devices, local DNS | [[DHCP and DNS]] |
 | Block ads, malware and phishing | [[Threat Feeds and DNS Filter]] |
 | Detect and stop attacks | [[IPS]] and [[Goblin Sentry]] |
@@ -31,6 +32,7 @@ out for". If something here does not match what you see, please open an issue.
 | Log in over SSH, use the API or CLI | [Remote Access: SSH, API and CLI](Remote-Access-SSH-API-CLI) |
 | See devices, test a rule, capture packets, take snapshots | [Tools: Devices, Simulator, Capture](Tools-Devices-Simulator-Capture) |
 | Graph the box in Grafana | [Prometheus and Grafana](Prometheus-and-Grafana) |
+| See the box in Home Assistant, switch guest Wi-Fi from there | [[Home Assistant]] |
 | Move from pfSense | [[Migrating from pfSense]] |
 | Something does not work | [[Troubleshooting]] |
 

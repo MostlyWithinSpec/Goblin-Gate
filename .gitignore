@@ -1,6 +1,7 @@
 # build output
 /bin/
 *.exe
-/web/node_modules/
+node_modules/
 /web/dist/
 dist/
+*.tsbuildinfo

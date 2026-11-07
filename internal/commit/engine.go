@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -194,6 +195,51 @@ func (e *Engine) Rollback(ctx context.Context, rev int, user string) (int, error
 	}
 	e.clearPendingLocked()
 	return e.applyAndSaveLocked(ctx, cfg, user, fmt.Sprintf("rollback to revision %d", rev))
+}
+
+// ErrConfirmPending is returned by SetPolicyEnabled while a commit-confirm
+// waits: the admin's rollback must restore exactly what they had.
+var ErrConfirmPending = errors.New("a commit is waiting to be confirmed")
+
+// ErrNoPolicy is returned by SetPolicyEnabled for an unknown policy ID.
+var ErrNoPolicy = errors.New("no such policy")
+
+// SetPolicyEnabled switches one policy of the running config on or off and
+// commits just that as a new revision (a plugin's switch, for example). A
+// candidate with pending edits gets the same switch, so committing it later
+// does not undo it. changed is false when the policy already was that way.
+func (e *Engine) SetPolicyEnabled(ctx context.Context, id uint32, enabled bool, user, comment string) (rev int, changed bool, err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.pending != nil {
+		return 0, false, ErrConfirmPending
+	}
+	cfg, err := e.Store.Running()
+	if err != nil {
+		return 0, false, fmt.Errorf("switch policy: read running: %w", err)
+	}
+	i := slices.IndexFunc(cfg.Policies, func(p config.Policy) bool { return p.ID == id })
+	if i < 0 {
+		return 0, false, ErrNoPolicy
+	}
+	if cfg.Policies[i].Enabled == enabled {
+		return 0, false, nil
+	}
+	cfg.Policies[i].Enabled = enabled
+	if rev, err = e.applyAndSaveLocked(ctx, cfg, user, comment); err != nil {
+		return 0, false, err
+	}
+	if err := e.Store.EditCandidate(func(c *config.Config) bool {
+		j := slices.IndexFunc(c.Policies, func(p config.Policy) bool { return p.ID == id })
+		if j < 0 || c.Policies[j].Enabled == enabled {
+			return false
+		}
+		c.Policies[j].Enabled = enabled
+		return true
+	}); err != nil {
+		e.Logger.Warn("switch policy: could not update the candidate", "error", err)
+	}
+	return rev, true, nil
 }
 
 // ApplyRunning re-applies the current running config without changing it.

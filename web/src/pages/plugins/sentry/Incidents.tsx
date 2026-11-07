@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { Badge } from '../../../components/Badge'
+import { t } from '../../../i18n'
 import SentryNav from './SentryNav'
 import ModeSelector from './ModeSelector'
 import { getSentryStatus, getIncidents, isPluginNotRunning, type IncidentStatus } from '../../../api/sentry'
@@ -29,7 +30,7 @@ export default function Incidents() {
     return (
       <div>
         <SentryNav />
-        <p className="mt-4 text-sm text-gray-500">Goblin Sentry is not running.</p>
+        <p className="mt-4 text-sm text-gray-500">{t('sentry.notRunning')}</p>
       </div>
     )
   }
@@ -73,13 +74,13 @@ export default function Incidents() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by summary, signature, IP…"
+            placeholder={t('sentry.filterPlaceholder')}
             className="w-full rounded border border-gray-300 py-1 pl-7 pr-2 text-sm dark:bg-gray-700 dark:border-gray-600 min-h-[40px]"
           />
         </div>
       </div>
 
-      {q.isLoading && <p className="mt-4 text-sm text-gray-500">Loading…</p>}
+      {q.isLoading && <p className="mt-4 text-sm text-gray-500">{t('common.loading')}</p>}
       {q.isError && (
         <div role="alert" className="mt-4 rounded bg-red-50 p-2 text-sm text-red-700">
           {(q.error as Error).message}
@@ -87,19 +88,19 @@ export default function Incidents() {
       )}
 
       {incidents.length === 0 && !q.isLoading && (
-        <p className="mt-4 text-sm text-gray-500">No incidents found.</p>
+        <p className="mt-4 text-sm text-gray-500">{t('sentry.noneFound')}</p>
       )}
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Time</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Summary</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
-              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Destination</th>
-              <th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">Count</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('sentry.colStatus')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('sentry.colTime')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('sentry.colSummary')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('sentry.colSource')}</th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('sentry.colDestination')}</th>
+              <th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">{t('sentry.colCount')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-700/50 dark:bg-gray-800">

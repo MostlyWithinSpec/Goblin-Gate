@@ -1,15 +1,18 @@
 // Pure helpers for Log & Report (task 026): the log viewer's URL state and
 // the chart builder's query. The server (internal/logs) stays authoritative.
+import { t } from '../../i18n'
 import { EVENT_FIELDS, fieldsFor, type ChartType, type EventKind, type LogEvent, type LogFilter, type StatsBucket, type StatsQuery, type StatsSource, type TimeRange } from '../../api/stats'
 
-export const KINDS: { kind: EventKind | ''; label: string }[] = [
-  { kind: '', label: 'All' },
-  { kind: 'traffic', label: 'Traffic' },
-  { kind: 'ips', label: 'IPS' },
-  { kind: 'dns', label: 'DNS' },
-  { kind: 'webfilter', label: 'Web filter' },
-  { kind: 'appctrl', label: 'Applications' },
-  { kind: 'system', label: 'System' },
+// The tab labels live in the catalog as log.kind.<kind>; the "All" tab has no
+// kind of its own, so its key is log.kind._all.
+export const KINDS: { kind: EventKind | '' }[] = [
+  { kind: '' },
+  { kind: 'traffic' },
+  { kind: 'ips' },
+  { kind: 'dns' },
+  { kind: 'webfilter' },
+  { kind: 'appctrl' },
+  { kind: 'system' },
 ]
 export const RANGES: TimeRange[] = ['15m', '1h', '24h', '7d']
 
@@ -51,23 +54,27 @@ export function logFilter(s: LogState, cursor = 0): LogFilter {
   return { kind: s.kind || undefined, q: s.q || undefined, from: '-' + s.range, fields: s.chips, cursor, limit: 100 }
 }
 
-// Columns per kind: [field, header].
-export function columnsFor(kind: LogState['kind']): [keyof LogEvent, string][] {
-  const common: [keyof LogEvent, string][] = [['src_ip', 'Source'], ['dst_ip', 'Destination']]
+// A log table column is a field of LogEvent; the viewer names every header
+// after its field (`colLabel` in LogViewer.tsx), so nothing here is user
+// visible and a translation never has to be retyped.
+export type LogColumn = keyof LogEvent
+
+export function columnsFor(kind: LogState['kind']): LogColumn[] {
+  const common: LogColumn[] = ['src_ip', 'dst_ip']
   switch (kind) {
     case 'traffic':
-      return [...common, ['dst_port', 'Port'], ['proto', 'Proto'], ['in_intf', 'In'], ['out_intf', 'Out'], ['policy_id', 'Policy'], ['action', 'Action'], ['bytes', 'Bytes']]
+      return [...common, 'dst_port', 'proto', 'in_intf', 'out_intf', 'policy_id', 'action', 'bytes']
     case 'ips':
-      return [...common, ['severity', 'Severity'], ['signature', 'Signature'], ['action', 'Action']]
+      return [...common, 'severity', 'signature', 'action']
     case 'dns':
     case 'webfilter':
-      return [['src_ip', 'Client'], ['message', 'Domain'], ['category', 'Category'], ['action', 'Action']]
+      return ['src_ip', 'message', 'category', 'action']
     case 'appctrl':
-      return [['src_ip', 'Client'], ['app', 'App'], ['category', 'Group'], ['message', 'Domain'], ['action', 'Action']]
+      return ['src_ip', 'app', 'category', 'message', 'action']
     case 'system':
-      return [['message', 'Message']]
+      return ['message']
     default:
-      return [['kind', 'Kind'], ...common, ['action', 'Action'], ['message', 'Details']]
+      return ['kind', ...common, 'action', 'message']
   }
 }
 
@@ -105,20 +112,21 @@ export const emptyBuilder = (): Builder => ({
 const AUTO: Record<TimeRange, StatsBucket> = { '15m': '1m', '1h': '5m', '24h': '1h', '7d': '1h' }
 
 // validateBuilder returns problems that would make the query fail or the
-// chart meaningless, keyed by field.
+// chart meaningless, keyed by field. The messages are shown under the field,
+// so they read from the catalog; a field name stays as it is (it is data).
 export function validateBuilder(b: Builder): Record<string, string> {
   const e: Record<string, string> = {}
   const allowed = fieldsFor(b.source)
   const badGroup = b.group_by.filter((f) => !allowed.includes(f))
-  if (badGroup.length) e.group_by = `${b.source} cannot be grouped by ${badGroup.join(', ')}`
-  if (b.group_by.length > 2) e.group_by = 'Group by at most two fields'
+  if (badGroup.length) e.group_by = t('chart.badGroup', { source: b.source, fields: badGroup.join(', ') })
+  if (b.group_by.length > 2) e.group_by = t('chart.groupTooMany')
   const badFilter = Object.keys(b.filters).filter((f) => !allowed.includes(f))
-  if (badFilter.length) e.filters = `${b.source} cannot be filtered on ${badFilter.join(', ')}`
+  if (badFilter.length) e.filters = t('chart.badFilter', { source: b.source, fields: badFilter.join(', ') })
   const timed = b.bucket !== 'none'
-  if ((b.chart === 'line' || b.chart === 'stacked') && !timed) e.bucket = 'Line and stacked charts need a time bucket'
-  if (b.chart === 'pie' && timed) e.bucket = 'A pie chart cannot have a time bucket'
-  if (b.chart === 'pie' && b.group_by.length === 0) e.group_by = 'A pie chart needs a group by field'
-  if (b.chart === 'stacked' && b.group_by.length === 0) e.group_by = 'A stacked chart needs a group by field'
+  if ((b.chart === 'line' || b.chart === 'stacked') && !timed) e.bucket = t('chart.needBucket')
+  if (b.chart === 'pie' && timed) e.bucket = t('chart.pieNoBucket')
+  if (b.chart === 'pie' && b.group_by.length === 0) e.group_by = t('chart.pieNeedGroup')
+  if (b.chart === 'stacked' && b.group_by.length === 0) e.group_by = t('chart.stackedNeedGroup')
   return e
 }
 
@@ -136,10 +144,12 @@ export function builderQuery(b: Builder): StatsQuery {
   }
 }
 
-// defaultTitle names an untitled chart after its query.
+// defaultTitle names an untitled chart after its query. It is shown as the
+// preview heading and the title field's placeholder, so the words come from the
+// catalog; metric names and field names stay as they are (they are data).
 export function defaultTitle(b: Builder): string {
-  const what = b.metric === 'bytes' ? 'Bytes' : 'Events'
-  const by = b.group_by.length ? ` by ${b.group_by.join(', ')}` : ''
+  const what = b.metric === 'bytes' ? t('chart.metric.bytes') : t('chart.titleEvents')
+  const by = b.group_by.length ? t('chart.groupedBy', { fields: b.group_by.join(', ') }) : ''
   const where = Object.entries(b.filters).map(([k, v]) => `${k}=${v}`).join(', ')
   return `${what}${by}${where ? ` (${where})` : ''}`
 }

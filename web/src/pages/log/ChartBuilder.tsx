@@ -4,21 +4,15 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { fieldsFor, getDashboards, saveDashboards, statsQuery, type ChartType, type Dashboards, type StatsResult } from '../../api/stats'
+import { t } from '../../i18n'
 import Chart from '../dashboard/Chart'
 import { addCustom, defaultDashboards, formatValue, toOption } from '../dashboard/dashboardLogic'
 import { RANGES, builderQuery, defaultTitle, emptyBuilder, validateBuilder, type Builder } from './logLogic'
 
-const CHARTS: { value: ChartType; label: string }[] = [
-  { value: 'bar', label: 'Bar' },
-  { value: 'line', label: 'Line' },
-  { value: 'stacked', label: 'Stacked bar' },
-  { value: 'pie', label: 'Pie' },
-  { value: 'table', label: 'Table' },
-]
 const input = 'mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-700'
 
 function Preview({ res, chart }: { res: StatsResult; chart: ChartType }) {
-  if (res.rows.length === 0) return <p className="py-10 text-center text-sm text-gray-500">No data in this time range.</p>
+  if (res.rows.length === 0) return <p className="py-10 text-center text-sm text-gray-500">{t('chart.noData')}</p>
   if (chart === 'table') {
     const metric = res.columns[res.columns.length - 1]
     return (
@@ -90,9 +84,9 @@ export default function ChartBuilder() {
     try {
       await saveDashboards(next)
       setDash(next)
-      setSaved(`Added "${title}" to ${d.name}.`)
+      setSaved(t('chart.added', { title, dashboard: d.name }))
     } catch (e) {
-      setSaved(`Could not save: ${(e as Error).message}`)
+      setSaved(t('chart.couldNotSave', { error: (e as Error).message }))
     }
   }
 
@@ -100,9 +94,9 @@ export default function ChartBuilder() {
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-3 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
         <label className="block">
-          Source
+          {t('chart.source')}
           <select
-            aria-label="Source"
+            aria-label={t('chart.source')}
             className={input}
             value={b.source}
             onChange={(e) => {
@@ -112,19 +106,19 @@ export default function ChartBuilder() {
               set({ source, group_by: b.group_by.filter((f) => ok.includes(f)), filters: Object.fromEntries(Object.entries(b.filters).filter(([k]) => ok.includes(k))) })
             }}
           >
-            <option value="events">Events (detailed, recent)</option>
-            <option value="rollup">Rollups (traffic per minute, kept longer)</option>
+            <option value="events">{t('chart.source.events')}</option>
+            <option value="rollup">{t('chart.source.rollup')}</option>
           </select>
         </label>
         <label className="block">
-          Metric
-          <select aria-label="Metric" className={input} value={b.metric} onChange={(e) => set({ metric: e.target.value as Builder['metric'] })}>
-            <option value="count">Count</option>
-            <option value="bytes">Bytes</option>
+          {t('chart.metric')}
+          <select aria-label={t('chart.metric')} className={input} value={b.metric} onChange={(e) => set({ metric: e.target.value as Builder['metric'] })}>
+            <option value="count">{t('chart.metric.count')}</option>
+            <option value="bytes">{t('chart.metric.bytes')}</option>
           </select>
         </label>
         <fieldset>
-          <legend>Group by (up to two)</legend>
+          <legend>{t('chart.groupBy')}</legend>
           <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-2">
             {fields.map((f) => (
               <label key={f} className="flex items-center gap-1">
@@ -136,12 +130,12 @@ export default function ChartBuilder() {
           {err('group_by')}
         </fieldset>
         <fieldset>
-          <legend>Filters</legend>
+          <legend>{t('chart.filters')}</legend>
           <div className="mt-1 flex gap-1">
-            <select aria-label="Filter field" className={input + ' mt-0'} value={filterField} onChange={(e) => setFilterField(e.target.value)}>
+            <select aria-label={t('log.filterField')} className={input + ' mt-0'} value={filterField} onChange={(e) => setFilterField(e.target.value)}>
               {fields.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
-            <input aria-label="Filter value" className={input + ' mt-0'} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} />
+            <input aria-label={t('log.filterValue')} className={input + ' mt-0'} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} />
             <button
               type="button"
               className="rounded border border-gray-300 px-2 dark:border-gray-600"
@@ -151,7 +145,7 @@ export default function ChartBuilder() {
                 setFilterValue('')
               }}
             >
-              Add
+              {t('chart.add')}
             </button>
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
@@ -160,7 +154,7 @@ export default function ChartBuilder() {
                 {k} = {v}
                 <button
                   type="button"
-                  aria-label={`Remove filter ${k}`}
+                  aria-label={t('log.removeFilterAria', { field: k })}
                   onClick={() => {
                     const filters = { ...b.filters }
                     delete filters[k]
@@ -176,27 +170,31 @@ export default function ChartBuilder() {
         </fieldset>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label className="block">
-            Time range
-            <select aria-label="Time range" className={input} value={b.range} onChange={(e) => set({ range: e.target.value as Builder['range'] })}>
-              {RANGES.map((r) => <option key={r} value={r}>Last {r}</option>)}
+            {t('chart.timeRange')}
+            <select aria-label={t('log.timeRange')} className={input} value={b.range} onChange={(e) => set({ range: e.target.value as Builder['range'] })}>
+              {RANGES.map((r) => <option key={r} value={r}>{t('log.last', { range: r })}</option>)}
             </select>
           </label>
           <label className="block">
-            Bucket
-            <select aria-label="Bucket" className={input} value={b.bucket} onChange={(e) => set({ bucket: e.target.value as Builder['bucket'] })}>
-              <option value="none">None (totals)</option>
-              <option value="auto">Auto</option>
-              <option value="1m">1 minute</option>
-              <option value="5m">5 minutes</option>
-              <option value="1h">1 hour</option>
+            {t('chart.bucket')}
+            <select aria-label={t('chart.bucket')} className={input} value={b.bucket} onChange={(e) => set({ bucket: e.target.value as Builder['bucket'] })}>
+              <option value="none">{t('chart.bucket.none')}</option>
+              <option value="auto">{t('chart.bucket.auto')}</option>
+              <option value="1m">{t('chart.bucket.1m')}</option>
+              <option value="5m">{t('chart.bucket.5m')}</option>
+              <option value="1h">{t('chart.bucket.1h')}</option>
             </select>
             {err('bucket')}
           </label>
         </div>
         <label className="block">
-          Chart
-          <select aria-label="Chart type" className={input} value={b.chart} onChange={(e) => set({ chart: e.target.value as ChartType })}>
-            {CHARTS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          {t('chart.chart')}
+          <select aria-label={t('chart.chartType')} className={input} value={b.chart} onChange={(e) => set({ chart: e.target.value as ChartType })}>
+            <option key="bar" value="bar">{t('chart.kind.bar')}</option>
+            <option key="line" value="line">{t('chart.kind.line')}</option>
+            <option key="stacked" value="stacked">{t('chart.kind.stacked')}</option>
+            <option key="pie" value="pie">{t('chart.kind.pie')}</option>
+            <option key="table" value="table">{t('chart.kind.table')}</option>
           </select>
         </label>
       </div>
@@ -205,28 +203,28 @@ export default function ChartBuilder() {
         <div className="rounded bg-white p-4 shadow-sm dark:bg-gray-800 dark:text-gray-200">
           <h3 className="mb-2 text-sm font-semibold">{b.title.trim() || defaultTitle(b)}</h3>
           {!valid ? (
-            <p className="py-10 text-center text-sm text-gray-500">Fix the highlighted settings to see a preview.</p>
+            <p className="py-10 text-center text-sm text-gray-500">{t('chart.fixSettings')}</p>
           ) : queryError ? (
             <p role="alert" className="py-10 text-center text-sm text-red-600">{queryError}</p>
           ) : res ? (
             <Preview res={res} chart={b.chart} />
           ) : (
-            <p className="py-10 text-center text-sm text-gray-500">Loading…</p>
+            <p className="py-10 text-center text-sm text-gray-500">{t('common.loading')}</p>
           )}
         </div>
         <div className="flex flex-wrap items-end gap-2 rounded bg-white p-4 text-sm shadow-sm dark:bg-gray-800 dark:text-gray-300">
           <label className="block flex-1">
-            Widget title
-            <input aria-label="Widget title" className={input} placeholder={defaultTitle(b)} value={b.title} onChange={(e) => set({ title: e.target.value })} />
+            {t('chart.widgetTitle')}
+            <input aria-label={t('chart.widgetTitle')} className={input} placeholder={defaultTitle(b)} value={b.title} onChange={(e) => set({ title: e.target.value })} />
           </label>
           <label className="block">
-            Dashboard
-            <select aria-label="Dashboard" className={input} value={target} onChange={(e) => setTarget(e.target.value)} disabled={!dash}>
+            {t('chart.dashboard')}
+            <select aria-label={t('chart.dashboard')} className={input} value={target} onChange={(e) => setTarget(e.target.value)} disabled={!dash}>
               {(dash?.dashboards ?? []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </label>
           <button type="button" disabled={!valid || !dash} onClick={save} className="rounded bg-blue-600 px-3 py-1.5 text-white disabled:opacity-50">
-            Save as widget
+            {t('chart.saveAsWidget')}
           </button>
           {saved && <p className="w-full text-sm text-gray-600 dark:text-gray-400" role="status">{saved}</p>}
         </div>

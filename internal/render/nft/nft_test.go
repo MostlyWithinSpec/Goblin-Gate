@@ -134,6 +134,7 @@ func TestGolden(t *testing.T) {
 		{"full", fullConfig()},
 		{"dual-stack", dualStackConfig()},
 		{"multi-wan", rendertest.MultiWAN()},
+		{"reverse-proxy", proxyConfig()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

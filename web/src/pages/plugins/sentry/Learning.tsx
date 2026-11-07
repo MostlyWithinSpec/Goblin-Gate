@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { BrainCircuit, Check, RotateCcw, Trash2, Play, AlertTriangle } from 'lucide-react'
 import { Badge } from '../../../components/Badge'
+import { t } from '../../../i18n'
 import SentryNav from './SentryNav'
 import {
   getModels,
@@ -20,14 +21,25 @@ import {
 const fmtTime = (rfc3339: string) => new Date(rfc3339).toLocaleString()
 const pct = (v: number) => `${Math.round(v * 100)}%`
 
-// Tools that have a confidence threshold. Blocks never act on the model's own
+// Tools with a confidence threshold. Blocks never act on the model's own
 // judgement, so there is no threshold for them.
-const THRESHOLD_TOOLS = [
-  { key: 'mark_false_positive', label: 'Mark false positive' },
-  { key: 'add_watch', label: 'Add to watch list' },
-  { key: 'notify_admin', label: 'Notify admin' },
-  { key: 'query_reputation', label: 'Query reputation' }
-]
+const THRESHOLD_TOOLS = ['mark_false_positive', 'add_watch', 'notify_admin', 'query_reputation']
+
+// toolLabel puts a tool through the catalog. A constant whose value is a t() call
+// at module load would freeze English, so every tool gets its own literal key in
+// here.
+function toolLabel(tool: string): string {
+  switch (tool) {
+    case 'mark_false_positive':
+      return t('learning.toolMarkFalsePositive')
+    case 'add_watch':
+      return t('learning.toolAddWatch')
+    case 'notify_admin':
+      return t('learning.toolNotifyAdmin')
+    default:
+      return t('learning.toolQueryReputation')
+  }
+}
 
 const inputClass =
   'mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm dark:bg-gray-700 dark:border-gray-600'
@@ -101,7 +113,7 @@ export default function Learning() {
     return (
       <div>
         <SentryNav />
-        <p className="mt-4 text-sm text-gray-500">Goblin Sentry is not running.</p>
+        <p className="mt-4 text-sm text-gray-500">{t('learning.notRunning')}</p>
       </div>
     )
   }
@@ -122,22 +134,22 @@ export default function Learning() {
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <BrainCircuit size={18} className="text-blue-600 dark:text-blue-400" />
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">G.O.B.L.I.N. learning</h2>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">{t('learning.title')}</h2>
         </div>
         <div className="flex items-center gap-2">
           {state && state.current > 0 && (
             <>
               <span className="text-sm text-gray-500">
-                Current: <strong>v{state.current}</strong>
+                {t('learning.current')} <strong>v{state.current}</strong>
               </span>
               <button
                 type="button"
                 onClick={() => rollbackMut.mutate()}
                 disabled={busy || !state.previous}
-                title={state.previous ? `Roll back to v${state.previous}` : 'No previous version to roll back to'}
+                title={state.previous ? t('learning.rollbackTo', { version: state.previous }) : t('learning.noPrevious')}
                 className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
               >
-                <RotateCcw size={14} /> Roll back
+                <RotateCcw size={14} /> {t('learning.rollback')}
               </button>
             </>
           )}
@@ -145,17 +157,20 @@ export default function Learning() {
             type="button"
             onClick={() => trainMut.mutate('knn')}
             disabled={busy || (!!job && !job.finished) || examples.length < 40}
-            title={examples.length < 40 ? `Needs at least 40 answered incidents (have ${examples.length})` : 'Train a new model'}
+            title={
+              examples.length < 40
+                ? t('learning.needsLead') + ' ' + t('learning.needsHave', { count: examples.length }) + ')'
+                : t('learning.trainNewModel')
+            }
             className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-40"
           >
-            <Play size={14} /> Train
+            <Play size={14} /> {t('learning.train')}
           </button>
         </div>
       </div>
 
       <p className="mt-2 max-w-3xl text-xs text-gray-500">
-        The model is only asked when your rules would put an incident in front of you. It never blocks on its own —
-        a block always becomes a suggestion you confirm. Read the evaluation report before accepting a new version.
+        {t('learning.modelAsksLead')} {t('learning.modelAsksMid')} {t('learning.modelAsksRest')}
       </p>
 
       {trainError && (
@@ -167,23 +182,31 @@ export default function Learning() {
 
       {job && !job.finished && (
         <div className="mt-3 rounded bg-blue-50 p-2 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
-          Training a {job.kind} model… this runs in the background. The page refreshes automatically when it is done.
+          {t('learning.training', { kind: job.kind })}
+          {' '}
+          {t('learning.trainingRest')}
         </div>
       )}
 
       {job?.finished && job.error && (
         <div role="alert" className="mt-3 flex items-start gap-2 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>Training failed: {job.error}</span>
+          <span>
+            {t('learning.trainingFailed')} {job.error}
+          </span>
         </div>
       )}
 
       {/* Model versions + evaluation reports */}
-      <h3 className="mt-6 text-base font-semibold text-gray-900 dark:text-white">Model versions</h3>
-      {modelsQ.isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>}
+      <h3 className="mt-6 text-base font-semibold text-gray-900 dark:text-white">{t('learning.versions')}</h3>
+      {modelsQ.isLoading && <p className="mt-2 text-sm text-gray-500">{t('common.loading')}</p>}
       {versions.length === 0 && !modelsQ.isLoading && (
         <p className="mt-2 text-sm text-gray-500">
-          No model yet. Answer at least 40 incidents, then press Train.
+          {t('learning.noModelLead')}
+          {' '}
+          {t('learning.noModelMid')}
+          {' '}
+          {t('learning.noModelRest')}
         </p>
       )}
 
@@ -204,40 +227,46 @@ export default function Learning() {
       {/* Confidence thresholds */}
       {policy && (
         <section className="mt-8">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Confidence thresholds</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('learning.thresholds')}</h3>
           <p className="mt-1 max-w-3xl text-xs text-gray-500">
-            The model only acts on its own when it is at least this confident, and the policy is set to “act”. Blocks
-            have no threshold — they are always a suggestion. Use: <strong>{policy.use}</strong>
+            {t('learning.thresholdsLead')}
+            {' '}
+            {t('learning.thresholdsMid')}
+            {' '}
+            {t('learning.thresholdsRest')}
+            {' '}
+            {t('learning.thresholdsUse')} <strong>{policy.use}</strong>
           </p>
 
           {policyDraft ? (
             <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-              <label className="block text-sm">Policy use
+              <label className="block text-sm">
+                {t('learning.policyUse')}
                 <select
                   value={policyDraft.use}
                   onChange={(e) => setPolicyDraft({ ...policyDraft, use: e.target.value as ModelPolicy['use'] })}
                   className={inputClass}
                 >
-                  <option value="off">off — model is not asked</option>
-                  <option value="suggest">suggest — show advice in the queue</option>
-                  <option value="act">act — act when confident enough</option>
+                  <option value="off">{t('learning.useOff')}</option>
+                  <option value="suggest">{t('learning.useSuggest')}</option>
+                  <option value="act">{t('learning.useAct')}</option>
                 </select>
               </label>
 
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {THRESHOLD_TOOLS.map((t) => (
-                  <label key={t.key} className="block text-sm">
-                    {t.label} ({pct(policyDraft.thresholds[t.key] ?? 0.8)})
+                {THRESHOLD_TOOLS.map((key) => (
+                  <label key={key} className="block text-sm">
+                    {toolLabel(key)} ({pct(policyDraft.thresholds[key] ?? 0.8)})
                     <input
                       type="range"
                       min={0.5}
                       max={1}
                       step={0.05}
-                      value={policyDraft.thresholds[t.key] ?? 0.8}
+                      value={policyDraft.thresholds[key] ?? 0.8}
                       onChange={(e) =>
                         setPolicyDraft({
                           ...policyDraft,
-                          thresholds: { ...policyDraft.thresholds, [t.key]: Number(e.target.value) }
+                          thresholds: { ...policyDraft.thresholds, [key]: Number(e.target.value) }
                         })
                       }
                     />
@@ -247,7 +276,7 @@ export default function Learning() {
 
               <div className="mt-4 flex justify-end gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
                 <button type="button" onClick={() => setPolicyDraft(null)} className="rounded border border-gray-300 px-3 py-1 text-sm dark:border-gray-600">
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -255,15 +284,15 @@ export default function Learning() {
                   onClick={() => policyMut.mutate(policyDraft)}
                   className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {policyMut.isPending ? 'Saving…' : 'Save thresholds'}
+                  {policyMut.isPending ? t('learning.saving') : t('learning.saveThresholds')}
                 </button>
               </div>
             </div>
           ) : (
             <div className="mt-3 flex items-center gap-4">
-              {THRESHOLD_TOOLS.map((t) => (
-                <span key={t.key} className="text-sm text-gray-600 dark:text-gray-300">
-                  {t.label}: <strong>{pct(policy.thresholds[t.key] ?? 0.8)}</strong>
+              {THRESHOLD_TOOLS.map((key) => (
+                <span key={key} className="text-sm text-gray-600 dark:text-gray-300">
+                  {toolLabel(key)}: <strong>{pct(policy.thresholds[key] ?? 0.8)}</strong>
                 </span>
               ))}
               <button
@@ -271,7 +300,7 @@ export default function Learning() {
                 onClick={() => setPolicyDraft({ use: policy.use, thresholds: { ...policy.thresholds } })}
                 className="rounded border border-blue-300 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/30"
               >
-                Edit
+                {t('learning.edit')}
               </button>
             </div>
           )}
@@ -281,26 +310,27 @@ export default function Learning() {
       {/* Learned behaviour */}
       <section className="mt-8">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-          Learned behaviour <span className="text-sm font-normal text-gray-500">({examples.length})</span>
+          {t('learning.learned')} <span className="text-sm font-normal text-gray-500">({examples.length})</span>
         </h3>
         <p className="mt-1 max-w-3xl text-xs text-gray-500">
-          The admin decisions the model learned from. Remove one if it was a mistake — it will be dropped from future
-          training.
+          {t('learning.learnedLead')}
+          {' '}
+          {t('learning.learnedRest')}
         </p>
 
-        {examplesQ.isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>}
+        {examplesQ.isLoading && <p className="mt-2 text-sm text-gray-500">{t('common.loading')}</p>}
         {examples.length === 0 && !examplesQ.isLoading && (
-          <p className="mt-2 text-sm text-gray-500">No learned decisions yet.</p>
+          <p className="mt-2 text-sm text-gray-500">{t('learning.noLearned')}</p>
         )}
 
         <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">When</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Signature</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">You answered</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colWhen')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colSignature')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colSource')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colAnswered')}</th>
                 <th className="w-16 px-2 py-2" />
               </tr>
             </thead>
@@ -316,22 +346,25 @@ export default function Learning() {
       {/* False positives */}
       <section className="mt-8">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-          False positives <span className="text-sm font-normal text-gray-500">({falsePositives.length})</span>
+          {t('learning.falsePositives')} <span className="text-sm font-normal text-gray-500">({falsePositives.length})</span>
         </h3>
         <p className="mt-1 max-w-3xl text-xs text-gray-500">
-          Incidents you told the model to ignore. These teach it what is not an attack — a wrong one here makes it
-          miss real threats, so remove any that are mistakes.
+          {t('learning.falseLead')}
+          {' '}
+          {t('learning.falseMid')}
+          {' '}
+          {t('learning.falseRest')}
         </p>
 
-        {falsePositives.length === 0 && <p className="mt-2 text-sm text-gray-500">None recorded.</p>}
+        {falsePositives.length === 0 && <p className="mt-2 text-sm text-gray-500">{t('learning.noneRecorded')}</p>}
 
         <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">When</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Signature</th>
-                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colWhen')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colSignature')}</th>
+                <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colSource')}</th>
                 <th className="w-16 px-2 py-2" />
               </tr>
             </thead>
@@ -367,7 +400,7 @@ function ExampleRow({ ex, onDelete }: { ex: LearnedExample; onDelete: () => void
           type="button"
           onClick={onDelete}
           className="rounded p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
-          title="Remove this learned decision"
+          title={t('learning.removeTitle')}
         >
           <Trash2 size={14} />
         </button>
@@ -399,7 +432,7 @@ function VersionCard({
         <Badge variant="secondary">{v.kind}</Badge>
         {isCurrent && <Badge variant="success">current</Badge>}
         <span className="text-xs text-gray-500">{fmtTime(v.created)}</span>
-        <span className="text-xs text-gray-500">{v.examples} examples</span>
+        <span className="text-xs text-gray-500">{t('learning.examplesCount', { count: v.examples })}</span>
 
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -407,7 +440,7 @@ function VersionCard({
             onClick={onToggleReport}
             className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
           >
-            {showReport ? 'Hide report' : 'Evaluation report'}
+            {showReport ? t('learning.hideReport') : t('learning.evaluationReport')}
           </button>
           {!isCurrent && (
             <button
@@ -416,7 +449,7 @@ function VersionCard({
               disabled={busy}
               className="flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700 disabled:opacity-50"
             >
-              <Check size={14} /> Accept
+              <Check size={14} /> {t('learning.accept')}
             </button>
           )}
         </div>
@@ -425,23 +458,23 @@ function VersionCard({
       {showReport && (
         <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
           <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm sm:grid-cols-4">
-            <Stat label="Accuracy" value={pct(r.accuracy)} />
-            <Stat label="Train / test" value={`${r.train} / ${r.test}`} />
-            <Stat label="Blocked but ignored" value={String(r.blocked_ignored)} bad={r.blocked_ignored > 0} />
-            <Stat label="Ignored but blocked" value={String(r.ignored_blocked)} bad={r.ignored_blocked > 0} />
+            <Stat label={t('learning.statAccuracy')} value={pct(r.accuracy)} />
+            <Stat label={t('learning.statTrainTest')} value={`${r.train} / ${r.test}`} />
+            <Stat label={t('learning.statBlockedIgnored')} value={String(r.blocked_ignored)} bad={r.blocked_ignored > 0} />
+            <Stat label={t('learning.statIgnoredBlocked')} value={String(r.ignored_blocked)} bad={r.ignored_blocked > 0} />
           </dl>
 
           {/* Accuracy per action */}
           <div className="mt-3">
-            <p className="mb-1 text-xs font-medium uppercase text-gray-500">Accuracy per action</p>
+            <p className="mb-1 text-xs font-medium uppercase text-gray-500">{t('learning.accuracyPerAction')}</p>
             <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
               <thead>
                 <tr>
-                  <th className="px-2 py-1 text-left text-xs font-medium uppercase text-gray-500">Action</th>
-                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">n</th>
-                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Correct</th>
-                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Precision</th>
-                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Recall</th>
+                  <th className="px-2 py-1 text-left text-xs font-medium uppercase text-gray-500">{t('learning.colAction')}</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colN')}</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colCorrect')}</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colPrecision')}</th>
+                  <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colRecall')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
@@ -463,32 +496,37 @@ function VersionCard({
           {/* Would-be wrong blocks */}
           {(r.blocked_ignored > 0 || r.ignored_blocked > 0) && (
             <div className="mt-3 rounded bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
-              Would-be wrong blocks: the model blocked {r.blocked_ignored} incident(s) you would have ignored, and
-              missed {r.ignored_blocked} you would have blocked. A high number means it is not safe to let this one act.
+              {t('learning.wrongBlocksLead')}
+              {' '}
+              {t('learning.wrongBlocksMid', { blocked: r.blocked_ignored })}
+              {' '}
+              {t('learning.wrongBlocksRest', { missed: r.ignored_blocked })}
+              {' '}
+              {t('learning.wrongBlocksEnd')}
             </div>
           )}
 
           {/* Threshold analysis */}
           {r.thresholds.length > 0 && (
             <div className="mt-3">
-              <p className="mb-1 text-xs font-medium uppercase text-gray-500">Acting above a confidence threshold</p>
+              <p className="mb-1 text-xs font-medium uppercase text-gray-500">{t('learning.actingAbove')}</p>
               <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
                 <thead>
                   <tr>
-                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Threshold</th>
-                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Would act</th>
-                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Wrong</th>
-                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">Hidden attacks</th>
+                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colThreshold')}</th>
+                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colWouldAct')}</th>
+                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colWrong')}</th>
+                    <th className="px-2 py-1 text-right text-xs font-medium uppercase text-gray-500">{t('learning.colHidden')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                  {r.thresholds.map((t) => (
-                    <tr key={t.threshold}>
-                      <td className="px-2 py-1 text-right">{pct(t.threshold)}</td>
-                      <td className="px-2 py-1 text-right text-gray-600 dark:text-gray-300">{t.acted}</td>
-                      <td className={`px-2 py-1 text-right ${t.wrong > 0 ? 'text-red-600' : ''}`}>{t.wrong}</td>
-                      <td className={`px-2 py-1 text-right ${t.hidden_attacks > 0 ? 'text-red-600' : ''}`}>
-                        {t.hidden_attacks}
+                  {r.thresholds.map((row) => (
+                    <tr key={row.threshold}>
+                      <td className="px-2 py-1 text-right">{pct(row.threshold)}</td>
+                      <td className="px-2 py-1 text-right text-gray-600 dark:text-gray-300">{row.acted}</td>
+                      <td className={`px-2 py-1 text-right ${row.wrong > 0 ? 'text-red-600' : ''}`}>{row.wrong}</td>
+                      <td className={`px-2 py-1 text-right ${row.hidden_attacks > 0 ? 'text-red-600' : ''}`}>
+                        {row.hidden_attacks}
                       </td>
                     </tr>
                   ))}
@@ -498,8 +536,12 @@ function VersionCard({
           )}
 
           <p className="mt-3 text-xs text-gray-500">
-            Novel incidents: {r.novel} ({r.novel_correct} right, {r.novel_acted} acted) · invalid predictions:{' '}
-            {r.invalid} · latency {Math.round(r.latency_ms)} ms
+            {t('learning.novelLead', { novel: r.novel })}
+            {' '}
+            {t('learning.novelMid', { right: r.novel_correct, acted: r.novel_acted })}
+            {' · '}
+            {t('learning.novelInvalid')} {r.invalid} {' · '}
+            {t('learning.latency')} {Math.round(r.latency_ms)} {' ms'}
           </p>
         </div>
       )}

@@ -35,7 +35,7 @@ retry() { # retry <seconds> <command...>
 
 log "installing tools"
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps radvd kea-dhcp6-server iputils-ping tcpdump openssh-client openssh-server git >/dev/null 2>&1
+apt-get install -y -qq qemu-system-x86 qemu-utils kmod dnsmasq iproute2 iptables curl dnsutils jq python3 isc-dhcp-client procps radvd kea-dhcp6-server iputils-ping tcpdump openssh-client openssh-server git iperf3 >/dev/null 2>&1
 modprobe kvm_amd 2>/dev/null || modprobe kvm_intel 2>/dev/null || true
 [ -e /dev/kvm ] || mknod /dev/kvm c 10 232
 ACCEL=kvm; qemu-system-x86_64 -accel kvm -M none -display none -S -daemonize -pidfile /tmp/k.pid 2>/dev/null && kill "$(cat /tmp/k.pid)" || ACCEL=tcg
@@ -387,6 +387,20 @@ api POST /api/v1/diag/traceroute '{"host":"203.0.113.80","max_hops":5}' >"$A/dia
 check diag-traceroute jq -e '[.hops[] | select(.address == "203.0.113.80")] | length == 1' "$A/diag-traceroute.json"
 api POST /api/v1/diag/dns '{"name":"www.test.example"}' >"$A/diag-dns.json"
 check diag-dns jq -e '.rcode == "NOERROR" and (.answers | index("203.0.113.80"))' "$A/diag-dns.json"
+
+# --- throughput test server: open on the LAN for the test only, never on the WAN
+api POST /api/v1/diag/throughput '{"interface":"lan","minutes":2}' >"$A/throughput-start.json"
+check tp-started jq -e '.running and .address == "192.168.1.1" and .port == 5201' "$A/throughput-start.json"
+WAN_IP=$(awk '{print $3}' /tmp/inet.leases | head -1)
+check tp-wan-closed sh -c "[ -n '$WAN_IP' ] && ! $IN timeout 5 bash -c 'echo > /dev/tcp/$WAN_IP/5201' 2>/dev/null"
+retry 20 $CL timeout 15 iperf3 -c 192.168.1.1 -t 3 >"$A/iperf3-client.txt" 2>&1
+TP="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/diag/throughput"
+check tp-result retry 20 sh -c "$TP | jq -e '[.results[] | select(.direction == \"upload\" and .bits_per_second > 0)] | length >= 1'"
+api DELETE /api/v1/diag/throughput >"$A/throughput-stop.json"
+check tp-stopped jq -e '.running == false' "$A/throughput-stop.json"
+check tp-port-closed sh -c "! $CL timeout 5 bash -c 'echo > /dev/tcp/192.168.1.1/5201' 2>/dev/null"
+api GET /api/v1/diag/nics >"$A/diag-nics.json"
+check diag-nics jq -e '[.interfaces[] | select(.name == "lan" and .device != "")] | length == 1' "$A/diag-nics.json"
 
 # --- artifacts
 for p in /api/v1/system/status /api/v1/feeds "/api/v1/logs?limit=200" /api/v1/config/running /api/v1/stats/policies; do

@@ -5,6 +5,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, X } from 'lucide-react'
 import { EditDrawer } from '../../components/EditDrawer'
+import { t } from '../../i18n'
 import { simulatePolicy, type SimProtocol, type SimulateRequest, type SimulateResult } from '../../api/policy'
 
 const input = 'w-full rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-700'
@@ -67,7 +68,7 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
   }
 
   return (
-    <EditDrawer isOpen onClose={onClose} title="Simulate a connection">
+    <EditDrawer isOpen onClose={onClose} title={t('simulator.title')}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -76,17 +77,17 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
         }}
       >
         <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Source IP
-          <input aria-label="Source IP" className={input + ' mt-1'} value={srcIP} onChange={(e) => setSrcIP(e.target.value)} placeholder="192.168.1.20" />
+          {t('simulator.sourceIP')}
+          <input aria-label={t('simulator.sourceIP')} className={input + ' mt-1'} value={srcIP} onChange={(e) => setSrcIP(e.target.value)} placeholder="192.168.1.20" />
         </label>
         <label className="block text-sm text-gray-700 dark:text-gray-300">
-          Destination IP
-          <input aria-label="Destination IP" className={input + ' mt-1'} value={dstIP} onChange={(e) => setDstIP(e.target.value)} placeholder="8.8.8.8" />
+          {t('simulator.destinationIP')}
+          <input aria-label={t('simulator.destinationIP')} className={input + ' mt-1'} value={dstIP} onChange={(e) => setDstIP(e.target.value)} placeholder="8.8.8.8" />
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Protocol
-            <select aria-label="Protocol" className={input + ' mt-1'} value={protocol} onChange={(e) => setProtocol(e.target.value as SimProtocol)}>
+            {t('simulator.protocol')}
+            <select aria-label={t('simulator.protocol')} className={input + ' mt-1'} value={protocol} onChange={(e) => setProtocol(e.target.value as SimProtocol)}>
               {(['any', 'tcp', 'udp', 'icmp'] as SimProtocol[]).map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
@@ -94,35 +95,35 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
           </label>
           {showPort && (
             <label className="block text-sm text-gray-700 dark:text-gray-300">
-              Destination port
-              <input aria-label="Destination port" type="number" min={1} max={65535} className={input + ' mt-1'} value={dstPort} onChange={(e) => setDstPort(e.target.value)} placeholder="443" />
+              {t('simulator.destinationPort')}
+              <input aria-label={t('simulator.destinationPort')} type="number" min={1} max={65535} className={input + ' mt-1'} value={dstPort} onChange={(e) => setDstPort(e.target.value)} placeholder="443" />
             </label>
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Source interface
-            <select aria-label="Source interface" className={input + ' mt-1'} value={srcIntf} onChange={(e) => setSrcIntf(e.target.value)}>
-              <option value="">(from source IP)</option>
+            {t('simulator.sourceInterface')}
+            <select aria-label={t('simulator.sourceInterface')} className={input + ' mt-1'} value={srcIntf} onChange={(e) => setSrcIntf(e.target.value)}>
+              <option value="">{t('simulator.fromSourceIP')}</option>
               {interfaces.map((i) => (
                 <option key={i} value={i}>{i}</option>
               ))}
             </select>
           </label>
           <label className="block text-sm text-gray-700 dark:text-gray-300">
-            Time
-            <input aria-label="Time" type="datetime-local" className={input + ' mt-1'} value={at} onChange={(e) => setAt(e.target.value)} />
+            {t('simulator.time')}
+            <input aria-label={t('simulator.time')} type="datetime-local" className={input + ' mt-1'} value={at} onChange={(e) => setAt(e.target.value)} />
           </label>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={config === 'candidate'} onChange={(e) => setConfig(e.target.checked ? 'candidate' : 'running')} />
-          Simulate against the candidate config (unchecked = running)
+          {t('simulator.againstCandidate')}
         </label>
 
         {error && <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900 dark:text-red-200">{error}</div>}
 
         <button type="submit" disabled={busy || !srcIP.trim() || !dstIP.trim()} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
-          {busy ? 'Simulating…' : 'Simulate connection'}
+          {busy ? t('simulator.simulating') : t('simulator.simulateConnection')}
         </button>
       </form>
 
@@ -137,10 +138,12 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
           <p className="text-sm text-gray-700 dark:text-gray-300">{result.reason}</p>
 
           <div className="flex flex-wrap gap-1">
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">chain: {result.chain}</span>
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+              {t('simulator.chain')} {result.chain}
+            </span>
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">{result.src_intf}{result.dst_intf ? ` → ${result.dst_intf}` : ''}</span>
-            {result.nat && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">NAT</span>}
-            {result.gateway && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">gw: {result.gateway}</span>}
+            {result.nat && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">{t('policies.nat')}</span>}
+            {result.gateway && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-200">{t('simulator.gw')} {result.gateway}</span>}
             {Object.entries(result.profiles ?? {}).map(([k, v]) => (
               <span key={k} className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                 {k}: {v}
@@ -150,17 +153,17 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
 
           {result.blocked_by && (
             <p className="text-sm font-medium text-red-700 dark:text-red-300">
-              Blocked by {result.blocked_by.kind === 'temp_block' ? 'temporary block' : 'threat feed'}: {result.blocked_by.name}
+              {t('simulator.blockedBy')} {result.blocked_by.kind === 'temp_block' ? t('simulator.temporaryBlock') : t('simulator.threatFeed')} {result.blocked_by.name}
             </p>
           )}
           {result.translated && <p className="text-sm text-gray-600 dark:text-gray-300">{result.translated}</p>}
 
           {result.policy ? (
             <Link to={`/policy?edit=${result.policy.id}`} onClick={openPolicy(result.policy.id)} className="flex min-h-[40px] items-center justify-center rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">
-              Matched policy: {result.policy.name}
+              {t('simulator.matchedPolicy', { name: result.policy.name })}
             </Link>
           ) : (
-            <p className="text-sm text-gray-500">No policy matched.</p>
+            <p className="text-sm text-gray-500">{t('simulator.noPolicyMatched')}</p>
           )}
 
           {result.notes && result.notes.length > 0 && (
@@ -172,7 +175,7 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
           )}
 
           <div>
-            <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">Steps</h3>
+            <h3 className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-200">{t('simulator.steps')}</h3>
             <ol className="space-y-1">
               {result.steps.map((s) => (
                 <li
@@ -184,7 +187,7 @@ export default function PolicySimulator({ interfaces, initial, onClose, onOpenPo
                   <span className="flex-1">
                     {s.name}
                     {result.policy?.id === s.id && (
-                      <Link to={`/policy?edit=${s.id}`} onClick={openPolicy(s.id)} className="ml-1 text-blue-600 hover:underline dark:text-blue-400">open</Link>
+                      <Link to={`/policy?edit=${s.id}`} onClick={openPolicy(s.id)} className="ml-1 text-blue-600 hover:underline dark:text-blue-400">{t('simulator.open')}</Link>
                     )}
                   </span>
                   <span className="text-xs text-gray-500">{s.reason}</span>

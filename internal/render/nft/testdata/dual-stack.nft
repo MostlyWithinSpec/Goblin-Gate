@@ -86,6 +86,11 @@ table inet goblin {
 		comment "temporary blocks"
 	}
 
+	set throughput_ifs {
+		type ifname
+		comment "throughput test server open"
+	}
+
 	counter policy_10 {
 		comment "block-bad6"
 	}
@@ -132,6 +137,7 @@ table inet goblin {
 		iifname { "eth1", "eth1.20" } meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		iifname { "eth1", "eth1.20" } meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		jump threat_feeds_input
+		iifname @throughput_ifs meta l4proto { tcp, udp } th dport 5201 accept
 		iifname "eth1.20" meta nfproto ipv6 meta l4proto { tcp, udp } th dport 53 reject comment "dns filter kids: dns over ipv4 only"
 		icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert, packet-too-big, destination-unreachable, time-exceeded, parameter-problem } accept comment "ipv6: neighbor discovery and errors"
 		iifname "eth1.20" meta l4proto { tcp, udp } th dport 53 accept comment "guest: dns"

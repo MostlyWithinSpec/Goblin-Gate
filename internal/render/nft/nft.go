@@ -104,6 +104,7 @@ type ruleset struct {
 	rpf         []string // input and forward: reverse-path drops (fib; not simulated)
 	dnsFwd      []string // forward: no DNS-over-TLS around the filter
 	pre         []string // goblin_nat prerouting
+	proxyPre    []string // goblin_nat prerouting: reverse proxy redirects (proxy.go; not simulated)
 	route       render.RoutingPlan
 	routePol    []string            // chain route_policies (task 049)
 	owner       map[int]uint32      // index in forward -> id of the policy it belongs to
@@ -146,6 +147,7 @@ func prepare(cfg *config.Config) (*ruleset, error) {
 	if err := r.portForwards(); err != nil {
 		return nil, err
 	}
+	r.reverseProxy()
 	if err := r.policies(); err != nil {
 		return nil, err
 	}

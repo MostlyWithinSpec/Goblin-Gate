@@ -2,20 +2,21 @@
 import { Checklist, ConfigList } from '../../components/ConfigList'
 import type { Group } from '../../api/objects'
 import { validateGroup } from './networkLogic'
+import { t } from '../../i18n'
 
 export default function ServiceGroups() {
   return (
     <ConfigList<Group>
-      title="Service Groups"
+      title={t('serviceGroups.title')}
       path="service_groups"
-      newLabel="New service group"
+      newLabel={t('serviceGroups.newGroup')}
       select={(c) => c.service_groups}
       empty={() => ({ name: '', members: [] })}
       validate={(g, cfg) => validateGroup(g, (cfg.services ?? []).map((x) => x.name), 'service')}
-      columns={[{ label: 'Members', render: (g) => (g.members ?? []).join(', ') }]}
+      columns={[{ label: t('serviceGroups.col.members'), render: (g) => (g.members ?? []).join(', ') }]}
       form={(g, set, { cfg, err }) => (
         <>
-          <Checklist label="Members" options={(cfg.services ?? []).map((s) => s.name)} value={g.members ?? []} onChange={(members) => set({ members })} />
+          <Checklist label={t('serviceGroups.members')} options={(cfg.services ?? []).map((s) => s.name)} value={g.members ?? []} onChange={(members) => set({ members })} />
           {err('members')}
         </>
       )}

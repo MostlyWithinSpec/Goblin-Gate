@@ -109,6 +109,8 @@ if (-not $SkipWeb) {
             }
             if ($scripts.test)  { Invoke-Step 'web test' { npm test --silent } }
         } finally { Pop-Location }
+        # moving page text into the translation catalog must keep the English (uncommitted changes vs HEAD)
+        Invoke-Step 'i18n wording' { node (Join-Path $PSScriptRoot 'i18n-wording-check.mjs') }
     }
 }
 

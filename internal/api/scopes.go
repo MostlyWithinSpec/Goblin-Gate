@@ -48,10 +48,13 @@ var routeScopes = map[string]string{
 	"POST /api/v1/diag/ping":            auth.ScopeActions,
 	"POST /api/v1/diag/traceroute":      auth.ScopeActions,
 	"POST /api/v1/diag/dns":             auth.ScopeActions,
+	"POST /api/v1/diag/throughput":      auth.ScopeActions,
+	"DELETE /api/v1/diag/throughput":    auth.ScopeActions,
 	"POST /api/v1/feeds/{name}/refresh": auth.ScopeActions,
 	"POST /api/v1/geoip/refresh":        auth.ScopeActions,
 	"POST /api/v1/notifications/test":   auth.ScopeActions,
 	"PUT /api/v1/ui/dashboards":         auth.ScopeActions,
+	"PUT /api/v1/ui/prefs":              auth.ScopeActions,
 	"POST /api/v1/git-backup/push":      auth.ScopeActions,
 
 	// full admins only: accounts, credentials, code, whole-box changes
@@ -74,6 +77,7 @@ var routeScopes = map[string]string{
 	"POST /api/v1/plugins/{name}/enable":                   scopeAdmin,
 	"POST /api/v1/plugins/{name}/disable":                  scopeAdmin,
 	"PUT /api/v1/plugins/{name}/settings":                  scopeAdmin,
+	"PUT /api/v1/plugins/{name}/policies":                  scopeAdmin,
 	"POST /api/v1/git-backup/forget-host-key":              scopeAdmin,
 	"PUT /api/v1/vpn/wireguard-clients/{name}/private-key": scopeAdmin,
 	"POST /api/v1/vpn/wireguard/{name}/peers":              scopeAdmin, // answers with a private key
@@ -97,9 +101,9 @@ var sectionScopes = map[string]string{
 	"nat": auth.ScopeWriteFirewall, "profiles": auth.ScopeWriteFirewall,
 	"feeds": auth.ScopeWriteFirewall, "geoip": auth.ScopeWriteFirewall,
 	"upnp": auth.ScopeWriteFirewall, "custom_rules": auth.ScopeWriteFirewall,
-	"crowdsec": auth.ScopeWriteFirewall,
-	"ups":      auth.ScopeWriteSystem,
-	"ips":      auth.ScopeWriteFirewall,
+	"crowdsec": auth.ScopeWriteFirewall, "reverse_proxy": auth.ScopeWriteFirewall,
+	"ups": auth.ScopeWriteSystem,
+	"ips": auth.ScopeWriteFirewall,
 
 	"interfaces": auth.ScopeWriteNetwork, "vlans": auth.ScopeWriteNetwork,
 	"dhcp": auth.ScopeWriteNetwork, "dns": auth.ScopeWriteNetwork,

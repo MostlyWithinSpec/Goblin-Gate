@@ -307,10 +307,14 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if cfg, err := s.Store.Running(); err == nil {
 		totp = adminTOTP(cfg, id.User) != ""
 	}
-	writeJSON(w, http.StatusOK, struct {
-		auth.Identity
-		TOTPEnabled bool `json:"totp_enabled"`
-	}{id, totp})
+	writeJSON(w, http.StatusOK, meResponse{id, totp})
+}
+
+// meResponse is who is asking: the identity plus whether two-factor login
+// is on for them.
+type meResponse struct {
+	auth.Identity
+	TOTPEnabled bool `json:"totp_enabled"`
 }
 
 func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) (auth.Identity, bool) {

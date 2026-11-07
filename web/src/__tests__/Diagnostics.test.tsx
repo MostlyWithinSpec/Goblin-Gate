@@ -68,7 +68,7 @@ describe('Diagnostics', () => {
   it('traceroute tab sends the right body and renders the hop table', async () => {
     vi.mocked(diagTraceroute).mockResolvedValue(traceResult)
     wrap(<Diagnostics />)
-    fireEvent.click(screen.getByRole('button', { name: 'traceroute' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Traceroute' }))
     const host = await screen.findByPlaceholderText('example.com or 1.2.3.4')
     fireEvent.change(host, { target: { value: 'example.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Trace' }))
@@ -83,7 +83,7 @@ describe('Diagnostics', () => {
   it('dns tab sends the right body and renders rcode, time and answers', async () => {
     vi.mocked(diagDNS).mockResolvedValue(dnsResult)
     wrap(<Diagnostics />)
-    fireEvent.click(screen.getByRole('button', { name: 'dns' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'DNS' }))
     const name = await screen.findByPlaceholderText('example.com')
     fireEvent.change(name, { target: { value: 'example.com' } })
     fireEvent.change(screen.getByDisplayValue('box'), { target: { value: '8.8.8.8' } })
@@ -110,7 +110,7 @@ describe('Diagnostics', () => {
       new APIRequestError('unknown host "nope.example"', 400, 'diag_failed', null),
     )
     wrap(<Diagnostics />)
-    fireEvent.click(screen.getByRole('button', { name: 'traceroute' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Traceroute' }))
     const host = await screen.findByPlaceholderText('example.com or 1.2.3.4')
     fireEvent.change(host, { target: { value: 'nope.example' } })
     fireEvent.click(screen.getByRole('button', { name: 'Trace' }))

@@ -109,6 +109,10 @@ func (s *Server) twoFactorSetup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+type twoFactorEnableRequest struct {
+	Code string `json:"code"`
+}
+
 // POST /api/v1/auth/2fa/enable {code} → stores the pending secret once a
 // code from it matches.
 func (s *Server) twoFactorEnable(w http.ResponseWriter, r *http.Request) {
@@ -116,9 +120,7 @@ func (s *Server) twoFactorEnable(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req struct {
-		Code string `json:"code"`
-	}
+	var req twoFactorEnableRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -142,15 +144,17 @@ func (s *Server) twoFactorEnable(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "enabled"})
 }
 
+type twoFactorDisableRequest struct {
+	Password string `json:"password"`
+}
+
 // POST /api/v1/auth/2fa/disable {password} → turns two-factor login off.
 func (s *Server) twoFactorDisable(w http.ResponseWriter, r *http.Request) {
 	user, ok := s.twoFactorUser(w, r)
 	if !ok {
 		return
 	}
-	var req struct {
-		Password string `json:"password"`
-	}
+	var req twoFactorDisableRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

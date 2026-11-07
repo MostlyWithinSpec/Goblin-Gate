@@ -2,43 +2,44 @@
 import { ConfigList, inputClass, omitEmpty } from '../../components/ConfigList'
 import type { Service } from '../../api/objects'
 import { validateService } from './networkLogic'
+import { t } from '../../i18n'
 
 export default function Services() {
   return (
     <ConfigList<Service>
-      title="Services"
+      title={t('services.title')}
       path="services"
-      newLabel="New service"
+      newLabel={t('services.newService')}
       select={(c) => c.services}
       empty={() => ({ name: '', protocol: 'tcp', ports: '' })}
       clean={(s) => omitEmpty({ ...s, ports: s.protocol === 'tcp' || s.protocol === 'udp' ? s.ports?.replace(/\s+/g, '') : '', comment: s.comment?.trim() })}
       validate={(s) => validateService(s)}
       columns={[
-        { label: 'Protocol', render: (s) => s.protocol.toUpperCase() },
-        { label: 'Ports', render: (s) => s.ports },
-        { label: 'Comment', render: (s) => s.comment },
+        { label: t('services.col.protocol'), render: (s) => s.protocol.toUpperCase() },
+        { label: t('services.col.ports'), render: (s) => s.ports },
+        { label: t('services.col.comment'), render: (s) => s.comment },
       ]}
       form={(s, set, { err }) => (
         <>
           <label className="block">
-            Protocol
-            <select aria-label="Protocol" className={inputClass} value={s.protocol} onChange={(e) => set({ protocol: e.target.value as Service['protocol'] })}>
+            {t('services.protocol')}
+            <select aria-label={t('services.protocol')} className={inputClass} value={s.protocol} onChange={(e) => set({ protocol: e.target.value as Service['protocol'] })}>
               <option value="tcp">TCP</option>
               <option value="udp">UDP</option>
               <option value="icmp">ICMP</option>
-              <option value="any">Any</option>
+              <option value="any">{t('services.protocol.any')}</option>
             </select>
           </label>
           {(s.protocol === 'tcp' || s.protocol === 'udp') && (
             <label className="block">
-              Ports
-              <input aria-label="Ports" className={inputClass} placeholder="80,443,8000-8100" value={s.ports ?? ''} onChange={(e) => set({ ports: e.target.value })} />
+              {t('services.ports')}
+              <input aria-label={t('services.ports')} className={inputClass} placeholder={t('services.portsPlaceholder')} value={s.ports ?? ''} onChange={(e) => set({ ports: e.target.value })} />
               {err('ports')}
             </label>
           )}
           <label className="block">
-            Comment
-            <input aria-label="Comment" className={inputClass} value={s.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
+            {t('services.comment')}
+            <input aria-label={t('services.comment')} className={inputClass} value={s.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
           </label>
         </>
       )}

@@ -3,6 +3,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Clock, FlaskConical, GripVertical, MoreVertical, Plus } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
+import { t } from '../../i18n'
 import {
   getCandidate,
   getPolicyHits,
@@ -73,7 +74,7 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
     >
       <td className="px-1">
         {draggable && (
-          <button type="button" aria-label={`Drag policy ${p.id}`} className="cursor-grab text-gray-400" {...attributes} {...listeners}>
+          <button type="button" aria-label={t('policies.dragPolicy', { id: p.id })} className="cursor-grab text-gray-400" {...attributes} {...listeners}>
             <GripVertical size={16} />
           </button>
         )}
@@ -96,10 +97,10 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
       <td className="px-2 py-1"><Chips items={p.service} /></td>
       <td className="px-2 py-1 text-sm">
         <span className={`rounded px-1.5 py-0.5 text-xs font-medium text-white ${p.action === 'accept' ? 'bg-green-600' : 'bg-red-600'}`}>
-          {p.action === 'accept' ? 'ACCEPT' : 'DENY'}
+          {p.action === 'accept' ? t('policies.accept') : t('policies.deny')}
         </span>
       </td>
-      <td className="px-2 py-1 text-sm">{p.nat ? 'NAT' : ''}</td>
+      <td className="px-2 py-1 text-sm">{p.nat ? t('policies.nat') : ''}</td>
       <td className="px-2 py-1">
         <div className="flex gap-1">
           {profileBadges(p).map((b) => (
@@ -120,7 +121,7 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
       </td>
       <td className="px-2 py-1 text-right text-sm tabular-nums">{hit}</td>
       <td className="px-2 py-1">
-        <input type="checkbox" aria-label={`Enable policy ${p.id}`} checked={p.enabled} onChange={onToggle} />
+        <input type="checkbox" aria-label={t('policies.enablePolicy', { id: p.id })} checked={p.enabled} onChange={onToggle} />
       </td>
       {/* pinned to the right edge so the actions stay visible on a wide
           table; the menu is fixed-positioned so the scroll box can't clip it */}
@@ -128,7 +129,7 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
         <button
           ref={menuButton}
           type="button"
-          aria-label={`Actions for policy ${p.id}`}
+          aria-label={t('policies.actionsForPolicy', { id: p.id })}
           onClick={() => onMenu(!menuOpen)}
           className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
@@ -142,11 +143,11 @@ function Row({ p, hits, draggable, menuOpen, onEdit, onToggle, onMenu, onAction 
           >
             {(
               [
-                ['clone', 'Clone'],
-                ['above', 'Insert above'],
-                ['below', 'Insert below'],
-                ['toggle', p.enabled ? 'Disable' : 'Enable'],
-                ['delete', 'Delete'],
+                ['clone', t('policies.clone')],
+                ['above', t('policies.insertAbove')],
+                ['below', t('policies.insertBelow')],
+                ['toggle', p.enabled ? t('policies.disable') : t('policies.enable')],
+                ['delete', t('policies.delete')],
               ] as [MenuAction, string][]
             ).map(([a, label]) => (
               <button
@@ -235,8 +236,8 @@ export default function Policies() {
     if (menuFor === null) return
     const close = () => setMenuFor(null)
     const onDown = (e: MouseEvent) => {
-      const t = e.target as Element | null
-      if (t?.closest?.('[role="menu"]') || t?.closest?.(`[aria-label="Actions for policy ${menuFor}"]`)) return
+      const el = e.target as Element | null
+      if (el?.closest?.('[role="menu"]') || el?.closest?.(`[aria-label="${t('policies.actionsForPolicy', { id: menuFor })}"]`)) return
       close()
     }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close()
@@ -283,7 +284,7 @@ export default function Policies() {
       case 'toggle':
         return save(replace(policies, p.id, { ...p, enabled: !p.enabled }))
       case 'delete':
-        if (window.confirm(`Delete policy ${p.id} "${p.name}"?`)) save(policies.filter((o) => o.id !== p.id))
+        if (window.confirm(t('policies.confirmDelete', { id: p.id, name: p.name }))) save(policies.filter((o) => o.id !== p.id))
     }
   }
 
@@ -310,15 +311,31 @@ export default function Policies() {
     />
   )
 
-  const head = ['', 'ID', 'Name', 'From → To', 'Source', 'Destination', 'Service', 'Action', 'NAT', 'Security', 'Log', 'Schedule', 'Hits', 'On', '']
+  const head = [
+    '',
+    t('policies.col.id'),
+    t('policies.col.name'),
+    t('policies.col.fromTo'),
+    t('policies.col.source'),
+    t('policies.col.destination'),
+    t('policies.col.service'),
+    t('policies.col.action'),
+    t('policies.col.nat'),
+    t('policies.col.security'),
+    t('policies.col.log'),
+    t('policies.col.schedule'),
+    t('policies.col.hits'),
+    t('policies.col.on'),
+    '',
+  ]
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Firewall Policy</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('policies.title')}</h1>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
-            Group by interface pair
+            {t('policies.groupByPair')}
           </label>
           <button
             type="button"
@@ -326,7 +343,7 @@ export default function Policies() {
             onClick={() => setSim({ src_ip: '', dst_ip: '', protocol: 'any' })}
             className="flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
           >
-            <FlaskConical size={16} /> Simulate
+            <FlaskConical size={16} /> {t('policies.simulate')}
           </button>
           <button
             type="button"
@@ -334,7 +351,7 @@ export default function Policies() {
             onClick={() => setEditing({ policy: newPolicy(policies), isNew: true })}
             className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            <Plus size={16} /> New policy
+            <Plus size={16} /> {t('policies.newPolicy')}
           </button>
         </div>
       </div>
@@ -342,7 +359,7 @@ export default function Policies() {
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900 dark:text-red-200">{error}</div>}
       {serverErrors.length > 0 && (
         <div className="mb-3 rounded bg-yellow-50 p-2 text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
-          Saved to the candidate, but a commit would be rejected:
+          {t('policies.savedButRejected')}
           <ul className="ml-4 list-disc">
             {serverErrors.map((v) => (
               <li key={v.path + v.message}>
@@ -381,10 +398,10 @@ export default function Policies() {
             </table>
           </SortableContext>
         </DndContext>
-        {objects && policies.length === 0 && <p className="p-6 text-center text-sm text-gray-500">No policies yet: all forwarded traffic is denied.</p>}
+        {objects && policies.length === 0 && <p className="p-6 text-center text-sm text-gray-500">{t('policies.empty')}</p>}
       </div>
       {!grouped && policies.length > 1 && (
-        <p className="mt-2 text-xs text-gray-500">Policies match top to bottom; drag rows to reorder.</p>
+        <p className="mt-2 text-xs text-gray-500">{t('policies.orderHint')}</p>
       )}
 
       {editing && objects && (

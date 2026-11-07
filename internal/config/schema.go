@@ -52,6 +52,8 @@ type Config struct {
 	UPS UPS `json:"ups,omitzero"`
 	// IPS holds box-wide IPS settings: the ET Pro code (task 114).
 	IPS IPSSettings `json:"ips,omitzero"`
+	// ReverseProxy publishes LAN web services with Let's Encrypt certificates.
+	ReverseProxy ReverseProxy `json:"reverse_proxy,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not
@@ -103,6 +105,18 @@ type SQM struct {
 	UploadMbit   int  `json:"upload_mbit,omitempty"`
 }
 
+// Offloads turns network card offloads on or off (ethtool -K); a field left
+// out keeps the driver's setting. Removing an override takes effect at the
+// next restart, when the driver starts with its own default again.
+type Offloads struct {
+	GRO        *bool `json:"gro,omitempty"`         // generic receive offload
+	GSO        *bool `json:"gso,omitempty"`         // generic segmentation offload
+	TSO        *bool `json:"tso,omitempty"`         // TCP segmentation offload
+	LRO        *bool `json:"lro,omitempty"`         // large receive offload
+	RXChecksum *bool `json:"rx_checksum,omitempty"` // receive checksumming
+	TXChecksum *bool `json:"tx_checksum,omitempty"` // transmit checksumming
+}
+
 // MaxSQMMbit is the highest shaping rate accepted (100 Gbit/s).
 const MaxSQMMbit = 100000
 
@@ -128,6 +142,8 @@ type Interface struct {
 	IPv6        *IPv6         `json:"ipv6,omitempty"`
 	// SQM shapes a WAN with CAKE so a busy line keeps low latency.
 	SQM *SQM `json:"sqm,omitempty"`
+	// Offloads overrides the network card's offload settings.
+	Offloads *Offloads `json:"offloads,omitempty"`
 }
 
 // VLAN is an 802.1Q sub-interface on a physical interface, carrying the same

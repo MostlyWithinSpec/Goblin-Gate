@@ -5,8 +5,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Filter, X } from 'lucide-react'
-import { listLogs, type LogEvent } from '../../api/stats'
+import { listLogs, type EventKind, type LogEvent } from '../../api/stats'
 import { geoipLookup, getGeoIP } from '../../api/objects'
+import { t } from '../../i18n'
 import { Badge } from '../../components/Badge'
 import { EditDrawer } from '../../components/EditDrawer'
 import { CHIP_FIELDS, KINDS, RANGES, columnsFor, fmtTime, logFilter, logParams, parseLogParams, summary, type LogState } from './logLogic'
@@ -60,6 +61,74 @@ function simulateQuery(e: LogEvent): string {
   if (e.in_intf) q.set('src_intf', e.in_intf)
   q.set('at', new Date(e.time * 1000).toISOString())
   return q.toString()
+}
+
+// kindLabel is a kind tab's label. The keys are literals so the catalog check
+// can see them; the "All" tab has no kind, so it has its own key.
+function kindLabel(kind: EventKind | ''): string {
+  switch (kind) {
+    case 'traffic':
+      return t('log.kind.traffic')
+    case 'ips':
+      return t('log.kind.ips')
+    case 'dns':
+      return t('log.kind.dns')
+    case 'webfilter':
+      return t('log.kind.webfilter')
+    case 'appctrl':
+      return t('log.kind.appctrl')
+    case 'system':
+      return t('log.kind.system')
+    default:
+      return t('log.kind._all')
+  }
+}
+
+// colLabel names a log table column header after its field, so every header is
+// one key of its own. A few fields read differently per kind: in DNS, web
+// filter and app logs the source is the "Client" and the message is the
+// "Domain"; an app's category is its "Group"; in the All view the message is
+// the "Details".
+function colLabel(f: keyof LogEvent, kind: EventKind | ''): string {
+  const byName = kind === 'dns' || kind === 'webfilter' || kind === 'appctrl'
+  if (byName && f === 'src_ip') return t('log.col.client')
+  if (byName && f === 'message') return t('log.col.domain')
+  if (kind === 'appctrl' && f === 'category') return t('log.col.group')
+  if (kind === '' && f === 'message') return t('log.col.details')
+  switch (f) {
+    case 'src_ip':
+      return t('log.col.src_ip')
+    case 'dst_ip':
+      return t('log.col.dst_ip')
+    case 'dst_port':
+      return t('log.col.dst_port')
+    case 'proto':
+      return t('log.col.proto')
+    case 'in_intf':
+      return t('log.col.in_intf')
+    case 'out_intf':
+      return t('log.col.out_intf')
+    case 'policy_id':
+      return t('log.col.policy')
+    case 'action':
+      return t('log.col.action')
+    case 'bytes':
+      return t('log.col.bytes')
+    case 'severity':
+      return t('log.col.severity')
+    case 'signature':
+      return t('log.col.signature')
+    case 'category':
+      return t('log.col.category')
+    case 'app':
+      return t('log.col.app')
+    case 'message':
+      return t('log.col.message')
+    case 'kind':
+      return t('log.col.kind')
+    default:
+      return String(f)
+  }
 }
 
 export default function LogViewer() {
@@ -142,7 +211,7 @@ export default function LogViewer() {
             onClick={() => setState({ ...state, kind: k.kind })}
             className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${state.kind === k.kind ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400'}`}
           >
-            {k.label}
+            {kindLabel(k.kind)}
           </button>
         ))}
       </div>
@@ -154,10 +223,10 @@ export default function LogViewer() {
             setState({ ...state, q: q.trim() })
           }}
         >
-          <input aria-label="Search" className={input + ' w-full sm:w-64'} placeholder="Search IP, domain, signature…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input aria-label={t('layout.search')} className={input + ' w-full sm:w-64'} placeholder={t('log.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
         </form>
-        <select aria-label="Time range" className={input} value={state.range} onChange={(e) => setState({ ...state, range: e.target.value as LogState['range'] })}>
-          {RANGES.map((r) => <option key={r} value={r}>Last {r}</option>)}
+        <select aria-label={t('log.timeRange')} className={input} value={state.range} onChange={(e) => setState({ ...state, range: e.target.value as LogState['range'] })}>
+          {RANGES.map((r) => <option key={r} value={r}>{t('log.last', { range: r })}</option>)}
         </select>
         <form
           className="flex items-center gap-1"
@@ -167,13 +236,13 @@ export default function LogViewer() {
             setChipValue('')
           }}
         >
-          <select aria-label="Filter field" className={input} value={chipField} onChange={(e) => setChipField(e.target.value)}>
+          <select aria-label={t('log.filterField')} className={input} value={chipField} onChange={(e) => setChipField(e.target.value)}>
             {CHIP_FIELDS.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
           <span className="text-gray-500">=</span>
-          <input aria-label="Filter value" className={input + ' w-36'} value={chipValue} onChange={(e) => setChipValue(e.target.value)} />
+          <input aria-label={t('log.filterValue')} className={input + ' w-36'} value={chipValue} onChange={(e) => setChipValue(e.target.value)} />
           <button type="submit" className="flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600">
-            <Filter size={14} /> Add filter
+            <Filter size={14} /> {t('log.addFilter')}
           </button>
         </form>
       </div>
@@ -183,7 +252,7 @@ export default function LogViewer() {
           {Object.entries(state.chips).map(([f, v]) => (
             <span key={f} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-200">
               {f} = {v}
-              <button type="button" aria-label={`Remove filter ${f}`} onClick={() => removeChip(f)}><X size={12} /></button>
+              <button type="button" aria-label={t('log.removeFilterAria', { field: f })} onClick={() => removeChip(f)}><X size={12} /></button>
             </span>
           ))}
         </div>
@@ -195,29 +264,29 @@ export default function LogViewer() {
         <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
             <tr>
-              <th className="px-3 py-2">Time</th>
-              {cols.map(([, h]) => <th key={h} className="px-3 py-2">{h}</th>)}
+              <th className="px-3 py-2">{t('log.col.time')}</th>
+              {cols.map((f) => <th key={f} className="px-3 py-2">{colLabel(f, state.kind)}</th>)}
             </tr>
           </thead>
           <tbody>
             {events.map((e) => (
               <tr key={e.id} onClick={() => setDetail(e)} className="cursor-pointer border-t border-gray-100 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700">
                 <td className="whitespace-nowrap px-3 py-1">{fmtTime(e.time)}</td>
-                {cols.map(([f, h]) => <td key={h} className="max-w-xs truncate px-3 py-1">{cell(e, f)}</td>)}
+                {cols.map((f) => <td key={f} className="max-w-xs truncate px-3 py-1">{cell(e, f)}</td>)}
               </tr>
             ))}
             {!loading && events.length === 0 && !error && (
-              <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-gray-500">No events match.</td></tr>
+              <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-gray-500">{t('log.noEvents')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
       <div ref={sentinel} className="py-3 text-center text-sm text-gray-500">
-        {loading ? 'Loading…' : next ? <button type="button" onClick={loadMore} className="text-blue-600 hover:underline">Load more</button> : events.length > 0 ? 'End of results' : null}
+        {loading ? t('common.loading') : next ? <button type="button" onClick={loadMore} className="text-blue-600 hover:underline">{t('log.loadMore')}</button> : events.length > 0 ? t('log.endOfResults') : null}
       </div>
 
       {detail && (
-        <EditDrawer isOpen onClose={() => setDetail(null)} title={`${detail.kind} event`}>
+        <EditDrawer isOpen onClose={() => setDetail(null)} title={t('log.eventTitle', { kind: detail.kind })}>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
             <dt className="text-gray-500">time</dt>
             <dd className="sm:col-span-2">{fmtTime(detail.time)}</dd>
@@ -232,8 +301,8 @@ export default function LogViewer() {
                     {CHIP_FIELDS.includes(k) && (
                       <button
                         type="button"
-                        title="Filter on this value"
-                        aria-label={`Filter on ${k}`}
+                        title={t('log.filterThisValue')}
+                        aria-label={t('log.filterOnAria', { field: k })}
                         onClick={() => {
                           addChip(k, String(detail[k]))
                           setDetail(null)
@@ -249,12 +318,12 @@ export default function LogViewer() {
           </dl>
           {detail.policy_id && /^\d+$/.test(detail.policy_id) && (
             <Link to={`/policy?edit=${detail.policy_id}`} className="mt-4 inline-flex min-h-[40px] items-center rounded bg-blue-600 px-3 py-1 text-sm text-white">
-              Go to policy {detail.policy_id}
+              {t('log.goToPolicy', { id: detail.policy_id })}
             </Link>
           )}
           {detail.action === 'deny' && detail.src_ip && detail.dst_ip && (
             <Link to={`/policy?${simulateQuery(detail)}`} className="mt-4 inline-flex min-h-[40px] items-center rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-              Why was this denied?
+              {t('log.whyDenied')}
             </Link>
           )}
         </EditDrawer>

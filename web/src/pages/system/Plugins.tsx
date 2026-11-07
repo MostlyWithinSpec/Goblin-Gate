@@ -10,11 +10,14 @@ import { Link } from 'react-router-dom'
 import { Puzzle, Power, Settings as SettingsIcon, ExternalLink } from 'lucide-react'
 import { Badge } from '../../components/Badge'
 import { inputClass } from '../../components/ConfigList'
+import { t } from '../../i18n'
+import { getCandidate, type Policy } from '../../api/policy'
 import {
   getPlugins,
   enablePlugin,
   disablePlugin,
   setPluginSettings,
+  setPluginPolicies,
   CAPABILITY_DESCRIPTIONS,
   type PluginStatus,
   type PluginProperty
@@ -36,6 +39,91 @@ function placeholder(p: PluginProperty): string {
   return String(p.default)
 }
 
+// PolicySwitchSection: shown when the admin approved policies:toggle for a
+// plugin. It lists every policy of the candidate config with a checkbox; the
+// ticked ones are the policies the plugin is allowed to switch on and off.
+// Saving goes through PUT /api/v1/plugins/{name}/policies.
+function PolicySwitchSection({
+  plugin,
+  policies
+}: {
+  plugin: PluginStatus
+  policies: Policy[]
+}) {
+  const queryClient = useQueryClient()
+  const [ids, setIds] = useState<number[]>(plugin.policies ?? [])
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  const toggle = (id: number, on: boolean) => {
+    setSaved(false)
+    setIds((prev) => (on ? [...prev.filter((x) => x !== id), id] : prev.filter((x) => x !== id)))
+  }
+
+  const save = async () => {
+    setError(null)
+    setSaved(false)
+    try {
+      const res = await setPluginPolicies(plugin.name, ids)
+      if (res.validation_errors && res.validation_errors.length > 0) {
+        setError(res.validation_errors.map(String).join('\n'))
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['configDiff'] })
+      setSaved(true)
+    } catch (e) {
+      const err = e as Error & { details?: unknown }
+      if (Array.isArray(err.details) && err.details.length > 0) {
+        setError(err.details.map(String).join('\n'))
+      } else {
+        setError(err.message || t('plugins.errPolicies'))
+      }
+    }
+  }
+
+  return (
+    <div className="mt-6 border-t pt-4">
+      <h3 className="text-sm font-semibold">{t('plugins.policiesTitle')}</h3>
+      <p role="note" className="mt-1 rounded bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200">
+        {t('plugins.policiesWarning')}
+      </p>
+      {policies.length === 0 ? (
+        <p className="mt-2 text-sm text-gray-500">{t('plugins.noPolicies')}</p>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {policies.map((p) => (
+            <label key={p.id} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={ids.includes(p.id)}
+                onChange={(e) => toggle(p.id, e.target.checked)}
+              />
+              <span>
+                <code className="rounded bg-gray-100 px-1 text-xs dark:bg-gray-700">{p.id}</code>
+                <span className="ml-2">{p.name}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="mt-3 whitespace-pre-line rounded bg-red-50 p-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {saved && <p className="mt-3 text-sm text-green-700 dark:text-green-300">{t('plugins.policiesSaved')}</p>}
+      <div className="mt-3">
+        <button
+          onClick={save}
+          className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+        >
+          {t('plugins.savePolicies')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // SettingsDrawer: a form generated from the manifest's settings_schema.
 function SettingsDrawer({
   plugin,
@@ -51,8 +139,23 @@ function SettingsDrawer({
   const [bools, setBools] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  // cleared lists the secret fields the admin pressed "Clear" on: they are
+  // sent as null, so the stored value is dropped.
+  const [cleared, setCleared] = useState<Record<string, boolean>>({})
+  // policies:toggle is only useful once the admin approved it for this plugin.
+  const canTogglePolicies = (plugin.capabilities ?? []).includes('policies:toggle')
+  const [policies, setPolicies] = useState<Policy[]>([])
 
-  // Seed from the candidate's current settings.
+  // The candidate's policies feed the "policies it may switch" checkbox list.
+  React.useEffect(() => {
+    if (!canTogglePolicies) return
+    getCandidate()
+      .then((cfg) => setPolicies(cfg.policies ?? []))
+      .catch(() => setPolicies([]))
+  }, [canTogglePolicies])
+
+  // Seed from the candidate's current settings. A secret is never returned by
+  // the API, so its field always starts empty.
   React.useEffect(() => {
     const v: Record<string, string> = {}
     const b: Record<string, boolean> = {}
@@ -62,16 +165,20 @@ function SettingsDrawer({
         b[key] = typeof cur === 'boolean' ? cur : Boolean(p.default)
       } else if (p.type === 'array') {
         v[key] = Array.isArray(cur) ? (cur as unknown[]).map(String).join('\n') : placeholder(p)
+      } else if (p.secret) {
+        v[key] = ''
       } else {
         v[key] = cur === undefined || cur === null ? '' : String(cur)
       }
     }
     setValues(v)
     setBools(b)
+    setCleared({})
   }, [plugin.name]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const setStr = (key: string, val: string) => {
     setValues((prev) => ({ ...prev, [key]: val }))
+    setCleared((prev) => (prev[key] ? { ...prev, [key]: false } : prev))
     setFieldErrors((prev) => {
       if (!prev[key]) return prev
       const next = { ...prev }
@@ -92,6 +199,10 @@ function SettingsDrawer({
           .split('\n')
           .map((s) => s.trim())
           .filter(Boolean)
+      } else if (p.secret) {
+        // "" keeps the stored secret, null clears it, text replaces it.
+        const raw = values[key] ?? ''
+        settings[key] = cleared[key] ? null : raw
       } else if (p.type === 'integer' || p.type === 'number') {
         const raw = values[key]?.trim()
         settings[key] = raw === '' ? undefined : Number(raw)
@@ -122,9 +233,9 @@ function SettingsDrawer({
           }
         }
         setFieldErrors(fe)
-        setError('The settings are not valid.')
+        setError(t('plugins.errSettingsInvalid'))
       } else {
-        setError(err.message || 'Could not save the settings.')
+        setError(err.message || t('plugins.errSettings'))
       }
     }
   }
@@ -135,6 +246,44 @@ function SettingsDrawer({
     const err = fieldErrors[key]
     switch (p.type) {
       case 'string':
+        if (p.secret) {
+          const isSet = (plugin.secrets_set ?? []).includes(key)
+          return (
+            <div key={key}>
+              <label htmlFor={`set-${key}`} className="block text-sm font-medium">
+                {label}
+                {desc}
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`set-${key}`}
+                  type="password"
+                  autoComplete="new-password"
+                  className={inputClass}
+                  value={values[key] ?? ''}
+                  maxLength={p.maxLength}
+                  onChange={(e) => setStr(key, e.target.value)}
+                />
+                {isSet && !cleared[key] && (
+                  <button
+                    onClick={() => setCleared((prev) => ({ ...prev, [key]: true }))}
+                    className="shrink-0 rounded border px-2 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    {t('plugins.clearSecret')}
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                {cleared[key]
+                  ? t('plugins.secretWillClear')
+                  : isSet
+                    ? t('plugins.secretIsSet')
+                    : t('plugins.secretNotSet')}
+              </p>
+              {err && <p className="mt-1 text-xs text-red-600">{key}: {err}</p>}
+            </div>
+          )
+        }
         return (
           <div key={key}>
             <label htmlFor={`set-${key}`} className="block text-sm font-medium">
@@ -215,7 +364,7 @@ function SettingsDrawer({
   }
 
   const enumField = (key: string, p: PluginProperty) => {
-    if (!p.enum || p.enum.length === 0) return field(key, p)
+    if (p.secret || !p.enum || p.enum.length === 0) return field(key, p)
     const label = key
     const desc = p.description ? <span className="ml-2 text-xs text-gray-500">{p.description}</span> : null
     const err = fieldErrors[key]
@@ -232,7 +381,7 @@ function SettingsDrawer({
           onChange={(e) => setStr(key, e.target.value)}
         >
           <option value="" disabled>
-            Select…
+            {t('plugins.selectOption')}
           </option>
           {p.enum.map((opt, i) => (
             <option key={i} value={String(opt)}>
@@ -252,13 +401,13 @@ function SettingsDrawer({
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-xl dark:bg-gray-800">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Settings: {plugin.name}</h2>
+          <h2 className="text-lg font-semibold">{t('plugins.settingsFor', { name: plugin.name })}</h2>
           <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">
-            Close
+            {t('plugins.close')}
           </button>
         </div>
         {!hasSchema ? (
-          <p className="text-sm text-gray-500">This plugin has no settings.</p>
+          <p className="text-sm text-gray-500">{t('plugins.noSettings')}</p>
         ) : (
           <div className="space-y-4">
             {Object.entries(props).map(([key, p]) => enumField(key, p))}
@@ -272,13 +421,14 @@ function SettingsDrawer({
         {hasSchema && (
           <div className="mt-6 flex justify-end gap-2">
             <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm">
-              Cancel
+              {t('plugins.cancel')}
             </button>
             <button onClick={save} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
-              Save
+              {t('plugins.save')}
             </button>
           </div>
         )}
+        {canTogglePolicies && <PolicySwitchSection plugin={plugin} policies={policies} />}
       </div>
     </div>
   )
@@ -311,7 +461,7 @@ function EnableDialog({
       queryClient.invalidateQueries({ queryKey: ['configDiff'] })
       onClose()
     } catch (e) {
-      setError((e as Error).message || 'Could not enable the plugin.')
+      setError((e as Error).message || t('plugins.errEnable'))
     }
   }
 
@@ -319,9 +469,9 @@ function EnableDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-        <h2 className="mb-1 text-lg font-semibold">Enable {plugin.name}</h2>
+        <h2 className="mb-1 text-lg font-semibold">{t('plugins.enableTitle', { name: plugin.name })}</h2>
         <p className="mb-4 text-sm text-gray-500">
-          Choose which capabilities to grant. A plugin can only use what you approve here.
+          {t('plugins.enableIntro')}
         </p>
         <div className="space-y-2">
           {plugin.requested_capabilities.map((cap) => (
@@ -334,7 +484,7 @@ function EnableDialog({
               <span>
                 <code className="rounded bg-gray-100 px-1 text-xs dark:bg-gray-700">{cap}</code>
                 <span className="ml-2 text-gray-600 dark:text-gray-300">
-                  {CAPABILITY_DESCRIPTIONS[cap] ?? 'No description available.'}
+                  {CAPABILITY_DESCRIPTIONS[cap] ?? t('plugins.noDescription')}
                 </span>
               </span>
             </label>
@@ -347,10 +497,10 @@ function EnableDialog({
         )}
         <div className="mt-6 flex justify-end gap-2">
           <button onClick={onClose} className="rounded border px-3 py-1.5 text-sm">
-            Cancel
+            {t('plugins.cancel')}
           </button>
           <button onClick={confirm} className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700">
-            Enable
+            {t('plugins.enable')}
           </button>
         </div>
       </div>
@@ -379,14 +529,14 @@ export default function Plugins() {
         prev ? prev.map((x) => (x.name === p.name ? { ...x, enabled: false } : x)) : prev
       )
     } catch (e) {
-      setError((e as Error).message || 'Could not disable the plugin.')
+      setError((e as Error).message || t('plugins.errDisable'))
     }
   }
 
   if (error && !plugins) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-bold">Plugins</h1>
+        <h1 className="mb-4 text-2xl font-bold">{t('plugins.title')}</h1>
         <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">
           {error}
         </div>
@@ -397,28 +547,28 @@ export default function Plugins() {
   if (!plugins) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-bold">Plugins</h1>
-        <p className="text-sm text-gray-500">Loading…</p>
+        <h1 className="mb-4 text-2xl font-bold">{t('plugins.title')}</h1>
+        <p className="text-sm text-gray-500">{t('common.loading')}</p>
       </div>
     )
   }
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold">Plugins</h1>
+      <h1 className="mb-2 text-2xl font-bold">{t('plugins.title')}</h1>
       <div role="note" className="mb-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-200">
-        Plugins run code on the firewall. Install and enable only plugins you trust.
+        {t('plugins.trustWarning')}
       </div>
 
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left text-xs uppercase text-gray-500">
-            <th className="py-2 pr-4">Name</th>
-            <th className="py-2 pr-4">Version</th>
-            <th className="py-2 pr-4">Description</th>
-            <th className="py-2 pr-4">State</th>
-            <th className="py-2 pr-4">Enabled</th>
-            <th className="py-2 pr-4">Actions</th>
+            <th className="py-2 pr-4">{t('plugins.colName')}</th>
+            <th className="py-2 pr-4">{t('plugins.colVersion')}</th>
+            <th className="py-2 pr-4">{t('plugins.colDescription')}</th>
+            <th className="py-2 pr-4">{t('plugins.colState')}</th>
+            <th className="py-2 pr-4">{t('plugins.colEnabled')}</th>
+            <th className="py-2 pr-4">{t('plugins.colActions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -436,9 +586,9 @@ export default function Plugins() {
                 </td>
                 <td className="py-2 pr-4">
                   {p.enabled ? (
-                    <Badge variant="success">enabled</Badge>
+                    <Badge variant="success">{t('plugins.enabled')}</Badge>
                   ) : (
-                    <Badge variant="secondary">disabled</Badge>
+                    <Badge variant="secondary">{t('plugins.disabled')}</Badge>
                   )}
                 </td>
                 <td className="py-2 pr-4">
@@ -448,7 +598,7 @@ export default function Plugins() {
                         onClick={() => setEnabling(p)}
                         className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
                       >
-                        <Power size={14} /> Enable
+                        <Power size={14} /> {t('plugins.enable')}
                       </button>
                     )}
                     {p.enabled && (
@@ -456,7 +606,7 @@ export default function Plugins() {
                         onClick={() => disable(p)}
                         className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        <Power size={14} /> Disable
+                        <Power size={14} /> {t('plugins.disable')}
                       </button>
                     )}
                     {p.settings_schema && p.state !== 'not_installed' && (
@@ -464,7 +614,7 @@ export default function Plugins() {
                         onClick={() => setSettingsFor(p)}
                         className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
-                        <SettingsIcon size={14} /> Settings
+                        <SettingsIcon size={14} /> {t('plugins.settings')}
                       </button>
                     )}
                   </div>
@@ -475,7 +625,7 @@ export default function Plugins() {
                   <td colSpan={6} className="py-2 pl-4">
                     <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                       <Puzzle size={14} />
-                      Pages:
+                      {t('plugins.pages')}
                       {p.ui.pages.map((page) => (
                         <Link
                           key={page.path}

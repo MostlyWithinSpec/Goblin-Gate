@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { inputClass } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import { getCandidate, getUPSStatus, patchSection } from '../../api/objects'
 import type { UPSSettings, UPSStatus } from '../../api/objects'
 
@@ -69,21 +70,21 @@ export function buildUps(f: UPSForm, loaded: UPSSettings | undefined): UPSSettin
 export function validateUps(f: UPSForm): Record<string, string> {
   const e: Record<string, string> = {}
   if (f.enabled && f.mode === 'remote') {
-    if (!f.host.trim()) e.host = 'Required for a remote NUT server.'
-    if (!f.name.trim()) e.name = 'Required: the UPS name on the NUT server (upsc -l lists them).'
-    if (!f.username.trim()) e.username = 'Required: the NUT user allowed to monitor the UPS.'
-    if (!f.password.trim() && !f.hasSecret) e.password = 'Required for a remote NUT server.'
+    if (!f.host.trim()) e.host = t('ups.errHost')
+    if (!f.name.trim()) e.name = t('ups.errName')
+    if (!f.username.trim()) e.username = t('ups.errUser')
+    if (!f.password.trim() && !f.hasSecret) e.password = t('ups.errHost')
   }
   const check = (raw: string, lo: number, hi: number, unit: string): string | undefined => {
-    const t = raw.trim()
-    if (t === '' || t === '0') return undefined
-    const n = Number(t)
-    if (!Number.isInteger(n) || n < lo || n > hi) return `Want ${lo}-${hi} ${unit}, or 0 / empty = when the UPS says the battery is low.`
+    const value = raw.trim()
+    if (value === '' || value === '0') return undefined
+    const n = Number(value)
+    if (!Number.isInteger(n) || n < lo || n > hi) return t('ups.errRange_other', { lo, hi, unit })
     return undefined
   }
   const port = Number(f.port.trim())
   if (f.port.trim() !== '' && (!Number.isInteger(port) || port < 1 || port > 65535)) {
-    e.port = 'Want 1-65535, or leave it empty for 3493.'
+    e.port = t('ups.errPort')
   }
   const percent = check(f.percent, 5, 90, '%')
   if (percent) e.percent = percent
@@ -93,14 +94,14 @@ export function validateUps(f: UPSForm): Record<string, string> {
 }
 // relTime renders an RFC3339 time as a short relative age.
 function relTime(s?: string): string {
-  if (!s) return '—'
-  const t = Date.parse(s)
-  if (Number.isNaN(t)) return '—'
-  const sec = Math.max(0, (Date.now() - t) / 1000)
-  if (sec < 60) return 'just now'
-  if (sec < 3600) return `${Math.floor(sec / 60)} min ago`
-  if (sec < 86400) return `${Math.floor(sec / 3600)} h ago`
-  return `${Math.floor(sec / 86400)} d ago`
+  if (!s) return t('ups.dashAgo')
+  const ts = Date.parse(s)
+  if (Number.isNaN(ts)) return t('ups.dashAgo')
+  const sec = Math.max(0, (Date.now() - ts) / 1000)
+  if (sec < 60) return t('ups.hJustNow')
+  if (sec < 3600) return t('ups.hMinutesAgo', { count: Math.floor(sec / 60) })
+  if (sec < 86400) return t('ups.hHoursAgo', { count: Math.floor(sec / 3600) })
+  return t('ups.hDaysAgo', { count: Math.floor(sec / 86400) })
 }
 
 export function formOf(c: UPSSettings | undefined): UPSForm {
@@ -154,13 +155,13 @@ export default function UPS() {
       // Remember what the server holds now: a password that was sent is the
       // password; one left out stayed as it was.
       setLoaded((c) => ({ ...c, ...value, password: value.password ?? c?.password }))
-      setMessage('Saved.')
+      setMessage(t('ups.saved'))
       queryClient.invalidateQueries({ queryKey: ['candidate'] })
       queryClient.invalidateQueries({ queryKey: ['ups-status'] })
     },
     onError: (err: Error) => {
       setErrors({})
-      setMessage(`Could not save: ${err.message}`)
+      setMessage(t('ups.saveFailed', { message: err.message }))
     },
   })
 
@@ -181,9 +182,9 @@ export default function UPS() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">UPS</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{t('ups.title')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Watch a UPS on this box&rsquo;s USB port or one a NUT server elsewhere already monitors, and shut
+          {t('ups.intro')}&rsquo;s USB port or one a NUT server elsewhere already monitors, and shut
           down cleanly before the battery runs out.
         </p>
       </div>
@@ -191,9 +192,9 @@ export default function UPS() {
       <StatusCard query={status} />
 
       <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-white">Setup</h2>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('ups.setup')}</h2>
         {!form ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-gray-500">{t('ups.loading')}</p>
         ) : (
           <form onSubmit={submit} className="max-w-xl space-y-3">
             {message && (
@@ -202,20 +203,20 @@ export default function UPS() {
               </div>
             )}
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" aria-label="Enable UPS monitoring" checked={form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-              Monitor the UPS
+              <input type="checkbox" aria-label={t('ups.enableAria')} checked={form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
+              {t('ups.monitor')}
             </label>
 
             <label className="block text-sm">
-              Where is the UPS?
+              {t('ups.whereLabel')}
               <select
                 className={inputClass}
-                aria-label="UPS mode"
+                aria-label={t('ups.modeAria')}
                 value={form.mode}
                 onChange={(e) => set({ mode: e.target.value === 'remote' ? 'remote' : 'usb' })}
               >
-                <option value="usb">On this box (USB)</option>
-                <option value="remote">On a remote NUT server</option>
+                <option value="usb">{t('ups.modeUsb')}</option>
+                <option value="remote">{t('ups.modeRemote')}</option>
               </select>
             </label>
             {errors.mode && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.mode}</p>}
@@ -224,45 +225,45 @@ export default function UPS() {
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block text-sm">
-                    NUT server
+                    {t('ups.hostLabel')}
                     <input
                       className={inputClass}
-                      aria-label="NUT server"
-                      placeholder="192.168.1.10"
+                      aria-label={t('ups.hostAria')}
+                      placeholder={t('ups.hostPlaceholder')}
                       value={form.host}
                       onChange={(e) => set({ host: e.target.value })}
                     />
                   </label>
                   {errors.host && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.host}</p>}
                   <label className="block text-sm">
-                    Port
+                    {t('ups.portLabel')}
                     <input
                       type="number"
                       className={inputClass}
-                      aria-label="NUT port"
-                      placeholder={String(DEFAULT_PORT)}
+                      aria-label={t('ups.portAria')}
+                      placeholder={t('ups.portPlaceholder')}
                       value={form.port}
                       onChange={(e) => set({ port: e.target.value })}
                     />
                   </label>
                   {errors.port && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.port}</p>}
                   <label className="block text-sm">
-                    UPS name
+                    {t('ups.nameLabel')}
                     <input
                       className={inputClass}
-                      aria-label="UPS name"
-                      placeholder="ups"
+                      aria-label={t('ups.nameAria')}
+                      placeholder={t('ups.namePlaceholder')}
                       value={form.name}
                       onChange={(e) => set({ name: e.target.value })}
                     />
                   </label>
                   {errors.name && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.name}</p>}
                   <label className="block text-sm">
-                    NUT user
+                    {t('ups.userLabel')}
                     <input
                       className={inputClass}
-                      aria-label="NUT user"
-                      placeholder="monitor"
+                      aria-label={t('ups.userAria')}
+                      placeholder={t('ups.userPlaceholder')}
                       value={form.username}
                       onChange={(e) => set({ username: e.target.value })}
                     />
@@ -270,12 +271,12 @@ export default function UPS() {
                   {errors.username && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.username}</p>}
                 </div>
                 <label className="block text-sm">
-                  NUT password
+                  {t('ups.passwordLabel')}
                   <input
                     type="password"
                     className={inputClass}
-                    aria-label="NUT password"
-                    placeholder={form.hasSecret ? 'unchanged' : ''}
+                    aria-label={t('ups.passwordAria')}
+                    placeholder={form.hasSecret ? t('ups.passwordUnchanged') : ''}
                     value={form.password}
                     onChange={(e) => set({ password: e.target.value })}
                   />
@@ -288,23 +289,23 @@ export default function UPS() {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block text-sm">
-                Shut down at charge (%)
+                {t('ups.percentLabel')}
                 <input
                   type="number"
                   className={inputClass}
-                  aria-label="Shut down at charge"
-                  placeholder="0 = when the UPS says the battery is low"
+                  aria-label={t('ups.percentAria')}
+                  placeholder={t('ups.hintThreshold')}
                   value={form.percent}
                   onChange={(e) => set({ percent: e.target.value })}
                 />
               </label>
               <label className="block text-sm">
-                Shut down at runtime left (seconds)
+                {t('ups.runtimeLabel')}
                 <input
                   type="number"
                   className={inputClass}
-                  aria-label="Shut down at runtime"
-                  placeholder="0 = when the UPS says the battery is low"
+                  aria-label={t('ups.runtimeAria')}
+                  placeholder={t('ups.hintThreshold')}
                   value={form.runtime}
                   onChange={(e) => set({ runtime: e.target.value })}
                 />
@@ -314,7 +315,7 @@ export default function UPS() {
             {errors.runtime && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.runtime}</p>}
 
             <Button type="submit" disabled={save.isPending}>
-              Save
+              {t('ups.save')}
             </Button>
           </form>
         )}
@@ -328,17 +329,17 @@ export default function UPS() {
 // stateBadge is the one place a UPS state becomes a badge, so the page and the
 // dashboard widget say the same thing.
 export function StateBadge({ state, connected, enabled }: { state: string; connected: boolean; enabled: boolean }) {
-  if (!enabled) return <Badge variant="secondary">Disabled</Badge>
-  if (!connected) return <Badge variant="secondary">Not connected</Badge>
+  if (!enabled) return <Badge variant="secondary">{t('ups.disabled')}</Badge>
+  if (!connected) return <Badge variant="secondary">{t('ups.notConnected')}</Badge>
   switch (state) {
     case 'online':
-      return <Badge variant="success">On mains</Badge>
+      return <Badge variant="success">{t('ups.onMains')}</Badge>
     case 'on_battery':
-      return <Badge variant="warning">On battery</Badge>
+      return <Badge variant="warning">{t('ups.onBattery')}</Badge>
     case 'low_battery':
-      return <Badge variant="error">Low battery</Badge>
+      return <Badge variant="error">{t('ups.lowBattery')}</Badge>
     default:
-      return <Badge variant="secondary">Unknown</Badge>
+      return <Badge variant="secondary">{t('ups.unknown')}</Badge>
   }
 }
 
@@ -356,7 +357,7 @@ export function ChargeBar({ charge, state }: { charge?: number; state: string })
             className={`h-full ${colour}`}
             style={{ width: `${pct}%` }}
             role="progressbar"
-            aria-label="Battery charge"
+            aria-label={t('ups.chargeLabel')}
             aria-valuenow={Math.round(pct)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -364,7 +365,7 @@ export function ChargeBar({ charge, state }: { charge?: number; state: string })
         )}
       </div>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {pct === null ? 'Charge unknown' : `Charge ${Math.round(pct)} %`}
+        {pct === null ? t('ups.chargeUnknown') : t('ups.chargePercent', { percent: Math.round(pct) })}
       </p>
     </div>
   )
@@ -372,11 +373,11 @@ export function ChargeBar({ charge, state }: { charge?: number; state: string })
 
 // runtimeText renders battery runtime left as minutes.
 export function runtimeText(seconds?: number): string {
-  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return '—'
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return t('ups.dash')
   const min = Math.round(seconds / 60)
-  if (min < 1) return 'less than a minute'
-  if (min < 120) return `about ${min} min`
-  return `about ${Math.floor(min / 60)} h ${min % 60} min`
+  if (min < 1) return t('ups.prefixLess')
+  if (min < 120) return t('ups.prefixAbout_other', { min })
+  return t('ups.prefixHM', { h: Math.floor(min / 60), min: min % 60 })
 }
 
 // StatusState is the plain query state, so the card can also render the
@@ -393,19 +394,19 @@ export function StatusCard({ query }: { query: StatusState }) {
   return (
     <section data-testid="ups-status" className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-white">Status</h2>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('ups.status')}</h2>
         {query.isError ? (
-          <Badge variant="error">Unavailable</Badge>
+          <Badge variant="error">{t('ups.unavailable')}</Badge>
         ) : s ? (
           <StateBadge state={s.state} connected={s.connected} enabled={s.enabled} />
         ) : null}
       </div>
       {query.isError ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          Cannot read the UPS status: {err instanceof Error ? err.message : 'unavailable'}
+          {t('ups.cannotReadStatus')} {err instanceof Error ? err.message : t('ups.unavailableWord')}
         </p>
       ) : !s ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p className="text-sm text-gray-500">{t('ups.loading')}</p>
       ) : (
         <>
           <div className="max-w-sm">
@@ -413,26 +414,26 @@ export function StatusCard({ query }: { query: StatusState }) {
           </div>
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="text-gray-500 dark:text-gray-400">Runtime left</dt>
+              <dt className="text-gray-500 dark:text-gray-400">{t('ups.colRuntimeLeft')}</dt>
               <dd className="font-semibold text-gray-900 dark:text-white" data-testid="ups-runtime">
                 {runtimeText(s.runtime_seconds)}
               </dd>
             </div>
             <div>
-              <dt className="text-gray-500 dark:text-gray-400">Load</dt>
-              <dd className="text-gray-900 dark:text-white">{typeof s.load === 'number' ? `${Math.round(s.load)} %` : '—'}</dd>
+              <dt className="text-gray-500 dark:text-gray-400">{t('ups.colLoad')}</dt>
+              <dd className="text-gray-900 dark:text-white">{typeof s.load === 'number' ? t('ups.percentValue', { percent: Math.round(s.load) }) : t('ups.dash')}</dd>
             </div>
             <div>
-              <dt className="text-gray-500 dark:text-gray-400">Model</dt>
-              <dd className="text-gray-900 dark:text-white">{s.model || '—'}</dd>
+              <dt className="text-gray-500 dark:text-gray-400">{t('ups.colModel')}</dt>
+              <dd className="text-gray-900 dark:text-white">{s.model || t('ups.dash')}</dd>
             </div>
             <div>
-              <dt className="text-gray-500 dark:text-gray-400">Last reading</dt>
+              <dt className="text-gray-500 dark:text-gray-400">{t('ups.colLastReading')}</dt>
               <dd className="text-gray-900 dark:text-white">{relTime(s.last_update)}</dd>
             </div>
             {s.last_event && (
               <div>
-                <dt className="text-gray-500 dark:text-gray-400">Last event</dt>
+                <dt className="text-gray-500 dark:text-gray-400">{t('ups.colLastEvent')}</dt>
                 <dd className="text-gray-900 dark:text-white">
                   {s.last_event.kind.replace(/^ups_/, ' ').replace(/_/g, ' ').trim() || s.last_event.kind} · {relTime(s.last_event.time)}
                 </dd>
@@ -440,7 +441,7 @@ export function StatusCard({ query }: { query: StatusState }) {
             )}
             {s.flags && s.flags.length > 0 && (
               <div>
-                <dt className="text-gray-500 dark:text-gray-400">UPS flags</dt>
+                <dt className="text-gray-500 dark:text-gray-400">{t('ups.colUpsFlags')}</dt>
                 <dd className="text-gray-900 dark:text-white">{s.flags.join(' ')}</dd>
               </div>
             )}
@@ -449,7 +450,7 @@ export function StatusCard({ query }: { query: StatusState }) {
       )}
       {s?.last_error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          Last error: {s.last_error}
+          {t('ups.lastError')} {s.last_error}
         </p>
       )}
     </section>
@@ -459,16 +460,16 @@ export function StatusCard({ query }: { query: StatusState }) {
 function HelpPanel() {
   return (
     <section className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-white">How it works</h2>
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('ups.helpTitle')}</h2>
       <p className="mt-1 text-gray-600 dark:text-gray-300">
-        With <strong>USB</strong> the box runs the NUT driver and server itself — plug the UPS in and enable
-        it. With a <strong>remote NUT server</strong> the box only monitors what that server already watches,
+        With <strong>{t('ups.helpUsb')}</strong> the box runs the NUT driver and server itself — plug the UPS in and enable
+        it. With a <strong>{t('ups.helpRemote')}</strong> the box only monitors what that server already watches,
         so add a NUT user there that may monitor the UPS, then give its name and password above.
       </p>
       <p className="mt-2 text-gray-600 dark:text-gray-300">
         On battery the box raises an alert. When the charge or the runtime left drops to your threshold it
         shuts down cleanly; leave both at 0 and the UPS&rsquo;s own low-battery signal decides. See{' '}
-        <span className="font-mono text-xs">UPS (power failures)</span> in the Updates and Backups wiki page.
+        <span className="font-mono text-xs">{t('ups.helpWikiEntry')}</span> in the Updates and Backups wiki page.
       </p>
     </section>
   )

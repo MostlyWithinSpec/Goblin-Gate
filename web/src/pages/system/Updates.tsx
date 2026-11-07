@@ -3,6 +3,7 @@ import { RefreshCw, ExternalLink, CheckCircle2, AlertTriangle, RotateCcw, XCircl
 import { getCandidate, patchSection, type SystemSettings } from '../../api/objects'
 import { inputClass } from '../../components/ConfigList'
 import { getUpdates, applyUpdate, type UpdatesStatus } from '../../api/system'
+import { t } from '../../i18n'
 
 const CHANNELS = ['stable', 'beta'] as const
 type Channel = (typeof CHANNELS)[number]
@@ -99,7 +100,7 @@ const Updates: React.FC = () => {
     }
   }
 
-  if (!status) return <p className="text-gray-500">{error ?? 'Loading…'}</p>
+  if (!status) return <p className="text-gray-500">{error ?? t('common.loading')}</p>
 
   const available = status.available && status.available !== ''
   const last = status.last
@@ -110,34 +111,34 @@ const Updates: React.FC = () => {
 
       {/* Installed / available */}
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Version</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">{t('updates.version')}</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="font-medium text-gray-600 dark:text-gray-400">Installed</dt>
+          <dt className="font-medium text-gray-600 dark:text-gray-400">{t('updates.installed')}</dt>
           <dd>{displayVersion(status.installed)}</dd>
-          <dt className="font-medium text-gray-600 dark:text-gray-400">Available</dt>
+          <dt className="font-medium text-gray-600 dark:text-gray-400">{t('updates.available')}</dt>
           <dd>
             {available ? (
               <span className="inline-flex flex-wrap items-center gap-2">
                 {status.available === status.installed ? (
-                  <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">plugin updates</span>
+                  <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">{t('updates.pluginUpdates')}</span>
                 ) : (
                   <span className="rounded bg-green-100 px-2 py-0.5 font-medium text-green-800">{displayVersion(status.available!)}</span>
                 )}
                 {status.release_url && (
                   <a href={status.release_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                    Release notes <ExternalLink size={12} />
+                    {t('updates.releaseNotes')} <ExternalLink size={12} />
                   </a>
                 )}
               </span>
             ) : status.checked ? (
-              <span className="text-gray-500">Up to date</span>
+              <span className="text-gray-500">{t('updates.upToDate')}</span>
             ) : (
-              <span className="text-gray-400">Not checked yet</span>
+              <span className="text-gray-400">{t('updates.notChecked')}</span>
             )}
           </dd>
           {(status.plugins ?? []).length > 0 && (
             <>
-              <dt className="font-medium text-gray-600 dark:text-gray-400">Plugins</dt>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">{t('updates.plugins')}</dt>
               <dd data-testid="plugin-updates">
                 {(status.plugins ?? []).map((p) => (
                   <div key={p.package}>
@@ -149,28 +150,28 @@ const Updates: React.FC = () => {
           )}
           {status.os_updates !== undefined && status.os_updates > 0 && (
             <>
-              <dt className="font-medium text-gray-600 dark:text-gray-400">OS updates</dt>
-              <dd>{status.os_updates} Debian package update{status.os_updates === 1 ? '' : 's'} pending</dd>
+              <dt className="font-medium text-gray-600 dark:text-gray-400">{t('updates.osUpdates')}</dt>
+              <dd>{t('updates.osUpdatesPending', { count: status.os_updates })}</dd>
             </>
           )}
         </dl>
-        {status.check_error && <p className="text-xs text-yellow-700">Last check failed: {status.check_error}</p>}
+        {status.check_error && <p className="text-xs text-yellow-700">{t('updates.lastCheckFailed', { error: status.check_error })}</p>}
         <button
           type="button"
           onClick={() => load(true)}
           disabled={checking || applying}
           className="inline-flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600 disabled:opacity-50"
         >
-          <RefreshCw size={14} className={checking ? 'animate-spin' : ''} /> {checking ? 'Checking…' : 'Check for updates'}
+          <RefreshCw size={14} className={checking ? 'animate-spin' : ''} /> {checking ? t('updates.checking') : t('updates.check')}
         </button>
       </section>
 
       {/* Channel */}
       <form onSubmit={saveChannel} className="space-y-2">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Update settings</h2>
-        {channelSaved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">Settings saved. Use the commit bar to apply.</div>}
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">{t('updates.settings')}</h2>
+        {channelSaved && <div className="rounded bg-green-50 p-2 text-sm text-green-700" role="status">{t('updates.settingsSaved')}</div>}
         <label className="block text-sm">
-          Channel
+          {t('updates.channel')}
           <select aria-label="Update channel" className={inputClass} value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
             {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -178,23 +179,24 @@ const Updates: React.FC = () => {
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={autoSecurity} onChange={(e) => setAutoSecurity(e.target.checked)} />
           <span>
-            Install Debian security updates automatically (recommended)
+            {t('updates.autoSecurity')}
             <span className="block text-xs text-gray-500">
-              Every night, from Debian&apos;s security archive only. Goblin Gate itself updates only when you choose. A kernel update shows &quot;Restart needed&quot; and waits for you to restart.
+              {t('updates.autoSecurityHint')}
             </span>
           </span>
         </label>
-        <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">Save settings</button>
+        <button type="submit" className="rounded bg-blue-600 px-4 py-1.5 text-sm text-white hover:bg-blue-700">{t('updates.saveSettings')}</button>
       </form>
 
       {/* Update now */}
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Update now</h2>
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">{t('updates.updateNow')}</h2>
         {available ? (
           <>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={includeOs} onChange={(e) => setIncludeOs(e.target.checked)} />
-              Also install Debian updates{status.os_updates !== undefined && ` (${status.os_updates})`}
+              {t('updates.alsoDebian')}
+              {status.os_updates !== undefined && ` (${status.os_updates})`}
             </label>
             {!applying && (
               <button
@@ -202,17 +204,17 @@ const Updates: React.FC = () => {
                 onClick={() => setConfirming(true)}
                 className="rounded bg-green-600 px-4 py-1.5 text-sm text-white hover:bg-green-700"
               >
-                Update now
+                {t('updates.updateNow')}
               </button>
             )}
           </>
         ) : (
-          <p className="text-sm text-gray-500">No update available.</p>
+          <p className="text-sm text-gray-500">{t('updates.noUpdate')}</p>
         )}
 
         {applying && (
           <div className="rounded bg-blue-50 p-3 text-sm" role="status">
-            <p className="font-medium text-blue-800">{restarting ? 'Goblin Gate is restarting…' : 'Update in progress…'}</p>
+            <p className="font-medium text-blue-800">{restarting ? t('updates.restarting') : t('updates.inProgress')}</p>
             {last?.step && <p className="mt-1 text-blue-700">{last.step}</p>}
           </div>
         )}
@@ -226,14 +228,14 @@ const Updates: React.FC = () => {
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
-            <h3 className="mb-2 text-base font-semibold text-gray-800 dark:text-white">Update now?</h3>
+            <h3 className="mb-2 text-base font-semibold text-gray-800 dark:text-white">{t('updates.confirmTitle')}</h3>
             <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
-              This box will restart during the update. If the new version fails, Goblin Gate rolls back automatically.
-              {includeOs && ' Debian updates will also be installed.'}
+              {t('updates.confirmBody')}
+              {includeOs && ' ' + t('updates.confirmDebian')}
             </p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirming(false)} className="rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600">Cancel</button>
-              <button type="button" onClick={doUpdate} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700">Update now</button>
+              <button type="button" onClick={() => setConfirming(false)} className="rounded border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-600">{t('common.cancel')}</button>
+              <button type="button" onClick={doUpdate} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700">{t('updates.updateNow')}</button>
             </div>
           </div>
         </div>
@@ -244,10 +246,10 @@ const Updates: React.FC = () => {
 
 const ResultBox: React.FC<{ last: NonNullable<UpdatesStatus['last']> }> = ({ last }) => {
   const map = {
-    done: { icon: CheckCircle2, cls: 'bg-green-50 text-green-800', title: 'Update complete' },
-    rolled_back: { icon: RotateCcw, cls: 'bg-yellow-50 text-yellow-800', title: 'Update rolled back' },
-    failed: { icon: XCircle, cls: 'bg-red-50 text-red-800', title: 'Update failed' },
-    running: { icon: AlertTriangle, cls: 'bg-blue-50 text-blue-800', title: 'Update in progress' },
+    done: { icon: CheckCircle2, cls: 'bg-green-50 text-green-800', title: t('updates.resultDone') },
+    rolled_back: { icon: RotateCcw, cls: 'bg-yellow-50 text-yellow-800', title: t('updates.resultRolledBack') },
+    failed: { icon: XCircle, cls: 'bg-red-50 text-red-800', title: t('updates.resultFailed') },
+    running: { icon: AlertTriangle, cls: 'bg-blue-50 text-blue-800', title: t('updates.resultRunning') },
   } as const
   const m = map[last.state]
   const Icon = m.icon

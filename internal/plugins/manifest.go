@@ -66,6 +66,9 @@ type Property struct {
 	MaxLength   *int     `json:"maxLength,omitempty"`
 	Default     any      `json:"default,omitempty"`
 	Items       *Items   `json:"items,omitempty"`
+	// Secret marks a password or token (strings only): it is stored apart
+	// from the other settings and redacted wherever configs are shown.
+	Secret bool `json:"secret,omitempty"`
 }
 
 // Items describes array elements (strings only).
@@ -138,6 +141,9 @@ func (m *Manifest) check(dir string) error {
 				}
 			default:
 				add("settings_schema: property %q: unsupported type %q", key, p.Type)
+			}
+			if p.Secret && (p.Type != "string" || p.Default != nil) {
+				add("settings_schema: property %q: a secret must be a string without a default", key)
 			}
 			if p.Default != nil {
 				if msg := p.check(p.Default); msg != "" {
@@ -358,6 +364,56 @@ func (in *Installed) Spec() config.PluginSpec {
 	if in.Manifest != nil {
 		spec.Capabilities = in.Manifest.Capabilities
 		spec.CheckSettings = in.Manifest.CheckSettings
+		spec.Secrets = in.Manifest.SecretKeys()
 	}
 	return spec
+}
+
+// SecretKeys lists the settings the schema marks secret, sorted.
+func (m *Manifest) SecretKeys() []string {
+	var out []string
+	if m.SettingsSchema != nil {
+		for key, p := range m.SettingsSchema.Properties {
+			if p != nil && p.Secret {
+				out = append(out, key)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SplitSettings separates the secrets from the other settings of an
+// admin's settings object. A secret left empty or out keeps its stored
+// value (stored): the admin UI never sees the stored secrets, so it sends
+// them back blank.
+func (m *Manifest) SplitSettings(in map[string]any, stored map[string]string) (settings map[string]any, secrets map[string]string) {
+	secretKeys := m.SecretKeys()
+	for k, v := range in {
+		if slices.Contains(secretKeys, k) {
+			if s, ok := v.(string); ok && s != "" {
+				if secrets == nil {
+					secrets = map[string]string{}
+				}
+				secrets[k] = s
+			}
+			continue
+		}
+		if settings == nil {
+			settings = map[string]any{}
+		}
+		settings[k] = v
+	}
+	for k, v := range stored {
+		if _, typed := secrets[k]; !typed && slices.Contains(secretKeys, k) {
+			if _, cleared := in[k]; cleared && in[k] == nil {
+				continue // null clears it
+			}
+			if secrets == nil {
+				secrets = map[string]string{}
+			}
+			secrets[k] = v
+		}
+	}
+	return settings, secrets
 }

@@ -7,6 +7,7 @@ import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { inputClass } from '../../components/ConfigList'
 import { getCandidate, getCrowdSecStatus, patchSection } from '../../api/objects'
+import { t } from '../../i18n'
 import type { CrowdSecSettings, CrowdSecStatus } from '../../api/objects'
 
 const WIKI_URL = 'https://github.com/MostlyWithinSpec/Goblin-Gate/wiki/Threat-Feeds-and-DNS-Filter#crowdsec'
@@ -60,7 +61,7 @@ export function buildCrowdSec(f: CrowdSecForm, loaded: CrowdSecSettings | undefi
 export function validateCrowdSec(f: CrowdSecForm): Record<string, string> {
   const e: Record<string, string> = {}
   const url = f.url.trim()
-  if (f.enabled && !url) e.url = 'Required when CrowdSec is enabled.'
+  if (f.enabled && !url) e.url = t('crowdSec.errUrlRequired')
   if (url) {
     let parsed: URL | null = null
     try {
@@ -69,17 +70,17 @@ export function validateCrowdSec(f: CrowdSecForm): Record<string, string> {
       parsed = null
     }
     if (!parsed || !parsed.hostname || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
-      e.url = 'Give the full LAPI base URL, e.g. http://192.168.1.20:8080.'
+      e.url = t('crowdSec.errUrlFull')
     } else if (parsed.username || parsed.password) {
-      e.url = 'No credentials in the URL: put the bouncer key below.'
+      e.url = t('crowdSec.errUrlCredentials')
     }
   }
   if (f.enabled && !f.api_key.trim() && !f.hasKey) {
-    e.api_key = 'Required when CrowdSec is enabled (cscli bouncers add goblin-gate).'
+    e.api_key = t('crowdSec.errKeyRequired')
   }
   const poll = Number(f.poll)
   if (f.poll.trim() !== '' && (!Number.isInteger(poll) || poll < 5 || poll > 300)) {
-    e.poll = 'Choose 5-300 seconds.'
+    e.poll = t('crowdSec.errPoll')
   }
   return e
 }
@@ -87,13 +88,13 @@ export function validateCrowdSec(f: CrowdSecForm): Record<string, string> {
 // relTime renders an RFC3339 time as a short relative age.
 function relTime(s?: string): string {
   if (!s) return '—'
-  const t = Date.parse(s)
-  if (Number.isNaN(t)) return '—'
-  const sec = Math.max(0, (Date.now() - t) / 1000)
-  if (sec < 60) return 'just now'
-  if (sec < 3600) return `${Math.floor(sec / 60)} min ago`
-  if (sec < 86400) return `${Math.floor(sec / 3600)} h ago`
-  return `${Math.floor(sec / 86400)} d ago`
+  const t0 = Date.parse(s)
+  if (Number.isNaN(t0)) return '—'
+  const sec = Math.max(0, (Date.now() - t0) / 1000)
+  if (sec < 60) return t('crowdSec.justNow')
+  if (sec < 3600) return t('crowdSec.minutesAgo', { minutes: Math.floor(sec / 60) })
+  if (sec < 86400) return t('crowdSec.hoursAgo', { hours: Math.floor(sec / 3600) })
+  return t('crowdSec.daysAgo', { days: Math.floor(sec / 86400) })
 }
 
 export default function CrowdSec() {
@@ -141,13 +142,13 @@ export default function CrowdSec() {
       // Remember what the server holds now: a key that was sent is the key
       // (echoed back on the next save); one left out stayed as it was.
       setLoaded((c) => ({ ...c, ...value, api_key: value.api_key ?? c?.api_key }))
-      setMessage({ ok: true, text: 'Saved. Use the commit bar to apply.' })
+      setMessage({ ok: true, text: t('crowdSec.saved') })
       queryClient.invalidateQueries({ queryKey: ['candidate'] })
       queryClient.invalidateQueries({ queryKey: ['crowdsec-status'] })
     },
     onError: (err: Error) => {
       setErrors({})
-      setMessage({ ok: false, text: `Could not save: ${err.message}` })
+      setMessage({ ok: false, text: t('crowdSec.saveFailed', { error: err.message }) })
     },
   })
 
@@ -168,18 +169,18 @@ export default function CrowdSec() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">CrowdSec</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{t('crowdSec.title')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Pull ban decisions from a CrowdSec instance and drop them at the firewall.
+          {t('crowdSec.intro')}
         </p>
       </div>
 
       <StatusCard query={status} />
 
       <section className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-white">Connection</h2>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('crowdSec.connection')}</h2>
         {!form ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-gray-500">{t('common.loading')}</p>
         ) : (
           <form onSubmit={submit} className="max-w-xl space-y-3">
             {message && (
@@ -192,11 +193,11 @@ export default function CrowdSec() {
             )}
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" aria-label="Enable CrowdSec" checked={form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-              Enable the CrowdSec bouncer
+              {t('crowdSec.enableBouncer')}
             </label>
 
             <label className="block text-sm">
-              LAPI URL
+              {t('crowdSec.lapiUrl')}
               <input
                 className={inputClass}
                 placeholder="http://192.168.1.20:8080"
@@ -207,12 +208,12 @@ export default function CrowdSec() {
             {errors.url && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.url}</p>}
 
             <label className="block text-sm">
-              Bouncer key
+              {t('crowdSec.bouncerKey')}
               <input
                 type="password"
                 className={inputClass}
                 aria-label="Bouncer key"
-                placeholder={form.hasKey ? 'unchanged' : ''}
+                placeholder={form.hasKey ? t('crowdSec.unchanged') : ''}
                 value={form.api_key}
                 onChange={(e) => set({ api_key: e.target.value })}
               />
@@ -221,7 +222,7 @@ export default function CrowdSec() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-sm">
-                Poll interval (seconds)
+                {t('crowdSec.pollInterval')}
                 <input
                   type="number"
                   className={inputClass}
@@ -231,15 +232,15 @@ export default function CrowdSec() {
                 />
               </label>
               <label className="block text-sm">
-                Scope
+                {t('crowdSec.scope')}
                 <select
                   className={inputClass}
                   aria-label="Scope"
                   value={form.scope}
                   onChange={(e) => set({ scope: e.target.value === 'all' ? 'all' : 'wan' })}
                 >
-                  <option value="wan">WAN only</option>
-                  <option value="all">All interfaces</option>
+                  <option value="wan">{t('crowdSec.scopeWan')}</option>
+                  <option value="all">{t('crowdSec.scopeAll')}</option>
                 </select>
               </label>
             </div>
@@ -247,7 +248,7 @@ export default function CrowdSec() {
             {errors.scope && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.scope}</p>}
 
             <Button type="submit" disabled={save.isPending}>
-              Save
+              {t('crowdSec.save')}
             </Button>
           </form>
         )}
@@ -275,44 +276,44 @@ function StatusCard({ query }: { query: StatusState }) {
       className="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
     >
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-gray-800 dark:text-white">Status</h2>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('crowdSec.status')}</h2>
         {!query.isError && s &&
           (s.connected ? (
-            <Badge variant="success">Connected</Badge>
+            <Badge variant="success">{t('crowdSec.connected')}</Badge>
           ) : (
-            <Badge variant={s.enabled ? 'warning' : 'secondary'}>{s.enabled ? 'Not connected' : 'Disabled'}</Badge>
+            <Badge variant={s.enabled ? 'warning' : 'secondary'}>{s.enabled ? t('crowdSec.notConnected') : t('crowdSec.disabled')}</Badge>
           ))}
-        {query.isError && <Badge variant="error">Unavailable</Badge>}
+        {query.isError && <Badge variant="error">{t('crowdSec.unavailable')}</Badge>}
       </div>
       {query.isError ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          Cannot read the CrowdSec status: {err instanceof Error ? err.message : 'unavailable'}
+          {t('crowdSec.statusError', { error: err instanceof Error ? err.message : t('crowdSec.unavailableWord') })}
         </p>
       ) : !s ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p className="text-sm text-gray-500">{t('common.loading')}</p>
       ) : (
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <div>
-            <dt className="text-gray-500 dark:text-gray-400">Active decisions</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t('crowdSec.activeDecisions')}</dt>
             <dd className="font-semibold text-gray-900 dark:text-white">{s.active}</dd>
           </div>
           <div>
-            <dt className="text-gray-500 dark:text-gray-400">Dropped packets</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t('crowdSec.droppedPackets')}</dt>
             <dd className="font-semibold text-gray-900 dark:text-white">{s.dropped_packets}</dd>
           </div>
           <div>
-            <dt className="text-gray-500 dark:text-gray-400">Last pull</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t('crowdSec.lastPull')}</dt>
             <dd className="text-gray-900 dark:text-white">{relTime(s.last_pull)}</dd>
           </div>
           <div>
-            <dt className="text-gray-500 dark:text-gray-400">Bouncer</dt>
-            <dd className="text-gray-900 dark:text-white">{s.enabled ? 'On' : 'Off'}</dd>
+            <dt className="text-gray-500 dark:text-gray-400">{t('crowdSec.bouncer')}</dt>
+            <dd className="text-gray-900 dark:text-white">{s.enabled ? t('crowdSec.on') : t('crowdSec.off')}</dd>
           </div>
         </dl>
       )}
       {s?.last_error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          Last error: {s.last_error}
+          {t('crowdSec.lastError', { error: s.last_error })}
         </p>
       )}
     </section>
@@ -322,23 +323,23 @@ function StatusCard({ query }: { query: StatusState }) {
 function HelpPanel() {
   return (
     <section className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-white">Getting a bouncer key</h2>
+      <h2 className="text-base font-semibold text-gray-800 dark:text-white">{t('crowdSec.helpTitle')}</h2>
       <p className="mt-1 text-gray-600 dark:text-gray-300">
-        On the CrowdSec machine, create a bouncer and paste the key above:
+        {t('crowdSec.helpIntro')}
       </p>
       <pre className="mt-2 overflow-x-auto rounded bg-gray-100 p-2 text-xs dark:bg-gray-800">
         <code>cscli bouncers add goblin-gate</code>
       </pre>
       <p className="mt-2 text-gray-600 dark:text-gray-300">
-        Bans land in the nftables sets <code>crowdsec4</code> / <code>crowdsec6</code> and are dropped
-        before the firewall policies. See the{' '}
+        {t('crowdSec.helpSets')} <code>crowdsec4</code> / <code>crowdsec6</code> {t('crowdSec.helpDropped')}
+        {' '}{t('crowdSec.helpBefore')}{' '}
         <a
           className="text-blue-600 underline dark:text-blue-400"
           href={WIKI_URL}
           target="_blank"
           rel="noreferrer"
         >
-          CrowdSec section of the wiki
+          {t('crowdSec.wikiLink')}
         </a>
         .
       </p>

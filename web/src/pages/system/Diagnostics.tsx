@@ -9,30 +9,44 @@ import { diagPing, diagTraceroute, diagDNS } from '../../api/diagnostics'
 import type { PingResult, TraceResult, DNSResult, DNSType } from '../../api/diagnostics'
 import { getCandidate } from '../../api/objects'
 import { APIRequestError } from '../../api/client'
+import { t } from '../../i18n'
+import { NICsTab, ThroughputTab } from './Throughput'
 
-type Tab = 'ping' | 'traceroute' | 'dns'
+type Tab = 'ping' | 'traceroute' | 'dns' | 'throughput' | 'nics'
 
 const fmtMs = (n: number) => `${Math.round(n * 10) / 10} ms`
+
+const tabs = (): [Tab, string][] => [
+  ['ping', t('diagnostics.tab.ping')],
+  ['traceroute', t('diagnostics.tab.traceroute')],
+  ['dns', t('diagnostics.tab.dns')],
+  ['throughput', t('throughput.tab')],
+  ['nics', t('nics.tab')],
+]
 
 export default function Diagnostics() {
   const [tab, setTab] = useState<Tab>('ping')
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        {(['ping', 'traceroute', 'dns'] as Tab[]).map((t) => (
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
+        {tabs().map(([id, label]) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 text-sm capitalize ${tab === t ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`px-3 py-1.5 text-sm ${tab === id ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>
       {tab === 'ping' && <PingTab />}
       {tab === 'traceroute' && <TracerouteTab />}
       {tab === 'dns' && <DnsTab />}
+      {tab === 'throughput' && <ThroughputTab />}
+      {tab === 'nics' && <NICsTab />}
     </div>
   )
 }
@@ -40,7 +54,7 @@ export default function Diagnostics() {
 // errorText renders the server's message; a 429 "busy" gets its own wording.
 function errorText(e: unknown): string {
   if (e instanceof APIRequestError && e.status === 429) {
-    return 'Another diagnostic is running; try again in a moment.'
+    return t('diagnostics.busy')
   }
   return e instanceof Error ? e.message : String(e)
 }
@@ -96,17 +110,17 @@ function PingTab() {
     <div className="space-y-4">
       <form onSubmit={run} className="flex flex-wrap items-end gap-3">
         <label className="block text-sm">
-          Host
+          {t('diagnostics.host')}
           <input
             className={inputClass}
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder="example.com or 1.2.3.4"
+            placeholder={t('diagnostics.hostPlaceholder')}
             required
           />
         </label>
         <label className="block text-sm">
-          Count
+          {t('diagnostics.count')}
           <input
             type="number"
             min={1}
@@ -117,22 +131,21 @@ function PingTab() {
           />
         </label>
         <label className="block text-sm">
-          Source interface
+          {t('diagnostics.sourceInterface')}
           <select className={inputClass} value={iface} onChange={(e) => setIface(e.target.value)}>
-            <option value="">(default)</option>
+            <option value="">{t('diagnostics.defaultInterface')}</option>
             {ifaces.map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
         </label>
-        {busyBtn(running, 'Ping')}
+        {busyBtn(running, t('diagnostics.tab.ping'))}
       </form>
       {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
       {result && (
         <div className="space-y-2">
           <p className="text-sm font-medium">
-            {result.sent} sent, {result.received} received, {Math.round(result.loss_percent)}% loss,{' '}
-            {fmtMs(result.rtt_avg_ms)} average
+            {t('diagnostics.pingSummary', { sent: result.sent, received: result.received, loss: Math.round(result.loss_percent), avg: fmtMs(result.rtt_avg_ms) })}
           </p>
           <pre className="overflow-x-auto rounded bg-gray-50 p-2 font-mono text-xs leading-5 dark:bg-gray-800">
             {result.lines.join('\n')}
@@ -169,17 +182,17 @@ function TracerouteTab() {
     <div className="space-y-4">
       <form onSubmit={run} className="flex flex-wrap items-end gap-3">
         <label className="block text-sm">
-          Host
+          {t('diagnostics.host')}
           <input
             className={inputClass}
             value={host}
             onChange={(e) => setHost(e.target.value)}
-            placeholder="example.com or 1.2.3.4"
+            placeholder={t('diagnostics.hostPlaceholder')}
             required
           />
         </label>
         <label className="block text-sm">
-          Max hops
+          {t('diagnostics.maxHops')}
           <input
             type="number"
             min={1}
@@ -189,16 +202,16 @@ function TracerouteTab() {
             onChange={(e) => setMaxHops(Number(e.target.value))}
           />
         </label>
-        {busyBtn(running, 'Trace')}
+        {busyBtn(running, t('diagnostics.trace'))}
       </form>
       {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
       {result && (
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-left dark:border-gray-700">
-              <th className="py-1 pr-4">Hop</th>
-              <th className="py-1 pr-4">Address</th>
-              <th className="py-1">Times</th>
+              <th className="py-1 pr-4">{t('diagnostics.col.hop')}</th>
+              <th className="py-1 pr-4">{t('diagnostics.col.address')}</th>
+              <th className="py-1">{t('diagnostics.col.times')}</th>
             </tr>
           </thead>
           <tbody>
@@ -245,42 +258,40 @@ function DnsTab() {
     <div className="space-y-4">
       <form onSubmit={run} className="flex flex-wrap items-end gap-3">
         <label className="block text-sm">
-          Name
+          {t('diagnostics.name')}
           <input
             className={inputClass}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={type === 'PTR' ? '1.2.3.4 (an IP address)' : 'example.com'}
+            placeholder={type === 'PTR' ? t('diagnostics.namePlaceholderPTR') : t('diagnostics.namePlaceholder')}
             required
           />
         </label>
         <label className="block text-sm">
-          Type
+          {t('diagnostics.type')}
           <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as DNSType)}>
-            {DNS_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+            {DNS_TYPES.map((v) => (
+              <option key={v} value={v}>{v}</option>
             ))}
           </select>
         </label>
         <label className="block text-sm">
-          Server
+          {t('diagnostics.server')}
           <input
             className={`${inputClass} w-40`}
             value={server}
             onChange={(e) => setServer(e.target.value)}
-            placeholder="box or an IP address"
+            placeholder={t('diagnostics.serverPlaceholder')}
           />
         </label>
-        {busyBtn(running, 'Lookup')}
+        {busyBtn(running, t('diagnostics.lookup'))}
       </form>
       {error && <div className="rounded bg-red-50 p-2 text-sm text-red-700" role="alert">{error}</div>}
       {result && (
         <div className="space-y-2">
-          <p className="text-sm font-medium">
-            {result.rcode} · {fmtMs(result.ms)} · via {result.server}
-          </p>
+          <p className="text-sm font-medium">{t('diagnostics.dnsSummary', { rcode: result.rcode, ms: fmtMs(result.ms), server: result.server })}</p>
           {result.answers.length === 0 ? (
-            <p className="text-sm text-gray-500">No answers.</p>
+            <p className="text-sm text-gray-500">{t('diagnostics.noAnswers')}</p>
           ) : (
             <ul className="space-y-1 font-mono text-xs">
               {result.answers.map((a, i) => (

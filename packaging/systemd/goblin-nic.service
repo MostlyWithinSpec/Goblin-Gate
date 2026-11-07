@@ -1,0 +1,14 @@
+[Unit]
+Description=Goblin Gate network card offloads (ethtool settings)
+# offload settings do not survive a reboot: put them back once the links exist.
+After=systemd-networkd.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/goblingate/nic/offloads.sh
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /etc/goblingate/nic/offloads.sh
+
+[Install]
+WantedBy=multi-user.target

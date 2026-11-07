@@ -10,8 +10,8 @@ import (
 // must not see, and what never leaves the box in the git history. Password
 // hashes, two-factor secrets, notification credentials (URLs can carry
 // webhook secrets), feed download headers (API keys of paid feeds), DDNS
-// tokens and update URLs, log export credentials, and credentials or
-// tokens inside the mirror URLs. WireGuard private keys are not in the
+// tokens and update URLs, log export credentials, plugin secrets, and
+// credentials or tokens inside the mirror URLs. WireGuard private keys are not in the
 // config (they live in their own key directory).
 func RedactSecrets(cfg *Config) {
 	for i := range cfg.Admins {
@@ -38,6 +38,9 @@ func RedactSecrets(cfg *Config) {
 	cfg.CrowdSec.APIKey = ""
 	cfg.UPS.Password = ""
 	cfg.IPS.ETProCode = ""
+	for i := range cfg.Plugins {
+		cfg.Plugins[i].Secrets = nil
+	}
 }
 
 // redactURL drops a URL's password and query (a mirror's token).
@@ -88,6 +91,8 @@ func KeepRedactedSecrets(prev, next *Config) {
 	if n == red.CrowdSec {
 		next.CrowdSec.APIKey = prev.CrowdSec.APIKey
 	}
+	// a plugin keeps its secrets while its entry is what the caller read
+	keepList(prev.Plugins, red.Plugins, next.Plugins, func(p *Plugin) string { return p.Name }, func(p *Plugin) *bool { return &p.Enabled })
 	// the code goes to one fixed place (Proofpoint): keep it when left blank
 	if next.IPS.ETProCode == "" {
 		next.IPS.ETProCode = prev.IPS.ETProCode

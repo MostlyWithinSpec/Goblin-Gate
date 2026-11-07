@@ -40,6 +40,13 @@ func (s *Server) listBlocks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"blocks": out})
 }
 
+type blockRequest struct {
+	IP            string `json:"ip"`
+	Minutes       int    `json:"minutes"`
+	Reason        string `json:"reason"`
+	AllowInternal bool   `json:"allow_internal"`
+}
+
 // POST /api/v1/blocks {ip, minutes, reason, allow_internal?} → 201 blockView.
 // allow_internal (admins only) permits addresses inside the box's own
 // networks.
@@ -48,12 +55,7 @@ func (s *Server) addBlock(w http.ResponseWriter, r *http.Request) {
 		unavailable(w, "temporary blocks")
 		return
 	}
-	var req struct {
-		IP            string `json:"ip"`
-		Minutes       int    `json:"minutes"`
-		Reason        string `json:"reason"`
-		AllowInternal bool   `json:"allow_internal"`
-	}
+	var req blockRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

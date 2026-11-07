@@ -1,19 +1,20 @@
 // The /security landing page: one card per security profile page.
 import { Link } from 'react-router-dom'
+import { t } from '../i18n'
 
 const cards = [
-  { to: '/security/feeds', title: 'Threat Feeds', text: 'Download IP, domain and URL block lists and block them on WAN or per policy.' },
-  { to: '/security/dns-filter', title: 'DNS Filter', text: 'Block domain feeds and lists in DNS, force safe search.' },
-  { to: '/security/web-filter', title: 'Web Filter', text: 'Allow, monitor, warn or block websites by category.' },
-  { to: '/security/ips', title: 'Intrusion Prevention', text: 'Inspect traffic with Suricata and the ET Open rules; block attacks or just log them.' },
-  { to: '/security/apps', title: 'Application Control', text: 'Allow, monitor or block applications such as streaming, games or VPNs.' },
-  { to: '/security/crowdsec', title: 'CrowdSec', text: 'Pull ban decisions from a CrowdSec instance and drop them at the firewall.' },
+  { to: '/security/feeds', title: t('security.feedsTitle'), text: t('security.feedsText') },
+  { to: '/security/dns-filter', title: t('security.dnsFilterTitle'), text: t('security.dnsFilterText') },
+  { to: '/security/web-filter', title: t('security.webFilterTitle'), text: t('security.webFilterText') },
+  { to: '/security/ips', title: t('security.ipsTitle'), text: t('security.ipsText') },
+  { to: '/security/apps', title: t('security.appsTitle'), text: t('security.appsText') },
+  { to: '/security/crowdsec', title: t('security.crowdSecTitle'), text: t('security.crowdSecText') },
 ]
 
 export default function Security() {
   return (
     <div className="p-6">
-      <h1 className="mb-6 text-2xl font-bold text-gray-800 dark:text-white">Security Profiles</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-800 dark:text-white">{t('security.title')}</h1>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {cards.map((c) => (
           <Link key={c.to} to={c.to} className="block rounded-lg bg-white p-6 shadow-sm hover:shadow dark:bg-gray-800 min-h-[40px]">
@@ -22,7 +23,7 @@ export default function Security() {
           </Link>
         ))}
       </div>
-      <p className="mt-6 text-sm text-gray-500">Profiles take effect when a firewall policy selects them.</p>
+      <p className="mt-6 text-sm text-gray-500">{t('security.footer')}</p>
     </div>
   )
 }

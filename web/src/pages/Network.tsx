@@ -1,27 +1,29 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { t } from '../i18n'
 
 // The /network section: a tab bar over the sub-pages (the active one highlighted).
-const tabs = [
-  ['interfaces', 'Interfaces'],
-  ['addresses', 'Addresses'],
-  ['address-groups', 'Address Groups'],
-  ['services', 'Services'],
-  ['service-groups', 'Service Groups'],
-  ['port-forwards', 'Port Forwards'],
-  ['upnp', 'UPnP'],
-  ['dhcp', 'DHCP'],
-  ['dns', 'DNS'],
-  ['gateways', 'Gateways'],
-  ['gateway-groups', 'Gateway Groups'],
-  ['static-routes', 'Static Routes'],
-  ['devices', 'Devices'],
-  ['dynamic-dns', 'Dynamic DNS'],
-] as const
+const tabs: [string, string][] = [
+  ['interfaces', t('network.interfaces')],
+  ['addresses', t('network.addresses')],
+  ['address-groups', t('network.addrGroups')],
+  ['services', t('network.services')],
+  ['service-groups', t('network.serviceGroups')],
+  ['port-forwards', t('network.portForwards')],
+  ['upnp', t('network.upnp')],
+  ['reverse-proxy', t('network.reverseProxy')],
+  ['dhcp', t('network.dhcp')],
+  ['dns', t('network.dns')],
+  ['gateways', t('network.gateways')],
+  ['gateway-groups', t('network.gatewayGroups')],
+  ['static-routes', t('network.staticRoutes')],
+  ['devices', t('network.devices')],
+  ['dynamic-dns', t('network.dynamicDns')],
+]
 
 export default function Network() {
   return (
     <div className="p-6">
-      <h1 className="mb-6 text-2xl font-bold text-gray-800 dark:text-gray-100">Network Configuration</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-800 dark:text-gray-100">{t('network.configuration')}</h1>
       <nav className="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-700">
         {tabs.map(([path, label]) => (
           <NavLink

@@ -1,0 +1,25 @@
+{
+  "name": "homeassistant",
+  "version": "0.2.0",
+  "description": "Home Assistant: WAN, gateway and box sensors, presence of chosen devices, and switches for chosen policies, over MQTT discovery",
+  "min_goblind": "0.2.0~beta.1",
+  "capabilities": ["stats:read", "devices:read", "policies:toggle"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "broker": {"type": "string", "maxLength": 255,
+                 "description": "the MQTT broker Home Assistant uses: host or host:port (1883, or 8883 with TLS)"},
+      "username": {"type": "string", "maxLength": 128, "description": "MQTT user (empty = no login)"},
+      "password": {"type": "string", "maxLength": 256, "secret": true, "description": "MQTT password"},
+      "tls": {"type": "boolean", "default": false, "description": "connect with TLS"},
+      "tls_skip_verify": {"type": "boolean", "default": false, "description": "accept any broker certificate (self-signed); only on your own network"},
+      "discovery_prefix": {"type": "string", "default": "homeassistant", "maxLength": 64, "description": "Home Assistant's MQTT discovery prefix"},
+      "base_topic": {"type": "string", "default": "goblin_gate", "maxLength": 64, "description": "where this box publishes its states; give each box its own"},
+      "device_name": {"type": "string", "default": "Goblin Gate", "maxLength": 64, "description": "the device name in Home Assistant"},
+      "interval_seconds": {"type": "integer", "minimum": 10, "maximum": 3600, "default": 30, "description": "how often the states are sent"},
+      "devices": {"type": "array", "items": {"type": "string"}, "description": "MAC addresses of devices to track as home / not home (needs devices:read)"},
+      "away_minutes": {"type": "integer", "minimum": 1, "maximum": 1440, "default": 10, "description": "a device not seen for this long is not home"}
+    },
+    "required": ["broker"]
+  }
+}

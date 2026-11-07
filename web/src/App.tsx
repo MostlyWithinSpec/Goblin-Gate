@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
+import { useLanguage } from './i18n'
 import Dashboard from './pages/Dashboard'
 import ChecksPage from './pages/Checks'
 import Login from './pages/Login'
@@ -39,6 +40,7 @@ import Services from './pages/network/Services'
 import ServiceGroups from './pages/network/ServiceGroups'
 import PortForwards from './pages/network/PortForwards'
 import UPnP from './pages/network/UPnP'
+import ReverseProxy from './pages/network/ReverseProxy'
 import DHCP from './pages/network/DHCP'
 import DNS from './pages/network/DNS'
 import Gateways from './pages/network/Gateways'
@@ -61,9 +63,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 const queryClient = new QueryClient()
 
 function App() {
+  // a new language renders the whole tree again, so every t() runs again
+  const lang = useLanguage()
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
+      <Router key={lang}>
         <SetupGate />
         <div className="app">
           <Routes>
@@ -81,6 +85,7 @@ function App() {
                 <Route path="service-groups" element={<ServiceGroups />} />
                 <Route path="port-forwards" element={<PortForwards />} />
                 <Route path="upnp" element={<UPnP />} />
+                <Route path="reverse-proxy" element={<ReverseProxy />} />
                 <Route path="dhcp" element={<DHCP />} />
                 <Route path="dns" element={<DNS />} />
                 <Route path="gateways" element={<Gateways />} />

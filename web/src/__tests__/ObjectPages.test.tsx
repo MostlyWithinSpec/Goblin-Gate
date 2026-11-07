@@ -394,6 +394,38 @@ describe('Interfaces', () => {
     expect(wan1.sqm).toEqual({ enabled: false, download_mbit: 500, upload_mbit: 50 })
   })
 
+  test('offload overrides only after the warning; Default leaves the key out', async () => {
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
+    await screen.findByText('Edit lan')
+    expect(screen.queryByLabelText('Offload GRO')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Change offloads…' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Change network card offloads?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'I understand, show the settings' }))
+    fireEvent.change(await screen.findByLabelText('Offload GRO'), { target: { value: 'off' } })
+    fireEvent.change(screen.getByLabelText('Offload TSO'), { target: { value: 'on' } })
+    fireEvent.change(screen.getByLabelText('Offload TSO'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [, list] = lastPatch()
+    expect((list as api.Interface[])[1].offloads).toEqual({ gro: false })
+  })
+
+  test('existing offload overrides show without the warning; all Default drops the block', async () => {
+    const withOffloads = structuredClone(cfg)
+    withOffloads.interfaces![1].offloads = { lro: true }
+    vi.mocked(api.getCandidate).mockResolvedValue(withOffloads)
+    wrap(<Interfaces />)
+    fireEvent.click(await screen.findByRole('button', { name: 'lan' }))
+    const lro = await screen.findByLabelText('Offload LRO')
+    expect(lro).toHaveValue('on')
+    fireEvent.change(lro, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [, list] = lastPatch()
+    expect((list as api.Interface[])[1]).not.toHaveProperty('offloads')
+  })
+
   test('enabling smart queue with empty speeds shows validation errors', async () => {
     wrap(<Interfaces />)
     fireEvent.click(await screen.findByRole('button', { name: 'wan1' }))

@@ -1,0 +1,58 @@
+[Unit]
+Description=Goblin Gate reverse proxy (Caddy)
+Documentation=https://caddyserver.com/docs/json/
+# goblind writes the config when the reverse proxy is enabled, and the nft
+# ruleset hands WAN ports 80 and 443 to ports 10080 and 10443.
+After=network-online.target nftables.service goblind.service
+Wants=network-online.target
+ConditionPathExists=/etc/goblingate/caddy/caddy.json
+ConditionPathExists=/usr/bin/caddy
+
+[Service]
+Type=simple
+# a throwaway user; certificates and the ACME account live in its state directory
+DynamicUser=yes
+StateDirectory=goblin-caddy
+StateDirectoryMode=0700
+Environment=HOME=/var/lib/goblin-caddy XDG_DATA_HOME=/var/lib/goblin-caddy XDG_CONFIG_HOME=/var/lib/goblin-caddy
+# /etc/goblingate is root's: root ("+") copies the config into the runtime
+# directory for the throwaway user, read-only
+RuntimeDirectory=goblin-caddy
+RuntimeDirectoryMode=0700
+ExecStartPre=+/usr/bin/install -m 0400 -o goblin-caddy -g goblin-caddy /etc/goblingate/caddy/caddy.json /run/goblin-caddy/caddy.json
+ExecStart=/usr/bin/caddy run --config /run/goblin-caddy/caddy.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+LimitNOFILE=65536
+
+# high ports only: no capabilities at all
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

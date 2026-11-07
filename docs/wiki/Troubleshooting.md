@@ -69,6 +69,31 @@ At most two diagnostics run at once; if one is already busy you get "Another dia
 again in a moment." Traceroute can take up to a minute — the button stays disabled with a spinner until it
 finishes.
 
+### Throughput test
+
+**Throughput test** measures how fast traffic gets between a computer and the box. Pick a LAN-side network
+(an interface or VLAN with a static IPv4 address; never a WAN) and how many minutes to stay open (1–15), then
+Start. The box runs an iperf3 server on that network's address, port 5201, open only on that network and
+only while the test runs. On a computer in that network, run the command the page shows:
+
+- `iperf3 -c <address>`: upload (computer → box)
+- `iperf3 -c <address> -R`: download (box → computer)
+
+Each run shows up in the results with its speed in Mbit/s (and retransmits, or loss and jitter for UDP).
+Stop closes the port early. Use a wired computer: Wi-Fi usually measures the Wi-Fi, not the box. This tests
+the box's own network stack, not routing between two networks.
+
+### Network cards
+
+**Network cards** lists each interface's driver, link speed and duplex, receive/send queues and offloads,
+with hints when something is likely to slow it down: no link, a link slower than the card can do, half
+duplex, offloads that are off, a slow driver, or a single receive queue on a fast link.
+
+Offloads can be overridden per interface under Network → Interfaces → *Network card offloads (advanced)*
+(each one: driver default, on or off). The defaults are right for almost every card; change them only to
+work around a known problem, and run the throughput test before and after. Going back to the driver
+default fully applies after the next restart.
+
 ## Reporting a bug
 
 Open an issue with: the Goblin Gate version (System → About), what you did, what you expected, and the

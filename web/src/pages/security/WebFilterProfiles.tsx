@@ -6,8 +6,9 @@ import React, { useEffect, useState } from 'react'
 import { ConfigList, ListInput, inputClass, omitEmpty } from '../../components/ConfigList'
 import { getWebCategories, lookupWebCategory, profileInterfaces, type WebAction, type WebFilterProfile, type WebLookup } from '../../api/objects'
 import { Badge } from '../../components/Badge'
+import { t } from '../../i18n'
 import { UsedBy } from './DNSFilterProfiles'
-import { summarize, validateDomainLists } from './profileLogic'
+import { domainCounts, summarize, validateDomainLists } from './profileLogic'
 
 // Shown before the category database has been downloaded (UT1 names).
 export const DEFAULT_CATEGORIES = ['adult', 'gambling', 'malware', 'phishing', 'social_networks', 'games', 'audio-video', 'dating', 'drugs', 'vpn', 'warez']
@@ -34,26 +35,26 @@ function Lookup() {
   }
   return (
     <form onSubmit={go} className="mt-6 rounded bg-white p-4 text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
-      <h3 className="mb-2 font-semibold">Look up a domain</h3>
+      <h3 className="mb-2 font-semibold">{t('webFilter.lookupTitle')}</h3>
       <div className="flex gap-2">
         <input aria-label="Domain lookup" className={inputClass + ' mt-0'} placeholder="example.com" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">Look up</button>
+        <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white">{t('webFilter.lookupButton')}</button>
       </div>
       {err && <p role="alert" className="mt-2 text-red-600">{err}</p>}
       {res && (
         <div className="mt-2" data-testid="lookup-result">
           <p>
-            <code>{res.domain}</code>: {res.categories.length ? res.categories.join(', ') : 'no category'}
+            <code>{res.domain}</code>: {res.categories.length ? res.categories.join(', ') : t('webFilter.noCategory')}
           </p>
           <ul className="mt-1">
             {Object.entries(res.profiles).map(([name, d]) => (
               <li key={name}>
                 {name}: <Badge variant={variant[d.action]}>{d.action}</Badge>
-                {d.category && <span className="ml-1 text-gray-500">({d.category}{d.match && d.match !== res.domain ? ` via ${d.match}` : ''})</span>}
+                {d.category && <span className="ml-1 text-gray-500">({d.category}{d.match && d.match !== res.domain ? ` ${t('webFilter.via')} ${d.match}` : ''})</span>}
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs text-gray-500">Profiles as committed (running config).</p>
+          <p className="mt-1 text-xs text-gray-500">{t('webFilter.profilesAsCommitted')}</p>
         </div>
       )}
     </form>
@@ -70,14 +71,14 @@ export default function WebFilterProfiles() {
   return (
     <div className="p-6">
       <ConfigList<WebFilterProfile>
-        title="Web Filter Profiles"
+        title={t('webFilter.title')}
         path="profiles.webfilter"
-        newLabel="New web filter profile"
+        newLabel={t('webFilter.newProfile')}
         intro={
           <>
-            Categories come from the category database
-            {cats && (cats.entries > 0 ? ` (${cats.entries.toLocaleString()} domains)` : ' (not downloaded yet: showing common categories)')}. Filtering works on DNS names, so a
-            profile applies to the source interfaces of the first policy that selects it. <em>Warn</em> shows the block page with a "continue" button.
+            {t('webFilter.introStart')}
+            {cats && (cats.entries > 0 ? ` (${t('webFilter.domainsCount', { entries: cats.entries.toLocaleString() })})` : ` ${t('webFilter.notDownloaded')}`)}. {t('webFilter.introApplies')}
+            {t('webFilter.introAppliesRest')} <em>{t('webFilter.warn')}</em> {t('webFilter.introWarn')}
           </>
         }
         select={(c) => c.profiles?.webfilter}
@@ -85,9 +86,9 @@ export default function WebFilterProfiles() {
         clean={(p) => omitEmpty({ ...p, comment: p.comment?.trim() })}
         validate={(p) => validateDomainLists(p)}
         columns={[
-          { label: 'Categories', render: (p) => summarize(p.categories) || 'allow all' },
-          { label: 'Own lists', render: (p) => `${(p.block_domains ?? []).length} blocked, ${(p.allow_domains ?? []).length} allowed` },
-          { label: 'Comment', render: (p) => p.comment },
+          { label: t('webFilter.colCategories'), render: (p) => summarize(p.categories) || t('webFilter.allowAll') },
+          { label: t('webFilter.colOwnLists'), render: (p) => domainCounts(p.block_domains, p.allow_domains) },
+          { label: t('webFilter.colComment'), render: (p) => p.comment },
         ]}
         after={(cfg, items) => (
           <>
@@ -100,11 +101,11 @@ export default function WebFilterProfiles() {
           return (
             <>
               <label className="block">
-                Comment
+                {t('webFilter.comment')}
                 <input aria-label="Comment" className={inputClass} value={p.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
               </label>
               <fieldset>
-                <legend>Categories</legend>
+                <legend>{t('webFilter.categories')}</legend>
                 <div className="mt-1 max-h-72 overflow-y-auto rounded border border-gray-200 dark:border-gray-600">
                   <table className="w-full text-xs">
                     <tbody>
@@ -127,9 +128,9 @@ export default function WebFilterProfiles() {
                   </table>
                 </div>
               </fieldset>
-              <ListInput label="Always block" placeholder="example.com" value={p.block_domains} onChange={(block_domains) => set({ block_domains })} />
+              <ListInput label={t('webFilter.alwaysBlock')} placeholder="example.com" value={p.block_domains} onChange={(block_domains) => set({ block_domains })} />
               {err('block_domains')}
-              <ListInput label="Always allow" placeholder="school.example.org" value={p.allow_domains} onChange={(allow_domains) => set({ allow_domains })} />
+              <ListInput label={t('webFilter.alwaysAllow')} placeholder="school.example.org" value={p.allow_domains} onChange={(allow_domains) => set({ allow_domains })} />
               {err('allow_domains')}
             </>
           )

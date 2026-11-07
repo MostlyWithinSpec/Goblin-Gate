@@ -11,10 +11,14 @@ vi.mock('../api/plugins', async (importOriginal) => {
     getPlugins: vi.fn(),
     enablePlugin: vi.fn(),
     disablePlugin: vi.fn(),
-    setPluginSettings: vi.fn()
+    setPluginSettings: vi.fn(),
+    setPluginPolicies: vi.fn()
   }
 })
+// The settings drawer reads the candidate for the "policies it may switch" list.
+vi.mock('../api/policy', () => ({ getCandidate: vi.fn() }))
 import * as api from '../api/plugins'
+import * as policyApi from '../api/policy'
 import Plugins from '../pages/system/Plugins'
 
 const ok = { status: 'ok', validation_errors: null }
@@ -35,6 +39,8 @@ const fullPlugin = (over: Partial<api.PluginStatus> = {}): api.PluginStatus => (
   requested_capabilities: ['events:read', 'stats:read', 'notify:send'],
   capabilities: [],
   enabled: false,
+  secrets_set: [],
+  policies: [],
   state: 'stopped',
   settings_schema: {
     type: 'object',
@@ -55,6 +61,8 @@ beforeEach(() => {
   vi.mocked(api.enablePlugin).mockReset().mockResolvedValue(ok)
   vi.mocked(api.disablePlugin).mockReset().mockResolvedValue(ok)
   vi.mocked(api.setPluginSettings).mockReset().mockResolvedValue(ok)
+  vi.mocked(api.setPluginPolicies).mockReset().mockResolvedValue(ok)
+  vi.mocked(policyApi.getCandidate).mockReset().mockResolvedValue({ policies: [] })
 })
 
 describe('Plugins page', () => {
@@ -161,6 +169,154 @@ describe('Plugins page', () => {
     renderPage(<Plugins />)
     fireEvent.click(await screen.findByRole('button', { name: /Disable/ }))
     await waitFor(() => expect(api.disablePlugin).toHaveBeenCalledWith('uptime'))
+  })
+})
+
+// A secret property is a string the API never returns the value for; the
+// drawer only learns its name through secrets_set.
+const secretPlugin = (over: Partial<api.PluginStatus> = {}): api.PluginStatus =>
+  fullPlugin({
+    name: 'homeassistant',
+    enabled: true,
+    state: 'running',
+    capabilities: ['stats:read', 'policies:toggle'],
+    requested_capabilities: ['stats:read', 'policies:toggle'],
+    secrets_set: ['password'],
+    settings: { broker: '10.0.0.5:1883' },
+    settings_schema: {
+      type: 'object',
+      properties: {
+        broker: { type: 'string', description: 'Broker address' },
+        password: { type: 'string', secret: true, description: 'Broker password', maxLength: 64 }
+      }
+    },
+    ...over
+  })
+
+describe('plugin secrets', () => {
+  test('a stored secret is announced, the field starts empty and staying empty keeps it', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin()] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    const pw = await screen.findByLabelText(/Broker password/)
+    expect((pw as HTMLInputElement).type).toBe('password')
+    expect((pw as HTMLInputElement).autocomplete).toBe('new-password')
+    expect((pw as HTMLInputElement).value).toBe('')
+    expect(screen.getByText('A value is stored. Leave this empty to keep it.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.setPluginSettings).toHaveBeenCalled())
+    // "" means "keep the stored value".
+    expect(api.setPluginSettings).toHaveBeenCalledWith('homeassistant', {
+      broker: '10.0.0.5:1883',
+      password: ''
+    })
+  })
+
+  test('typed text is sent as is', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin()] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    const pw = await screen.findByLabelText(/Broker password/)
+    fireEvent.change(pw, { target: { value: 'hunter2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.setPluginSettings).toHaveBeenCalled())
+    expect(api.setPluginSettings).toHaveBeenCalledWith('homeassistant', {
+      broker: '10.0.0.5:1883',
+      password: 'hunter2'
+    })
+  })
+
+  test('Clear sends null for the secret', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin()] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    await screen.findByLabelText(/Broker password/)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByText('The stored value will be removed when you save.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.setPluginSettings).toHaveBeenCalled())
+    expect(api.setPluginSettings).toHaveBeenCalledWith('homeassistant', {
+      broker: '10.0.0.5:1883',
+      password: null
+    })
+  })
+
+  test('a secret with nothing stored yet says so and has no Clear button', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin({ secrets_set: [] })] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    await screen.findByLabelText(/Broker password/)
+    expect(screen.getByText('No value is stored yet.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
+})
+
+describe('plugin policy switches', () => {
+  const candidate = {
+    policies: [
+      { id: 3, name: 'lan-to-wan', enabled: true, action: 'accept' as const },
+      { id: 7, name: 'guest-block', enabled: false, action: 'deny' as const }
+    ]
+  }
+
+  test('the section only appears with policies:toggle approved', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin({ capabilities: ['stats:read'] })] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+    await screen.findByLabelText(/Broker address/)
+    expect(screen.queryByText('Policies it may switch')).toBeNull()
+    expect(policyApi.getCandidate).not.toHaveBeenCalled()
+  })
+
+  test('the candidate policies are listed with the plugin current ones ticked', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin({ policies: [7] })] })
+    vi.mocked(policyApi.getCandidate).mockResolvedValue(candidate)
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    expect(await screen.findByText('Policies it may switch')).toBeTruthy()
+    expect(screen.getByText('The plugin can turn each policy you tick here on and off by itself.')).toBeTruthy()
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[]
+    expect(boxes.map((b) => b.checked)).toEqual([false, true]) // 3 off, 7 on
+
+    const guest = screen.getByText('guest-block').closest('label')!
+    expect((within(guest as HTMLElement).getByRole('checkbox') as HTMLInputElement).checked).toBe(true)
+  })
+
+  test('ticking a policy saves its ID', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin({ policies: [7] })] })
+    vi.mocked(policyApi.getCandidate).mockResolvedValue(candidate)
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    const lan = (await screen.findByText('lan-to-wan')).closest('label')!
+    fireEvent.click(within(lan as HTMLElement).getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save policies' }))
+
+    await waitFor(() => expect(api.setPluginPolicies).toHaveBeenCalled())
+    expect(api.setPluginPolicies).toHaveBeenCalledWith('homeassistant', [7, 3])
+  })
+
+  test('validation errors from the answer are shown', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [secretPlugin({ policies: [7] })] })
+    vi.mocked(policyApi.getCandidate).mockResolvedValue(candidate)
+    vi.mocked(api.setPluginPolicies).mockResolvedValue({
+      status: 'invalid',
+      validation_errors: ['policies: policy 99 does not exist']
+    })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save policies' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText('policies: policy 99 does not exist')).toBeTruthy()
   })
 })
 

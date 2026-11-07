@@ -53,6 +53,14 @@ func (r *ruleset) write() []byte {
 		p(0, "")
 	}
 
+	// interfaces with a throughput test server (ThroughputSet), filled by
+	// goblind while a test runs
+	p(1, "set %s {", ThroughputSet)
+	p(2, "type ifname")
+	p(2, "comment %s", quote("throughput test server open"))
+	p(1, "}")
+	p(0, "")
+
 	// CrowdSec bans (crowdsec.go), filled by goblind at run time
 	cs := r.crowdSecRules()
 	if cs != nil {
@@ -127,6 +135,7 @@ func (r *ruleset) write() []byte {
 		p(2, "jump %s", crowdSecChain)
 	}
 	p(2, "jump threat_feeds_input")
+	p(2, "iifname @%s meta l4proto { tcp, udp } th dport %d accept", ThroughputSet, ThroughputPort)
 	for _, l := range r.input {
 		p(2, "%s", l)
 	}
@@ -228,6 +237,9 @@ func (r *ruleset) write() []byte {
 		p(2, "%s", l)
 	}
 	for _, l := range r.pre {
+		p(2, "%s", l)
+	}
+	for _, l := range r.proxyPre {
 		p(2, "%s", l)
 	}
 	for _, l := range r.customAt("prerouting", "end") {

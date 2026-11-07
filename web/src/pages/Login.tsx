@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { login } from '../api/auth'
+import { t } from '../i18n'
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('admin')
@@ -25,7 +26,7 @@ const Login: React.FC = () => {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username || !password) {
-      setError('Please enter both username and password')
+      setError(t('login.missing'))
       return
     }
     setBusy(true)
@@ -42,7 +43,7 @@ const Login: React.FC = () => {
         setPassword('')
       }
     } catch (err) {
-      setError(`Cannot reach Goblin Gate: ${(err as Error).message}`)
+      setError(t('login.unreachable', { error: (err as Error).message }))
     } finally {
       setBusy(false)
     }
@@ -51,7 +52,7 @@ const Login: React.FC = () => {
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!code) {
-      setError('Enter the code from your authenticator app')
+      setError(t('login.codeMissing'))
       return
     }
     setBusy(true)
@@ -61,7 +62,7 @@ const Login: React.FC = () => {
       if (res.ok) finish()
       else if (res.code === 'totp_invalid') {
         setCode('')
-        setError('That code is not right. Codes change every 30 seconds.')
+        setError(t('login.codeWrong'))
       } else {
         // The credentials stopped matching; back to the first step.
         setTotpStep(false)
@@ -69,7 +70,7 @@ const Login: React.FC = () => {
         setError(res.message)
       }
     } catch (err) {
-      setError(`Cannot reach Goblin Gate: ${(err as Error).message}`)
+      setError(t('login.unreachable', { error: (err as Error).message }))
     } finally {
       setBusy(false)
     }
@@ -87,7 +88,7 @@ const Login: React.FC = () => {
             Goblin <span className="text-green-600 dark:text-green-400">Gate</span>
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {totpStep ? 'Two-factor login' : 'Sign in to your account'}
+            {totpStep ? t('login.twoFactor') : t('login.subtitle')}
           </p>
         </div>
 
@@ -101,7 +102,7 @@ const Login: React.FC = () => {
           <form onSubmit={handlePasswordSubmit}>
             <div className="mb-4">
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Username
+                {t('login.username')}
               </label>
               <input
                 id="username"
@@ -110,12 +111,12 @@ const Login: React.FC = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className={inputClass}
-                placeholder="Enter your username"
+                placeholder={t('login.usernamePlaceholder')}
               />
             </div>
             <div className="mb-6">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Password
+                {t('login.password')}
               </label>
               <input
                 id="password"
@@ -124,7 +125,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={inputClass}
-                placeholder="Enter your password"
+                placeholder={t('login.passwordPlaceholder')}
               />
             </div>
             <button
@@ -132,14 +133,14 @@ const Login: React.FC = () => {
               disabled={busy}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50 min-h-[40px]"
             >
-              {busy ? 'Signing in…' : 'Sign in'}
+              {busy ? t('login.signingIn') : t('login.signIn')}
             </button>
           </form>
         ) : (
           <form onSubmit={handleCodeSubmit}>
             <div className="mb-6">
               <label htmlFor="totp-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Code from your authenticator app
+                {t('login.codeLabel')}
               </label>
               <input
                 id="totp-code"
@@ -160,7 +161,7 @@ const Login: React.FC = () => {
               disabled={busy}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md shadow-sm font-medium transition-colors disabled:opacity-50 min-h-[40px]"
             >
-              {busy ? 'Verifying…' : 'Verify'}
+              {busy ? t('login.verifying') : t('login.verify')}
             </button>
             <button
               type="button"
@@ -172,13 +173,13 @@ const Login: React.FC = () => {
               }}
               className="mt-3 w-full text-sm text-blue-600 hover:underline dark:text-blue-400"
             >
-              Back to username and password
+              {t('login.back')}
             </button>
           </form>
         )}
 
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          Forgot the password? Use "Reset the admin password" on the box&apos;s console menu.
+          {t('login.forgot')}
         </p>
       </div>
     </div>

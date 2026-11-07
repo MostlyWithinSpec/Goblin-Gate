@@ -37,6 +37,8 @@ if [ -f internal/render/nft/testdata/full.nft ]; then
   nft -f internal/render/nft/testdata/full.nft
   nft -f internal/render/nft/testdata/full.nft
   echo "nft load + reload of full.nft: ok"
+  nft -f internal/render/nft/testdata/reverse-proxy.nft && nft -f internal/render/nft/testdata/reverse-proxy.nft
+  echo "nft load + reload of reverse-proxy.nft: ok"
   GOBLIN_NFT_LOAD=1 go test -count=1 -run 'TestFeedBatchLoad|TestScheduleLoad|TestBlockLoad|TestCountryBatchLoad|TestCustomRulesLoad|TestCrowdSecLoad' -v ./internal/render/nft | grep -E "^(\s*--- |ok|FAIL|\s+(feeds|schedule|blocks|country|custom|crowdsec)_linux)"
 fi
 # DNS filter in a real unbound (needs internet for the unfiltered answers)

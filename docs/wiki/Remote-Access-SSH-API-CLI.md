@@ -41,6 +41,26 @@ curl -k -X POST -H "Authorization: Bearer $T" https://192.168.1.1/api/v1/config/
 Editing goes through the candidate (`GET/PUT/PATCH /api/v1/config/candidate`) and
 `POST /api/v1/commit` (with `confirm_minutes` for an automatic rollback, see [[How Changes Work]]).
 
+### The API reference (OpenAPI)
+
+Every endpoint, with its parameters, request and response bodies and the token scope it needs
+(`x-goblin-scope`), is described in an OpenAPI 3.1 document. Your box serves the one for its own version,
+no login needed:
+
+```sh
+curl -k https://192.168.1.1/api/v1/openapi.json -o goblin-gate-openapi.json
+```
+
+The same file is in the repository at
+[docs/api/openapi.json](https://github.com/MostlyWithinSpec/Goblin-Gate/blob/main/docs/api/openapi.json).
+
+- **Postman / Insomnia / Bruno:** import the file, set the base URL to `https://<box>` and add your token as
+  a Bearer token.
+- **Generated clients:** any OpenAPI generator works, e.g.
+  `npx @openapitools/openapi-generator-cli generate -i goblin-gate-openapi.json -g python -o gg-client`.
+- **Browsing it:** open the file in any OpenAPI viewer (Swagger Editor, Redocly, or the API panel of your
+  editor).
+
 ## Limited tokens
 
 A new token gets everything by default, which is rarely what an integration needs. When you create

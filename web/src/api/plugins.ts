@@ -19,6 +19,9 @@ export interface PluginProperty {
   maxLength?: number
   default?: unknown
   items?: { type: string }
+  // Secret marks a password or token (strings only). Its value is never
+  // returned by the API, only named in PluginStatus.secrets_set.
+  secret?: boolean
 }
 
 export interface PluginSchema {
@@ -36,6 +39,11 @@ export interface PluginStatus {
   capabilities: string[]
   enabled: boolean
   settings?: Record<string, unknown>
+  // secretsSet names the secret settings that have a stored value; the
+  // values themselves are never returned.
+  secrets_set: string[]
+  // policies are the policy IDs the plugin may switch (policies:toggle).
+  policies: number[]
   settings_schema?: PluginSchema | null
   ui?: PluginUI | null
   state: 'running' | 'stopped' | 'failed' | 'invalid' | 'not_installed'
@@ -51,14 +59,16 @@ export interface SaveResult {
   validation_errors: unknown[] | null
 }
 
-// The six capabilities a plugin may ask for (docs/dev/plugins.md).
+// The eight capabilities a plugin may ask for (docs/dev/plugins.md).
 export const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   'events:read': 'Read the event log: traffic, IPS, DNS and system events.',
   'stats:read': 'Read statistics and run stats queries.',
   'config:read': 'Read the running configuration.',
   'notify:send': 'Send an alert through your notification rules.',
   'blocks:read': 'Read temporary blocks.',
-  'blocks:write': 'Add and remove temporary blocks.'
+  'blocks:write': 'Add and remove temporary blocks.',
+  'devices:read': 'Read the device inventory: MAC addresses, names, addresses and last seen.',
+  'policies:toggle': 'Switch on and off the firewall policies you list for it.'
 }
 
 export function getPlugins(): Promise<PluginsResponse> {
@@ -100,5 +110,14 @@ export async function setPluginSettings(
   return apiClient<SaveResult>(`/api/v1/plugins/${encodeURIComponent(name)}/settings`, {
     method: 'PUT',
     body: JSON.stringify({ settings })
+  })
+}
+
+// Set the policy IDs a plugin may switch (capability policies:toggle). On a
+// 400 validation_failed the thrown error carries the field errors in .details.
+export async function setPluginPolicies(name: string, ids: number[]): Promise<SaveResult> {
+  return apiClient<SaveResult>(`/api/v1/plugins/${encodeURIComponent(name)}/policies`, {
+    method: 'PUT',
+    body: JSON.stringify({ policies: ids })
   })
 }

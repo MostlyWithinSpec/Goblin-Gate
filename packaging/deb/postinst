@@ -54,7 +54,14 @@ systemctl mask suricata.service >/dev/null 2>&1 || true
 # goblind runs goblin-miniupnpd; the stock unit would add a forward chain
 # with policy drop (table inet filter) and stop all routing.
 systemctl mask miniupnpd.service >/dev/null 2>&1 || true
-for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service goblin-sqm.service; do
+# goblind starts iperf3 on one LAN address for a throughput test; the stock
+# daemon would listen on every interface.
+systemctl mask iperf3.service >/dev/null 2>&1 || true
+# goblind runs goblin-caddy for the reverse proxy; the stock units would serve
+# a default page on port 80. Masked before caddy is installed, too.
+systemctl stop caddy.service caddy-api.service >/dev/null 2>&1 || true
+systemctl mask caddy.service caddy-api.service >/dev/null 2>&1 || true
+for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service goblin-sqm.service goblin-nic.service; do
 	systemctl enable "$u" >/dev/null 2>&1 || true
 done
 if [ -d /run/systemd/system ]; then

@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { getNetworkConfig, patchSection, type DNSSettings } from '../../api/network'
 import type { ValidationError } from '../../api/policy'
 import { validateDNS, type Errors } from './networkLogic'
+import { t } from '../../i18n'
 
 type Rec = { name: string; ip: string }
 
@@ -37,7 +38,7 @@ export default function DNS() {
     const errs: Errors = {}
     const seen = new Set<string>()
     for (const r of rows) {
-      if (seen.has(r.name.trim())) errs[`record.${r.name}`] = `${r.name}: duplicate name`
+      if (seen.has(r.name.trim())) errs[`record.${r.name}`] = t('dns.duplicateName', { name: r.name })
       seen.add(r.name.trim())
     }
     const dns: DNSSettings = {}
@@ -63,45 +64,45 @@ export default function DNS() {
   const recordErrors = Object.entries(errors).filter(([k]) => k.startsWith('record.'))
 
   return (
-    <form onSubmit={submit} noValidate aria-label="DNS settings" className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-white">DNS Resolver</h2>
+    <form onSubmit={submit} noValidate aria-label={t('dns.settings')} className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+      <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('dns.resolver')}</h2>
       {error && <div role="alert" className="rounded bg-red-50 p-2 text-red-700">{error}</div>}
       {serverErrors.length > 0 && (
         <ul className="rounded bg-yellow-50 p-2 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">{serverErrors.map((v) => <li key={v.path + v.message}><code>{v.path}</code>: {v.message}</li>)}</ul>
       )}
       <label className="block">
-        Forwarders
-        <input aria-label="Forwarders" placeholder="empty = resolve from the root servers" className={input} value={forwarders} onChange={(e) => setForwarders(e.target.value)} />
+        {t('dns.forwarders')}
+        <input aria-label={t('dns.forwarders')} placeholder={t('dns.forwardersPlaceholder')} className={input} value={forwarders} onChange={(e) => setForwarders(e.target.value)} />
         {errors.forwarders && <p className="mt-1 text-xs text-red-600" role="alert">{errors.forwarders}</p>}
       </label>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={dnssec} onChange={(e) => setDnssec(e.target.checked)} />
-        Validate DNSSEC
+        {t('dns.dnssec')}
       </label>
       <label className="flex items-center gap-2">
         <input type="checkbox" checked={allowPrivateAnswers} onChange={(e) => setAllowPrivateAnswers(e.target.checked)} />
-        Allow public names to answer with private addresses (turns off DNS rebinding protection)
+        {t('dns.allowPrivate')}
       </label>
       <fieldset>
-        <legend className="mb-1 font-medium">Local records</legend>
+        <legend className="mb-1 font-medium">{t('dns.localRecords')}</legend>
         <table className="min-w-full">
-          <thead className="text-left text-xs uppercase text-gray-500"><tr><th>Host name</th><th>IPv4 address</th><th></th></tr></thead>
+          <thead className="text-left text-xs uppercase text-gray-500"><tr><th>{t('dns.col.hostname')}</th><th>{t('dns.col.address')}</th><th></th></tr></thead>
           <tbody>
             {records.map((r, i) => (
               <tr key={i}>
-                <td><input aria-label={`Record ${i + 1} name`} className={input} value={r.name} onChange={(e) => setRec(i, 'name', e.target.value)} /></td>
-                <td><input aria-label={`Record ${i + 1} address`} className={input} value={r.ip} onChange={(e) => setRec(i, 'ip', e.target.value)} /></td>
-                <td><button type="button" aria-label={`Remove record ${i + 1}`} className="text-red-600" onClick={() => setRecords((rs) => rs.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td>
+                <td><input aria-label={t('dns.newRecordName', { n: i + 1 })} className={input} value={r.name} onChange={(e) => setRec(i, 'name', e.target.value)} /></td>
+                <td><input aria-label={t('dns.newRecordAddress', { n: i + 1 })} className={input} value={r.ip} onChange={(e) => setRec(i, 'ip', e.target.value)} /></td>
+                <td><button type="button" aria-label={t('dns.removeRecordN', { n: i + 1 })} className="text-red-600" onClick={() => setRecords((rs) => rs.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td>
               </tr>
             ))}
           </tbody>
         </table>
         {recordErrors.map(([k, m]) => <p key={k} className="text-xs text-red-600" role="alert">{m}</p>)}
-        <button type="button" className="mt-1 text-blue-600" onClick={() => setRecords((rs) => [...rs, { name: '', ip: '' }])}>+ Add record</button>
+        <button type="button" className="mt-1 text-blue-600" onClick={() => setRecords((rs) => [...rs, { name: '', ip: '' }])}>{t('dns.addRecord')}</button>
       </fieldset>
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={!loaded} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">Save</button>
-        {saved && <span role="status" className="text-green-700 dark:text-green-400">Saved. Use the commit bar to apply.</span>}
+        <button type="submit" disabled={!loaded} className="rounded bg-blue-600 px-3 py-1 text-white disabled:opacity-50">{t('dns.save')}</button>
+        {saved && <span role="status" className="text-green-700 dark:text-green-400">{t('dns.saved')}</span>}
       </div>
     </form>
   )

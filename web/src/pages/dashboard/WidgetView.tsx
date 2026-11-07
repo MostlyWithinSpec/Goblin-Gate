@@ -1,14 +1,16 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { getFeedStats, getPolicyStats, getSystemStats, statsQuery, type TimeRange, type Widget } from '../../api/stats'
 import { getGatewayStatus, getWANStatus } from '../../api/gateways'
 import { formatRate, listFlowDevices } from '../../api/flows'
 import { countBySeverity, getChecks, scoreTone } from '../../api/checks'
 import { getCandidate, getUPSStatus } from '../../api/objects'
 import { ChargeBar, StateBadge, runtimeText } from '../system/UPS'
+import { t } from '../../i18n'
 import Chart from './Chart'
-import { builtin, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
+import { builtin, builtinLabel, chartFor, formatValue, queryFor, toOption } from './dashboardLogic'
 
 const RANGES: TimeRange[] = ['15m', '1h', '24h', '7d']
 const REFRESH = 30_000
@@ -17,18 +19,18 @@ function useDark() {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 }
 
-function Empty({ text = 'No data in this time range.' }: { text?: string }) {
-  return <p className="flex h-full items-center justify-center text-sm text-gray-500">{text}</p>
+function Empty({ text }: { text?: ReactNode }) {
+  return <p className="flex h-full items-center justify-center text-sm text-gray-500">{text ?? t('dashboard.noData')}</p>
 }
 
 function SystemBody() {
   const q = useQuery({ queryKey: ['stats', 'system'], queryFn: getSystemStats, refetchInterval: REFRESH })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError || !q.data) return <Empty text="System stats are not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError || !q.data) return <Empty text={t('dashboard.noSystemStats')} />
   const s = q.data
   const memPct = s.mem_total_bytes ? Math.round((s.mem_used_bytes / s.mem_total_bytes) * 100) : 0
-  const up = `${Math.floor(s.uptime_seconds / 86400)}d ${Math.floor((s.uptime_seconds % 86400) / 3600)}h ${Math.floor((s.uptime_seconds % 3600) / 60)}m`
-  const item = (label: string, value: string) => (
+  const up = t('dashboard.uptime', { d: Math.floor(s.uptime_seconds / 86400), h: Math.floor((s.uptime_seconds % 86400) / 3600), m: Math.floor((s.uptime_seconds % 3600) / 60) })
+  const item = (label: ReactNode, value: ReactNode) => (
     <div>
       <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
       <p className="text-lg font-medium text-gray-800 dark:text-white">{value}</p>
@@ -36,20 +38,20 @@ function SystemBody() {
   )
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
-      {item('CPU', `${s.cpu_percent.toFixed(1)}%`)}
-      {item('Memory', `${memPct}% of ${formatValue('bytes', s.mem_total_bytes)}`)}
-      {item('Uptime', up)}
-      {item('Sessions', s.sessions.toLocaleString())}
+      {item(t('dashboard.cpu'), `${s.cpu_percent.toFixed(1)}%`)}
+      {item(t('dashboard.memory'), t('dashboard.memoryOf', { percent: memPct, total: formatValue('bytes', s.mem_total_bytes) }))}
+      {item(t('dashboard.uptimeLabel'), up)}
+      {item(t('dashboard.sessions'), s.sessions.toLocaleString())}
     </div>
   )
 }
 
 function FeedBody({ dark }: { dark: boolean }) {
   const q = useQuery({ queryKey: ['stats', 'feeds'], queryFn: getFeedStats, refetchInterval: REFRESH })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text="Feed counters are not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('dashboard.noFeedStats')} />
   const feeds = (q.data?.feeds ?? []).filter((f) => f.packets > 0)
-  if (feeds.length === 0) return <Empty text="No threat feed hits since the last commit." />
+  if (feeds.length === 0) return <Empty text={t('dashboard.noFeedHits')} />
   return <Chart dark={dark} option={toOption({ columns: ['feed', 'count'], rows: feeds.map((f) => [f.name, f.packets]) }, 'bar', dark)} />
 }
 
@@ -58,14 +60,18 @@ function PolicyBody() {
   const q = useQuery({ queryKey: ['stats', 'policies'], queryFn: getPolicyStats, refetchInterval: REFRESH })
   const cfg = useQuery({ queryKey: ['candidate'], queryFn: getCandidate })
   const names = new Map((cfg.data?.policies ?? []).map((p) => [p.id, p.name]))
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text="Policy counters are not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('dashboard.noPolicyStats')} />
   const rows = [...(q.data?.policies ?? [])].sort((a, b) => b.packets - a.packets).slice(0, 10)
-  if (rows.length === 0) return <Empty text="No policies have counters yet." />
+  if (rows.length === 0) return <Empty text={t('dashboard.noPolicyCounters')} />
   return (
     <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
       <thead className="text-left text-xs uppercase text-gray-500">
-        <tr><th>Policy</th><th className="text-right">Packets</th><th className="text-right">Bytes</th></tr>
+        <tr>
+          <th>{t('dashboard.col.policy')}</th>
+          <th className="text-right">{t('dashboard.col.packets')}</th>
+          <th className="text-right">{t('dashboard.col.bytes')}</th>
+        </tr>
       </thead>
       <tbody>
         {rows.map((p) => (
@@ -86,22 +92,22 @@ function PolicyBody() {
 // interface's link, address and the next hop of its default route.
 function WANBody() {
   const q = useQuery({ queryKey: ['wan', 'status'], queryFn: getWANStatus, refetchInterval: REFRESH })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text="WAN status is not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('dashboard.noWANStatus')} />
   const wans = q.data ?? []
-  if (wans.length === 0) return <Empty text="No WAN interface is configured." />
+  if (wans.length === 0) return <Empty text={t('dashboard.noWANConfigured')} />
   return (
     <ul className="divide-y divide-gray-100 dark:divide-gray-700">
       {wans.map((w) => (
         <li key={w.name} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${w.up ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {w.up ? 'up' : 'down'}
+            {w.up ? t('common.up') : t('common.down')}
           </span>
           <span className="font-medium text-gray-800 dark:text-gray-100">{w.name}</span>
           <span className="text-xs text-gray-500">{w.device}</span>
           <span className="ml-auto text-xs text-gray-500">
-            {w.addresses[0] ?? 'no address'}
-            {w.gateway ? ` · via ${w.gateway}` : ' · no default route'}
+            {w.addresses[0] ?? t('dashboard.noAddress')}
+            {w.gateway ? ` ${t('dashboard.via', { gateway: w.gateway })}` : ` ${t('dashboard.noDefaultRoute')}`}
           </span>
         </li>
       ))}
@@ -111,23 +117,25 @@ function WANBody() {
 
 function GatewayBody() {
   const q = useQuery({ queryKey: ['gateways', 'status'], queryFn: getGatewayStatus, refetchInterval: REFRESH })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text="Gateway status is not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('dashboard.noGatewayStatus')} />
   const gateways = q.data?.gateways ?? []
   // a single WAN has no monitored gateways: show the WAN itself
   if (gateways.length === 0) return <WANBody />
   const badge = (state: string) =>
     state === 'up' ? 'bg-green-100 text-green-700' : state === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+  // stateLabel names a gateway state the same way the WAN tile does; a state the
+  // page does not know stays as the API wrote it.
+  const stateLabel = (state: string) =>
+    state === 'up' ? t('common.up') : state === 'down' ? t('common.down') : t('common.unknown')
   return (
     <ul className="divide-y divide-gray-100 dark:divide-gray-700">
       {gateways.map((g) => (
         <li key={g.name} className="flex items-center gap-2 py-1.5 text-sm">
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge(g.state)}`}>{g.state}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge(g.state)}`}>{stateLabel(g.state)}</span>
           <span className="flex-1 truncate font-medium text-gray-800 dark:text-gray-100">{g.name}</span>
           {g.state === 'up' && (
-            <span className="text-xs text-gray-500">
-              {g.latency_ms} ms · {g.loss_percent}% loss
-            </span>
+            <span className="text-xs text-gray-500">{t('dashboard.gatewayLatency', { latency: g.latency_ms, loss: g.loss_percent })}</span>
           )}
         </li>
       ))}
@@ -139,14 +147,18 @@ function GatewayBody() {
 // devices by current bandwidth from /api/v1/flows/devices, refreshed every 3 s.
 function LiveTalkersBody() {
   const q = useQuery({ queryKey: ['flows', 'devices'], queryFn: listFlowDevices, refetchInterval: 3_000, retry: false })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text="Live flows are read on the firewall itself." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('live.unavailable')} />
   const devices = (q.data ?? []).slice(0, 5)
-  if (devices.length === 0) return <Empty text="No active flows yet." />
+  if (devices.length === 0) return <Empty text={t('live.noFlows')} />
   return (
     <table className="min-w-full text-sm text-gray-700 dark:text-gray-200">
       <thead className="text-left text-xs uppercase text-gray-500">
-        <tr><th>Device</th><th className="text-right">Download</th><th className="text-right">Upload</th></tr>
+        <tr>
+          <th>{t('live.col.device')}</th>
+          <th className="text-right">{t('live.col.download')}</th>
+          <th className="text-right">{t('live.col.upload')}</th>
+        </tr>
       </thead>
       <tbody>
         {devices.map((d) => (
@@ -166,8 +178,8 @@ function LiveTalkersBody() {
 function ChecksBody() {
   const navigate = useNavigate()
   const q = useQuery({ queryKey: ['checks'], queryFn: getChecks, refetchInterval: 60_000, retry: false })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError || !q.data) return <Empty text="The checks are not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError || !q.data) return <Empty text={t('checks.unavailable')} />
   const report = q.data
   const high = countBySeverity(report.findings, 'high')
   const tone = scoreTone(report.score)
@@ -187,10 +199,10 @@ function ChecksBody() {
         {report.score}
       </span>
       <span className="text-sm text-gray-600 dark:text-gray-300" data-testid="widget-checks-high">
-        {high === 0 ? 'No high findings' : `${high} high finding${high === 1 ? '' : 's'}`}
+        {high === 0 ? t('dashboard.noHighFindings') : t('dashboard.highFindings', { count: high })}
       </span>
       <span className="text-xs text-gray-500 dark:text-gray-400">
-        {report.findings.length} finding{report.findings.length === 1 ? '' : 's'} in total · open Goblin Checks
+        {t('dashboard.findingsTotal', { count: report.findings.length })} · {t('dashboard.openChecks')}
       </span>
     </button>
   )
@@ -201,8 +213,8 @@ function ChecksBody() {
 function UpsBody() {
   const navigate = useNavigate()
   const q = useQuery({ queryKey: ['ups-status'], queryFn: getUPSStatus, refetchInterval: 15_000, retry: false })
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError || !q.data) return <Empty text="The UPS status is not available." />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError || !q.data) return <Empty text={t('dashboard.noUPSStatus')} />
   const s = q.data
   return (
     <button
@@ -215,8 +227,9 @@ function UpsBody() {
         <ChargeBar charge={s.charge} state={s.state} />
       </div>
       <span className="text-xs text-gray-500 dark:text-gray-400" data-testid="widget-ups-runtime">
-        Runtime {runtimeText(s.runtime_seconds)}
-        {typeof s.load === 'number' ? ` · load ${Math.round(s.load)} %` : ''}
+        {typeof s.load === 'number'
+          ? t('dashboard.upsRuntimeLoad', { runtime: runtimeText(s.runtime_seconds), load: Math.round(s.load) })
+          : t('dashboard.upsRuntime', { runtime: runtimeText(s.runtime_seconds) })}
       </span>
     </button>
   )
@@ -232,9 +245,9 @@ function QueryBody({ widget, dark }: { widget: Widget; dark: boolean }) {
     enabled: !!query,
     refetchInterval: REFRESH,
   })
-  if (!query) return <Empty text="This widget has no query." />
-  if (q.isLoading) return <Empty text="Loading…" />
-  if (q.isError) return <Empty text={`Could not load: ${(q.error as Error).message}`} />
+  if (!query) return <Empty text={t('dashboard.noQuery')} />
+  if (q.isLoading) return <Empty text={t('common.loading')} />
+  if (q.isError) return <Empty text={t('dashboard.couldNotLoad', { error: (q.error as Error).message })} />
   const res = q.data!
   if (res.rows.length === 0) return <Empty />
   const drill = builtin(widget.type)?.drill
@@ -266,13 +279,14 @@ export default function WidgetView({ widget, onChange, onRemove }: { widget: Wid
   const dark = useDark()
   const chart = chartFor(widget)
   const timeless = chart === 'system' || chart === 'feeds' || chart === 'policies' || chart === 'gateways' || chart === 'live-talkers' || chart === 'checks' || chart === 'ups'
+  const title = builtinLabel(widget.type) ?? widget.title
   return (
     <div className="flex h-full flex-col rounded-lg bg-white p-3 shadow dark:bg-gray-800" data-testid={`widget-${widget.type}`}>
       <div className="widget-drag mb-2 flex cursor-move items-center gap-2">
-        <h3 className="flex-1 truncate text-sm font-semibold text-gray-800 dark:text-white">{widget.title}</h3>
+        <h3 className="flex-1 truncate text-sm font-semibold text-gray-800 dark:text-white">{title}</h3>
         {!timeless && (
           <select
-            aria-label={`${widget.title} time range`}
+            aria-label={`${title} ${t('dashboard.rangeAria')}`}
             className="rounded border border-gray-300 bg-transparent px-1 text-xs dark:border-gray-600 dark:text-gray-200"
             value={widget.range}
             onMouseDown={(e) => e.stopPropagation()}
@@ -281,7 +295,7 @@ export default function WidgetView({ widget, onChange, onRemove }: { widget: Wid
             {RANGES.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         )}
-        <button type="button" aria-label={`Remove ${widget.title}`} className="text-gray-400 hover:text-red-500" onMouseDown={(e) => e.stopPropagation()} onClick={onRemove}>
+        <button type="button" aria-label={`${t('dashboard.removeAria')} ${title}`} className="text-gray-400 hover:text-red-500" onMouseDown={(e) => e.stopPropagation()} onClick={onRemove}>
           <X size={14} />
         </button>
       </div>

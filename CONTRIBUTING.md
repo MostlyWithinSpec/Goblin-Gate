@@ -9,6 +9,10 @@ Thanks for helping build the firewall for people who want to understand and auto
 - **Ask questions and share ideas** in Discussions.
 - **Send pull requests.** For anything larger than a small fix, open an issue first so the approach can be
   agreed before you spend time on it.
+- **Translate the web UI.** English is the source: `web/src/i18n/locales/en.json`. A translation is a file
+  `web/src/i18n/locales/<language code>.json` with the same keys (any key left out shows in English), keeping
+  placeholders such as `{name}` as they are. Plural keys end in `_one`, `_other` and, where your language
+  needs them, `_zero`, `_two`, `_few`, `_many`. A new language appears in the account menu by itself.
 - **Write plugins.** The plugin system is on the roadmap (see the roadmap on the project site); until it lands,
   ideas for what it should support are welcome in Discussions.
 

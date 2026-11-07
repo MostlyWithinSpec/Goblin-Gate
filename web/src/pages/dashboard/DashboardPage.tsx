@@ -4,7 +4,8 @@ import 'react-grid-layout/css/styles.css'
 import { Plus, Trash2 } from 'lucide-react'
 import { getDashboards, saveDashboards, type Dashboard, type Dashboards } from '../../api/stats'
 import { Button } from '../../components'
-import { addBuiltin, applyLayout, BUILTINS, defaultDashboards, newId, removeWidget, updateWidget } from './dashboardLogic'
+import { t } from '../../i18n'
+import { addBuiltin, applyLayout, BUILTINS, builtinLabel, defaultDashboards, newId, removeWidget, updateWidget } from './dashboardLogic'
 import WidgetView from './WidgetView'
 
 const Grid = WidthProvider(Responsive)
@@ -50,16 +51,16 @@ export default function DashboardPage() {
   const dash = docs?.dashboards[active]
   const layout = useMemo(() => (dash?.widgets ?? []).map((w) => ({ i: w.id, ...w.layout, minW: 2, minH: 2 })), [dash])
 
-  if (!docs || !dash) return <p className="p-6 text-gray-500" data-testid="dashboard-loading">Loading dashboards…</p>
+  if (!docs || !dash) return <p className="p-6 text-gray-500" data-testid="dashboard-loading">{t('dashboard.loading')}</p>
 
   const addDashboard = () => {
-    const name = window.prompt('Name of the new dashboard', `Dashboard ${docs.dashboards.length + 1}`)
+    const name = window.prompt(t('dashboard.namePrompt'), t('dashboard.defaultName', { number: docs.dashboards.length + 1 }))
     if (!name) return
     setDocs({ ...docs, dashboards: [...docs.dashboards, { id: newId('d'), name, widgets: [] }] })
     setActive(docs.dashboards.length)
   }
   const deleteDashboard = () => {
-    if (docs.dashboards.length < 2 || !window.confirm(`Delete dashboard "${dash.name}"?`)) return
+    if (docs.dashboards.length < 2 || !window.confirm(t('dashboard.deleteConfirm', { name: dash.name }))) return
     setDocs({ ...docs, dashboards: docs.dashboards.filter((_, i) => i !== active) })
     setActive(0)
   }
@@ -77,7 +78,7 @@ export default function DashboardPage() {
               className={`rounded-t px-3 py-1 text-sm ${i === active ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
               onClick={() => setActive(i)}
               onDoubleClick={() => {
-                const n = window.prompt('Rename dashboard', d.name)
+                const n = window.prompt(t('dashboard.renamePrompt'), d.name)
                 if (n) rename(n)
               }}
             >
@@ -85,11 +86,15 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
-        <Button size="sm" variant="ghost" onClick={addDashboard} aria-label="New dashboard"><Plus size={14} /> Dashboard</Button>
+        <Button size="sm" variant="ghost" onClick={addDashboard} aria-label={t('dashboard.newAria')}>
+          <Plus size={14} /> {t('dashboard.dashboard')}
+        </Button>
         <div className="flex-1" />
-        {saveError && <span className="text-xs text-red-600">Not saved: {saveError}</span>}
+        {saveError && <span className="text-xs text-red-600">{t('dashboard.notSaved', { error: saveError })}</span>}
         <div className="relative">
-          <Button size="sm" variant="primary" onClick={() => setAdding((a) => !a)}><Plus size={14} /> Add widget</Button>
+          <Button size="sm" variant="primary" onClick={() => setAdding((a) => !a)}>
+            <Plus size={14} /> {t('dashboard.addWidget')}
+          </Button>
           {adding && (
             <ul role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-600 dark:bg-gray-800">
               {BUILTINS.map((b) => (
@@ -102,7 +107,7 @@ export default function DashboardPage() {
                       setAdding(false)
                     }}
                   >
-                    {b.title}
+                    {builtinLabel(b.type)}
                   </button>
                 </li>
               ))}
@@ -110,12 +115,14 @@ export default function DashboardPage() {
           )}
         </div>
         {docs.dashboards.length > 1 && (
-          <Button size="sm" variant="outline" onClick={deleteDashboard} aria-label="Delete dashboard"><Trash2 size={14} /></Button>
+          <Button size="sm" variant="outline" onClick={deleteDashboard} aria-label={t('dashboard.deleteAria')}>
+            <Trash2 size={14} />
+          </Button>
         )}
       </div>
-      {error && <p className="mb-2 text-sm text-yellow-700">Saved dashboards could not be loaded ({error}); showing the default.</p>}
+      {error && <p className="mb-2 text-sm text-yellow-700">{t('dashboard.loadError', { error })}</p>}
       {dash.widgets.length === 0 ? (
-        <p className="rounded border border-dashed border-gray-300 p-8 text-center text-gray-500">This dashboard is empty. Use "Add widget".</p>
+        <p className="rounded border border-dashed border-gray-300 p-8 text-center text-gray-500">{t('dashboard.empty')}</p>
       ) : (
         <Grid
           className="layout"

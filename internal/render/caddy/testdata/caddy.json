@@ -1,0 +1,223 @@
+{
+  "admin": {
+    "disabled": true
+  },
+  "apps": {
+    "http": {
+      "http_port": 10080,
+      "https_port": 10443,
+      "servers": {
+        "proxy": {
+          "automatic_https": {
+            "disable_redirects": true
+          },
+          "listen": [
+            ":10443"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "upstreams": [
+                            {
+                              "dial": "192.168.1.10:8096"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "media.example.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "body": "Forbidden",
+                          "handler": "static_response",
+                          "status_code": 403
+                        }
+                      ],
+                      "match": [
+                        {
+                          "not": [
+                            {
+                              "remote_ip": {
+                                "ranges": [
+                                  "203.0.113.0/24",
+                                  "198.51.100.7/32"
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "terminal": true
+                    },
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "transport": {
+                            "protocol": "http",
+                            "tls": {
+                              "insecure_skip_verify": true
+                            }
+                          },
+                          "upstreams": [
+                            {
+                              "dial": "192.168.1.20:5001"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "nas.example.com",
+                    "files.example.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "transport": {
+                            "protocol": "http",
+                            "tls": {
+                              "server_name": "homeassistant.home.lan"
+                            }
+                          },
+                          "upstreams": [
+                            {
+                              "dial": "homeassistant.home.lan:8123"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "ha.example.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            }
+          ]
+        },
+        "redirect": {
+          "listen": [
+            ":10080"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Location": [
+                      "https://{http.request.host}{http.request.uri}"
+                    ]
+                  },
+                  "status_code": 308
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "media.example.com",
+                    "nas.example.com",
+                    "files.example.com",
+                    "ha.example.com"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "tls": {
+      "automation": {
+        "policies": [
+          {
+            "issuers": [
+              {
+                "ca": "https://acme-v02.api.letsencrypt.org/directory",
+                "challenges": {
+                  "http": {
+                    "alternate_port": 10080
+                  },
+                  "tls-alpn": {
+                    "alternate_port": 10443
+                  }
+                },
+                "email": "me@example.com",
+                "module": "acme"
+              }
+            ],
+            "subjects": [
+              "media.example.com",
+              "nas.example.com",
+              "files.example.com",
+              "ha.example.com"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "logging": {
+    "logs": {
+      "default": {
+        "encoder": {
+          "format": "json"
+        },
+        "level": "INFO",
+        "writer": {
+          "output": "stderr"
+        }
+      }
+    }
+  },
+  "storage": {
+    "module": "file_system",
+    "root": "/var/lib/goblin-caddy"
+  }
+}

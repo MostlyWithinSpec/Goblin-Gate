@@ -5,6 +5,7 @@ import { ConfigList, inputClass, omitEmpty } from '../../components/ConfigList'
 import { CountryPicker, GeoIPStatusCard, flagEmoji } from '../../components/GeoIP'
 import type { Address } from '../../api/objects'
 import { validateAddress } from './networkLogic'
+import { t } from '../../i18n'
 
 const placeholders: Record<Exclude<Address['type'], 'country'>, string> = {
   subnet: '192.168.1.0/24 or 2001:db8::/32',
@@ -16,9 +17,9 @@ const placeholders: Record<Exclude<Address['type'], 'country'>, string> = {
 export default function Addresses() {
   return (
     <ConfigList<Address>
-      title="Addresses"
+      title={t('addresses.title')}
       path="addresses"
-      newLabel="New address"
+      newLabel={t('addresses.newAddress')}
       select={(c) => c.addresses}
       empty={() => ({ name: '', type: 'subnet', value: '' })}
       clean={(a) => ({ ...omitEmpty({ name: a.name, type: a.type, comment: a.comment?.trim() || undefined }), value: (a.value ?? '').trim() })}
@@ -30,9 +31,9 @@ export default function Addresses() {
       }}
       intro={<GeoIPStatusCard />}
       columns={[
-        { label: 'Type', render: (a) => a.type },
+        { label: t('addresses.col.type'), render: (a) => a.type },
         {
-          label: 'Value',
+          label: t('addresses.col.value'),
           render: (a) =>
             a.type === 'country' ? (
               <span className="flex flex-wrap gap-1">
@@ -46,36 +47,36 @@ export default function Addresses() {
               <code>{a.value}</code>
             ),
         },
-        { label: 'Comment', render: (a) => a.comment },
+        { label: t('addresses.col.comment'), render: (a) => a.comment },
       ]}
       form={(a, set, { err }) => (
         <>
           <label className="block">
-            Type
-            <select aria-label="Type" className={inputClass} value={a.type} onChange={(e) => set({ type: e.target.value as Address['type'] })}>
-              <option value="subnet">Subnet</option>
-              <option value="host">Host</option>
-              <option value="range">IP range</option>
-              <option value="fqdn">FQDN</option>
-              <option value="country">Country</option>
+            {t('addresses.type')}
+            <select aria-label={t('addresses.type')} className={inputClass} value={a.type} onChange={(e) => set({ type: e.target.value as Address['type'] })}>
+              <option value="subnet">{t('addresses.type.subnet')}</option>
+              <option value="host">{t('addresses.type.host')}</option>
+              <option value="range">{t('addresses.type.ipRange')}</option>
+              <option value="fqdn">{t('addresses.type.fqdn')}</option>
+              <option value="country">{t('addresses.type.country')}</option>
             </select>
           </label>
           {a.type === 'country' ? (
             <div className="block">
-              Countries
+              {t('addresses.countries')}
               <CountryPicker value={a.value} onChange={(v) => set({ value: v })} />
               {err('value')}
             </div>
           ) : (
             <label className="block">
-              Value
-              <input aria-label="Value" className={inputClass} placeholder={placeholders[a.type]} value={a.value} onChange={(e) => set({ value: e.target.value })} />
+              {t('addresses.value')}
+              <input aria-label={t('addresses.value')} className={inputClass} placeholder={placeholders[a.type]} value={a.value} onChange={(e) => set({ value: e.target.value })} />
               {err('value')}
             </label>
           )}
           <label className="block">
-            Comment
-            <input aria-label="Comment" className={inputClass} value={a.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
+            {t('addresses.comment')}
+            <input aria-label={t('addresses.comment')} className={inputClass} value={a.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
           </label>
         </>
       )}

@@ -17,6 +17,11 @@ table inet goblin {
 		comment "temporary blocks"
 	}
 
+	set throughput_ifs {
+		type ifname
+		comment "throughput test server open"
+	}
+
 	counter policy_1 {
 		comment "lan-to-internet"
 	}
@@ -48,6 +53,7 @@ table inet goblin {
 		iifname "eth1" meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		iifname "eth1" meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		jump threat_feeds_input
+		iifname @throughput_ifs meta l4proto { tcp, udp } th dport 5201 accept
 		iifname "eth1" tcp dport 443 accept comment "lan: https admin"
 		iifname "eth1" tcp dport 22 accept comment "lan: ssh admin"
 		iifname "eth1" udp dport 67 accept comment "lan: dhcp server"

@@ -32,13 +32,15 @@ func (s *Server) diagStart(w http.ResponseWriter) (func(), bool) {
 	}
 }
 
+type pingRequest struct {
+	Host      string `json:"host"`
+	Count     int    `json:"count"`
+	Interface string `json:"interface"`
+}
+
 // POST /api/v1/diag/ping {host, count?, interface?}
 func (s *Server) diagPing(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Host      string `json:"host"`
-		Count     int    `json:"count"`
-		Interface string `json:"interface"`
-	}
+	var req pingRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -71,12 +73,14 @@ func (s *Server) diagPing(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+type tracerouteRequest struct {
+	Host    string `json:"host"`
+	MaxHops int    `json:"max_hops"`
+}
+
 // POST /api/v1/diag/traceroute {host, max_hops?}
 func (s *Server) diagTraceroute(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Host    string `json:"host"`
-		MaxHops int    `json:"max_hops"`
-	}
+	var req tracerouteRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -95,13 +99,15 @@ func (s *Server) diagTraceroute(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+type dnsLookupRequest struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Server string `json:"server"`
+}
+
 // POST /api/v1/diag/dns {name, type?, server?}
 func (s *Server) diagDNS(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name   string `json:"name"`
-		Type   string `json:"type"`
-		Server string `json:"server"`
-	}
+	var req dnsLookupRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

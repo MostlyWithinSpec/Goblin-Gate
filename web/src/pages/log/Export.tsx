@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ConfigList, Checklist, inputClass, omitEmpty, type Column, type FormCtx } from '../../components/ConfigList'
 import type { LogExport, LogExportStatus } from '../../api/objects'
 import { getLogExportStatus } from '../../api/objects'
+import { t } from '../../i18n'
 import { validateLogExport } from '../network/networkLogic'
 
 const KINDS = ['traffic', 'ips', 'dns', 'webfilter', 'system']
@@ -12,13 +13,13 @@ const KINDS = ['traffic', 'ips', 'dns', 'webfilter', 'system']
 // relTime renders an RFC3339 time as a short relative age.
 function relTime(s?: string): string {
   if (!s) return '—'
-  const t = Date.parse(s)
-  if (Number.isNaN(t)) return '—'
-  const sec = Math.max(0, (Date.now() - t) / 1000)
-  if (sec < 60) return 'just now'
-  if (sec < 3600) return `${Math.floor(sec / 60)} min ago`
-  if (sec < 86400) return `${Math.floor(sec / 3600)} h ago`
-  return `${Math.floor(sec / 86400)} d ago`
+  const at = Date.parse(s)
+  if (Number.isNaN(at)) return '—'
+  const sec = Math.max(0, (Date.now() - at) / 1000)
+  if (sec < 60) return t('logexport.justNow')
+  if (sec < 3600) return t('devices.minutesAgo', { count: Math.floor(sec / 60) })
+  if (sec < 86400) return t('devices.hoursAgo', { count: Math.floor(sec / 3600) })
+  return t('devices.daysAgo', { count: Math.floor(sec / 86400) })
 }
 
 export default function LogExportPage() {
@@ -26,10 +27,10 @@ export default function LogExportPage() {
   const byName = new Map<string, LogExportStatus>((q.data ?? []).map((e) => [e.name, e]))
 
   const columns: Column<LogExport>[] = [
-    { label: 'Enabled', render: (d) => <span className={d.enabled ? '' : 'text-gray-400'}>{d.enabled ? 'Yes' : 'No'}</span> },
-    { label: 'Type', render: (d) => <span className="capitalize">{d.type}</span> },
+    { label: t('logexport.col.enabled'), render: (d) => <span className={d.enabled ? '' : 'text-gray-400'}>{d.enabled ? t('logexport.yes') : t('logexport.no')}</span> },
+    { label: t('logexport.col.type'), render: (d) => <span className="capitalize">{d.type}</span> },
     {
-      label: 'Target',
+      label: t('logexport.col.target'),
       render: (d) => (
         <span className="text-gray-500">
           {d.type === 'syslog' ? `${d.protocol ?? 'udp'} → ${d.address ?? ''}` : d.url ?? ''}
@@ -37,17 +38,17 @@ export default function LogExportPage() {
       ),
     },
     {
-      label: 'Status',
+      label: t('logexport.col.status'),
       render: (d) => {
         const s = byName.get(d.name)
         if (!s) return <span className="text-gray-400">—</span>
         return (
           <div className="space-y-0.5 text-xs">
             <div>
-              sent <b>{s.sent}</b>
+              {t('logexport.sent')} <b>{s.sent}</b>
               {s.dropped > 0 && (
                 <span className="ml-2 text-amber-600 dark:text-amber-400">
-                  dropped <b>{s.dropped}</b>
+                  {t('logexport.dropped')} <b>{s.dropped}</b>
                 </span>
               )}
             </div>
@@ -61,8 +62,8 @@ export default function LogExportPage() {
 
   return (
     <ConfigList<LogExport>
-      title="Log export"
-      intro="Forward firewall logs to a remote syslog server or a Loki instance."
+      title={t('logexport.title')}
+      intro={t('logexport.intro')}
       path="log_export"
       select={(cfg) => cfg.log_export}
       empty={() => ({ name: '', enabled: true, type: 'syslog' })}
@@ -80,15 +81,15 @@ export default function LogExportPage() {
       form={(item, set, ctx: FormCtx) => (
         <div className="space-y-3">
           <label className="block text-sm font-medium">
-            Type
-            <select aria-label="Type" className={inputClass} value={item.type} onChange={(e) => set({ type: e.target.value as LogExport['type'] })}>
+            {t('logexport.type')}
+            <select aria-label={t('logexport.type')} className={inputClass} value={item.type} onChange={(e) => set({ type: e.target.value as LogExport['type'] })}>
               <option value="syslog">Syslog</option>
               <option value="loki">Loki</option>
             </select>
           </label>
           {ctx.err('type')}
           <Checklist
-            label="Log kinds (none = all)"
+            label={t('logexport.kinds')}
             options={KINDS}
             value={item.kinds ?? []}
             onChange={(kinds) => set({ kinds })}
@@ -97,7 +98,7 @@ export default function LogExportPage() {
           {item.type === 'syslog' ? (
             <>
               <label className="block text-sm font-medium">
-                Address
+                {t('logexport.address')}
                 <input
                   className={inputClass}
                   placeholder="10.0.0.2:514"
@@ -107,7 +108,7 @@ export default function LogExportPage() {
               </label>
               {ctx.err('address')}
               <label className="block text-sm font-medium">
-                Protocol
+                {t('logexport.protocol')}
                 <select
                   className={inputClass}
                   value={item.protocol ?? 'udp'}
@@ -123,7 +124,7 @@ export default function LogExportPage() {
           ) : (
             <>
               <label className="block text-sm font-medium">
-                URL
+                {t('logexport.url')}
                 <input
                   className={inputClass}
                   placeholder="https://loki.example.com/loki/api/v1/push"
@@ -134,7 +135,7 @@ export default function LogExportPage() {
               {ctx.err('url')}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block text-sm font-medium">
-                  Username (basic auth, optional)
+                  {t('logexport.username')}
                   <input
                     className={inputClass}
                     value={item.username ?? ''}
@@ -142,11 +143,11 @@ export default function LogExportPage() {
                   />
                 </label>
                 <label className="block text-sm font-medium">
-                  Password (basic auth, optional)
+                  {t('logexport.password')}
                   <input
                     type="password"
                     className={inputClass}
-                    placeholder={ctx.isNew ? '' : 'unchanged'}
+                    placeholder={ctx.isNew ? '' : t('logexport.unchanged')}
                     value={item.password ?? ''}
                     onChange={(e) => set({ password: e.target.value })}
                   />
@@ -154,11 +155,11 @@ export default function LogExportPage() {
               </div>
               {ctx.err('password')}
               <label className="block text-sm font-medium">
-                Bearer token (optional, instead of basic auth)
+                {t('logexport.token')}
                 <input
                   type="password"
                   className={inputClass}
-                  placeholder={ctx.isNew ? '' : 'unchanged'}
+                  placeholder={ctx.isNew ? '' : t('logexport.unchanged')}
                   value={item.token ?? ''}
                   onChange={(e) => set({ token: e.target.value })}
                 />

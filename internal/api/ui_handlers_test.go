@@ -24,3 +24,18 @@ func TestDashboardsStore(t *testing.T) {
 	a.expect("PUT", "/api/v1/ui/dashboards", `[1,2]`, 400)
 	a.expect("PUT", "/api/v1/ui/dashboards", `{"x":"`+strings.Repeat("a", MaxUIBlob)+`"}`, 413)
 }
+
+func TestPrefsStore(t *testing.T) {
+	a := newTestAPIWith(t, func(s *Server) { s.UI = &UIStore{Dir: t.TempDir()} })
+	if out := a.expect("GET", "/api/v1/ui/prefs", nil, 200); len(out) != 0 {
+		t.Fatalf("empty prefs: %v", out)
+	}
+	a.expect("PUT", "/api/v1/ui/prefs", map[string]any{"language": "de"}, 200)
+	if out := a.expect("GET", "/api/v1/ui/prefs", nil, 200); out["language"] != "de" {
+		t.Fatalf("round trip: %v", out)
+	}
+	// a separate document: dashboards are untouched
+	if out := a.expect("GET", "/api/v1/ui/dashboards", nil, 200); out["language"] != nil {
+		t.Fatalf("prefs leaked into dashboards: %v", out)
+	}
+}

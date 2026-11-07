@@ -25,7 +25,7 @@ and everyone else is dropped. None ticked lets anyone in.
 
 **Forward only what you need.** A forward of every port (1-65535) exposes the whole host to the internet.
 For games and consoles, UPnP below is usually the better answer; for remote access to your network, use a
-[[VPN]] instead of forwarding admin ports.
+[[VPN]] instead of forwarding admin ports. To publish web services on their own HTTPS names, use the [[Reverse Proxy]].
 
 ## UPnP and NAT-PMP / PCP
 

@@ -10,6 +10,7 @@ import { Button } from '../../components/Button'
 import { EditDrawer } from '../../components/EditDrawer'
 import { DiffViewer } from '../../components/DiffViewer'
 import { inputClass } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import { APIRequestError } from '../../api/client'
 import {
   applyTemplate,
@@ -22,16 +23,28 @@ import {
 
 const WIKI_URL = 'https://github.com/MostlyWithinSpec/Goblin-Gate/wiki/How-Changes-Work#templates'
 
-const DAY_LABELS: Record<string, string> = {
-  mon: 'Mon',
-  tue: 'Tue',
-  wed: 'Wed',
-  thu: 'Thu',
-  fri: 'Fri',
-  sat: 'Sat',
-  sun: 'Sun',
-}
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+// dayLabel puts a day code through the catalog. A constant whose value is a
+// t() call at module load would freeze English, so the calls live in here.
+function dayLabel(day: string): string {
+  switch (day) {
+    case 'mon':
+      return t('templates.dayMon')
+    case 'tue':
+      return t('templates.dayTue')
+    case 'wed':
+      return t('templates.dayWed')
+    case 'thu':
+      return t('templates.dayThu')
+    case 'fri':
+      return t('templates.dayFri')
+    case 'sat':
+      return t('templates.daySat')
+    default:
+      return t('templates.daySun')
+  }
+}
 
 // answersFrom prefills a form with each input's default.
 export function answersFrom(inputs: TemplateInput[]): Record<string, string> {
@@ -99,7 +112,7 @@ function Field({
     </label>
   )
   const star = input.required && (
-    <span className="text-red-600" title="required">
+    <span className="text-red-600" title={t('templates.required')}>
       *
     </span>
   )
@@ -152,7 +165,7 @@ function Field({
               }`}
             >
               <input type="checkbox" className="sr-only" checked={on.includes(d)} onChange={() => toggle(d)} />
-              {DAY_LABELS[d]}
+              {dayLabel(d)}
             </label>
           ))}
         </div>
@@ -183,7 +196,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
         >
-          {input.type === 'profile' && <option value="">none</option>}
+          {input.type === 'profile' && <option value="">{t('templates.none')}</option>}
           {(input.options ?? []).map((o) => (
             <option key={o} value={o}>
               {o}
@@ -266,9 +279,10 @@ function Wizard({ template, onClose }: { template: TemplateInfo; onClose: () => 
         const r = details as TemplateResult
         // Keep the problems, with no diff: the answers still need fixing.
         setPreview({ answers, result: { changes: [], input_errors: r.input_errors ?? [], validation_errors: r.validation_errors ?? [] } })
-        setFailure('The answers need fixing before this can be applied.')
+        setFailure(t('templates.answersNeedFixing'))
       } else {
-        setFailure(e instanceof Error ? e.message : `${what} failed`)
+        const detail = e instanceof Error ? e.message : what
+        setFailure(t('templates.stepFailed', { what: detail }))
       }
     } finally {
       setBusy(false)
@@ -317,33 +331,31 @@ function Wizard({ template, onClose }: { template: TemplateInfo; onClose: () => 
 
         <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 dark:border-gray-700">
           <Button variant="outline" onClick={() => void run('preview')} disabled={busy}>
-            <Eye size={14} /> Preview
+            <Eye size={14} /> {t('templates.preview')}
           </Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            <Wand2 size={14} /> Apply
+            <Wand2 size={14} /> {t('templates.apply')}
           </Button>
-          {busy && <span className="text-sm text-gray-500">Working…</span>}
+          {busy && <span className="text-sm text-gray-500">{t('templates.working')}</span>}
         </div>
 
         {applied ? (
           <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-900/20 dark:text-green-200">
             <p>
-              Added to the candidate — {applied.changes} change{applied.changes === 1 ? '' : 's'}. Nothing is running
-              yet: commit it with the Changes button at the top of the page.
+              {t('templates.addedLead')} {t('templates.addedChanges', { count: applied.changes })} {t('templates.addedMid')}
+              {t('templates.addedRest')}
             </p>
             <Button variant="secondary" size="sm" className="mt-2" onClick={onClose}>
-              Close
+              {t('common.close')}
             </Button>
           </div>
         ) : result ? (
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">
-              {changeCount === 0 ? 'This changes nothing' : `This changes ${changeCount} thing${changeCount === 1 ? '' : 's'}`}
+              {changeCount === 0 ? t('templates.changesNothing') : t('templates.changesThings', { count: changeCount })}
             </h3>
             {changeCount === 0 ? (
-              <p className="text-sm text-gray-500">
-                Nothing to apply with these answers — fix the problems above and preview again.
-              </p>
+              <p className="text-sm text-gray-500">{t('templates.nothingToApply')}</p>
             ) : (
               <DiffViewer changes={result.changes.map((c) => ({ path: c.path, old: c.old, new: c.new }))} />
             )}
@@ -369,7 +381,7 @@ function Card({ template, onOpen }: { template: TemplateInfo; onOpen: () => void
         </p>
       ) : (
         <Button variant="primary" size="sm" className="mt-3 self-start" onClick={onOpen}>
-          Set up
+          {t('templates.setUp')}
         </Button>
       )}
     </div>
@@ -385,21 +397,21 @@ export default function Templates() {
 
   const needle = search.trim().toLowerCase()
   const list = (q.data ?? []).filter(
-    (t) => !needle || t.title.toLowerCase().includes(needle) || t.description.toLowerCase().includes(needle)
+    (tpl) => !needle || tpl.title.toLowerCase().includes(needle) || tpl.description.toLowerCase().includes(needle)
   )
   // The catalog can change under us (a commit removing a WAN); close a drawer
   // whose template is gone or no longer usable.
-  const current = (q.data ?? []).find((t) => t.id === open && !t.unavailable) ?? null
+  const current = (q.data ?? []).find((tpl) => tpl.id === open && !tpl.unavailable) ?? null
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Templates</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('templates.title')}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          A few questions and a common setup is built for you. A template only writes into the candidate: preview the
-          change, and commit it when it looks right.{' '}
+          {t('templates.introLead')}{' '}
+          {t('templates.introTail')}{' '}
           <a className="text-blue-600 hover:underline" href={WIKI_URL} target="_blank" rel="noreferrer">
-            Docs
+            {t('templates.docs')}
           </a>
         </p>
       </div>
@@ -407,26 +419,26 @@ export default function Templates() {
       <div className="flex items-center gap-3">
         <input
           className={`${inputClass} max-w-xs`}
-          placeholder="Search templates"
-          aria-label="Search templates"
+          placeholder={t('templates.search')}
+          aria-label={t('templates.search')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <span className="text-sm text-gray-500">{list.length} templates</span>
+        <span className="text-sm text-gray-500">{t('templates.count', { count: list.length })}</span>
       </div>
 
       {q.isError && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          Could not load the templates: {q.error.message}
+          {t('templates.couldNotLoad', { why: q.error.message })}
         </p>
       )}
       {!q.isLoading && list.length === 0 && !q.isError && (
-        <p className="text-sm text-gray-500">No template matches “{search}”.</p>
+        <p className="text-sm text-gray-500">{t('templates.noMatch', { search })}</p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {list.map((t) => (
-          <Card key={t.id} template={t} onOpen={() => setOpen(t.id)} />
+        {list.map((tpl) => (
+          <Card key={tpl.id} template={tpl} onOpen={() => setOpen(tpl.id)} />
         ))}
       </div>
 

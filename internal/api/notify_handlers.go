@@ -7,6 +7,10 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 )
 
+type notifyTestRequest struct {
+	Channel string `json:"channel"`
+}
+
 // POST /api/v1/notifications/test {channel} sends a test message to one
 // channel of the running config now (disabled channels too, rules and rate
 // limits do not apply) → {status: "sent"}, or 502 with why it failed.
@@ -15,9 +19,7 @@ func (s *Server) notifyTest(w http.ResponseWriter, r *http.Request) {
 		unavailable(w, "notifications")
 		return
 	}
-	var req struct {
-		Channel string `json:"channel"`
-	}
+	var req notifyTestRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

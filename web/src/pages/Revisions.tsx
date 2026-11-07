@@ -4,6 +4,7 @@ import { Button } from '../components/Button'
 import { Badge } from '../components/Badge'
 import { Dialog } from '../components/Dialog'
 import { getRevisions, rollbackRevisionTo, RevisionInfo } from '../api/config'
+import { t } from '../i18n'
 
 // "Oct 11, 2026, 14:05" in the viewer's locale (date-fns is not an allowed dependency).
 const formatTime = (ts: string) => {
@@ -33,14 +34,14 @@ export const Revisions: React.FC = () => {
   })
 
   if (isLoading) {
-    return <div className="p-4">Loading revisions...</div>
+    return <div className="p-4">{t('revisions.loading')}</div>
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Revisions</h1>
+      <h1 className="text-2xl font-bold">{t('revisions.title')}</h1>
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        Every commit saves a revision. Rolling back applies an earlier revision as a new commit.
+        {t('revisions.intro')}
       </p>
       {error != null && (
         <p className="text-sm text-red-600 dark:text-red-400" role="alert">
@@ -52,11 +53,11 @@ export const Revisions: React.FC = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className={th}>Revision</th>
-              <th className={th}>Date</th>
-              <th className={th}>User</th>
-              <th className={th}>Comment</th>
-              <th className={th}>Actions</th>
+              <th className={th}>{t('revisions.colRevision')}</th>
+              <th className={th}>{t('revisions.colDate')}</th>
+              <th className={th}>{t('revisions.colUser')}</th>
+              <th className={th}>{t('revisions.colComment')}</th>
+              <th className={th}>{t('revisions.colActions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -66,7 +67,7 @@ export const Revisions: React.FC = () => {
                   <Badge variant="secondary">{r.revision}</Badge>
                   {r.revision === running && (
                     <span className="ml-2">
-                      <Badge variant="success">running</Badge>
+                      <Badge variant="success">{t('revisions.running')}</Badge>
                     </span>
                   )}
                 </td>
@@ -76,7 +77,7 @@ export const Revisions: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   {r.revision !== running && (
                     <Button variant="secondary" size="sm" onClick={() => { rollbackMutation.reset(); setRollbackTo(r) }}>
-                      Rollback
+                      {t('revisions.rollback')}
                     </Button>
                   )}
                 </td>
@@ -85,14 +86,14 @@ export const Revisions: React.FC = () => {
           </tbody>
         </table>
 
-        {revisions.length === 0 && <div className="text-center py-8 text-gray-500">No revisions yet</div>}
+        {revisions.length === 0 && <div className="text-center py-8 text-gray-500">{t('revisions.empty')}</div>}
       </div>
 
-      <Dialog open={rollbackTo !== null} onClose={() => setRollbackTo(null)} title="Confirm Rollback">
+      <Dialog open={rollbackTo !== null} onClose={() => setRollbackTo(null)} title={t('revisions.confirmTitle')}>
         <div className="py-4">
-          <p>Roll back to revision #{rollbackTo?.revision}?</p>
+          <p>{t('revisions.confirmRollback', { revision: rollbackTo?.revision ?? '' })}</p>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            The configuration from {rollbackTo ? formatTime(rollbackTo.time) : ''} is applied now and saved as a new revision.
+            {t('revisions.confirmHint', { when: rollbackTo ? formatTime(rollbackTo.time) : '' })}
             Uncommitted changes are kept as they are.
           </p>
           {rollbackMutation.isError && (
@@ -103,14 +104,14 @@ export const Revisions: React.FC = () => {
         </div>
         <div className="flex justify-end space-x-2 mt-4">
           <Button variant="secondary" onClick={() => setRollbackTo(null)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="danger"
             onClick={() => rollbackTo && rollbackMutation.mutate(rollbackTo.revision)}
             disabled={rollbackMutation.isPending}
           >
-            Rollback
+            {t('revisions.rollback')}
           </Button>
         </div>
       </Dialog>

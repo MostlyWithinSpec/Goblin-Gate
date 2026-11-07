@@ -4,6 +4,7 @@
 // from the admin session and the API.
 import React from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { t } from '../../i18n'
 
 export default function PluginPage() {
   const { name = '', '*': path = '' } = useParams()
@@ -12,22 +13,22 @@ export default function PluginPage() {
     <div className="p-6">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-          Plugin {name}: {path}
+          {t('pluginPage.title', { name, path })}
         </h1>
         <Link to="/system/plugins" className="text-sm text-blue-600 hover:underline dark:text-blue-300">
-          All plugins
+          {t('pluginPage.allPlugins')}
         </Link>
       </div>
       {valid ? (
         <iframe
-          title={`Plugin ${name} page ${path}`}
+          title={t('pluginPage.frameTitle', { name, path })}
           src={`/plugin-ui/${name}/${path}`}
           sandbox="allow-scripts allow-forms"
           referrerPolicy="no-referrer"
           className="h-[70vh] w-full rounded border border-gray-200 bg-white dark:border-gray-700 min-h-[40px]"
         />
       ) : (
-        <p role="alert" className="text-sm text-red-600">Not a plugin page.</p>
+        <p role="alert" className="text-sm text-red-600">{t('pluginPage.untitled')}</p>
       )}
     </div>
   )

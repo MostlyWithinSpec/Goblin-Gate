@@ -30,10 +30,13 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
+	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
+	"github.com/networkgoblinlabs/goblin-gate/internal/reverseproxy"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
+	"github.com/networkgoblinlabs/goblin-gate/internal/throughput"
 	"github.com/networkgoblinlabs/goblin-gate/internal/updates"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ups"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
@@ -48,7 +51,9 @@ const MaxBodyBytes = 4 << 20
 type Server struct {
 	Store  *config.Store
 	Commit *commit.Engine
-	Logger *slog.Logger
+
+	policySwitches switchLimiter
+	Logger         *slog.Logger
 
 	// Authn turns on authentication (sessions, API tokens, the local
 	// socket); nil leaves the API open (dev and tests).
@@ -145,8 +150,14 @@ type Server struct {
 	Plugins *plugins.Manager
 	// Capture runs packet captures (task 076); nil answers 503 (dev mode).
 	Capture *capture.Manager
+	// Throughput runs the throughput test server and NICs reads network
+	// card facts (task 119); nil answers 503 (dev mode).
+	Throughput *throughput.Manager
+	NICs       *nicinfo.Reader
 	// Flows samples the connection table (task 078); nil answers 503.
 	Flows *flows.Sampler
+	// ReverseProxy reads the reverse proxy's state; nil = the real box.
+	ReverseProxy *reverseproxy.Reader
 
 	// DiagRunner runs ping/traceroute and DiagLookup does DNS lookups for
 	// the diagnostics; nil = the real ones (tests replace them).
@@ -181,15 +192,8 @@ func (s *Server) Routes() http.Handler {
 		mux.Handle(pattern, handler)
 	}
 	s.register(handle)
-	mux.HandleFunc("POST /api/v1/auth/login", s.login)
-	// First-boot setup: open without authentication until an admin exists.
-	mux.HandleFunc("GET /api/v1/setup/state", s.setupState)
-	mux.HandleFunc("POST /api/v1/setup", s.setup)
-	mux.Handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
+	s.openRoutes(mux.Handle)
 	mux.HandleFunc("GET /plugin-ui/{name}/{path...}", s.pluginUI)
-	// Prometheus scrapers have no session: /metrics checks its own allow
-	// list and API tokens.
-	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "no such API endpoint", nil)
 	})
@@ -197,6 +201,19 @@ func (s *Server) Routes() http.Handler {
 		mux.Handle("/", s.Static)
 	}
 	return s.middleware(mux)
+}
+
+// openRoutes adds the API routes that need no session or token.
+func (s *Server) openRoutes(handle func(pattern string, h http.Handler)) {
+	handle("POST /api/v1/auth/login", http.HandlerFunc(s.login))
+	// First-boot setup: open without authentication until an admin exists.
+	handle("GET /api/v1/setup/state", http.HandlerFunc(s.setupState))
+	handle("POST /api/v1/setup", http.HandlerFunc(s.setup))
+	handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
+	handle("GET /api/v1/openapi.json", http.HandlerFunc(s.openAPI))
+	// Prometheus scrapers have no session: /metrics checks its own allow
+	// list and API tokens.
+	handle("GET /metrics", http.HandlerFunc(s.metrics))
 }
 
 // register adds every authenticated API route. Routes wraps each with the
@@ -225,6 +242,10 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/diag/ping", s.diagPing)
 	handle("POST /api/v1/diag/traceroute", s.diagTraceroute)
 	handle("POST /api/v1/diag/dns", s.diagDNS)
+	handle("GET /api/v1/diag/nics", s.diagNICs)
+	handle("GET /api/v1/diag/throughput", s.throughputStatus)
+	handle("POST /api/v1/diag/throughput", s.throughputStart)
+	handle("DELETE /api/v1/diag/throughput", s.throughputStop)
 	handle("GET /api/v1/snapshots", s.listSnapshots)
 	handle("POST /api/v1/snapshots", s.createSnapshot)
 	handle("GET /api/v1/snapshots/{name}", s.getSnapshot)
@@ -264,6 +285,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/crowdsec", s.crowdSecStatus)
 	handle("GET /api/v1/checks", s.checks)
 	handle("GET /api/v1/ups", s.upsStatus)
+	handle("GET /api/v1/reverse-proxy", s.reverseProxyStatus)
 	handle("POST /api/v1/system/reboot", s.reboot)
 	handle("GET /api/v1/ips/rules", s.ipsRules)
 	handle("GET /api/v1/templates", s.listTemplates)
@@ -272,8 +294,10 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/checks/dismiss", s.dismissFinding)
 	handle("DELETE /api/v1/checks/dismiss/{key}", s.restoreFinding)
 	handle("GET /api/v1/logs", s.listLogs)
-	handle("GET /api/v1/ui/dashboards", s.getDashboards)
-	handle("PUT /api/v1/ui/dashboards", s.putDashboards)
+	handle("GET /api/v1/ui/dashboards", s.getUIDoc("dashboards"))
+	handle("PUT /api/v1/ui/dashboards", s.putUIDoc("dashboards"))
+	handle("GET /api/v1/ui/prefs", s.getUIDoc("prefs"))
+	handle("PUT /api/v1/ui/prefs", s.putUIDoc("prefs"))
 	handle("GET /api/v1/webfilter/categories", s.webfilterCategories)
 	handle("GET /api/v1/webfilter/lookup", s.webfilterLookup)
 	handle("GET /api/v1/appctrl/apps", s.appctrlApps)
@@ -311,6 +335,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/plugins/{name}/enable", s.enablePlugin)
 	handle("POST /api/v1/plugins/{name}/disable", s.disablePlugin)
 	handle("PUT /api/v1/plugins/{name}/settings", s.pluginSettings)
+	handle("PUT /api/v1/plugins/{name}/policies", s.pluginPoliciesSetting)
 	handle("/api/v1/plugins/{name}/api/{path...}", s.pluginAPI)
 }
 

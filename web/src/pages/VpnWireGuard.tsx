@@ -7,6 +7,7 @@ import { EditDrawer } from '../components/EditDrawer'
 import { FormField } from '../components/FormField'
 import { getWireGuardConfig, addWireGuardPeer, WireGuardPeerRequest, WireGuardPeerResponse } from '../api/wireguard'
 import { Link } from 'react-router-dom'
+import { t } from '../i18n'
 
 const WireGuardPage: React.FC = () => {
   const [isAddPeerOpen, setIsAddPeerOpen] = useState(false)
@@ -35,7 +36,7 @@ const WireGuardPage: React.FC = () => {
   // Handle adding a new peer
   const handleAddPeer = async () => {
     if (!selectedInterface || !peerName) {
-      setAddPeerError('Please select an interface and provide a peer name')
+      setAddPeerError(t('wireGuard.selectInterfaceAndName'))
       return
     }
 
@@ -64,7 +65,7 @@ const WireGuardPage: React.FC = () => {
       // Invalidate cache to refresh the list
       queryClient.invalidateQueries(['wireguardConfig'])
     } catch (err) {
-      setAddPeerError(`Could not add the peer: ${(err as Error).message}`)
+      setAddPeerError(t('wireGuard.addPeerFailed', { message: (err as Error).message }))
     } finally {
       setIsAddingPeer(false)
     }
@@ -80,22 +81,22 @@ const WireGuardPage: React.FC = () => {
 
   // Format time for display
   const formatTime = (time?: string): string => {
-    if (!time || time === '0') return 'Never'
+    if (!time || time === '0') return t('wireGuard.never')
     return time
   }
 
   if (isLoading) {
-    return <div className="p-6">Loading WireGuard configuration...</div>
+    return <div className="p-6">{t('wireGuard.loadingConfig')}</div>
   }
 
   if (error) {
-    return <div className="p-6">Error loading WireGuard configuration: {(error as Error).message}</div>
+    return <div className="p-6">{t('wireGuard.loadingConfigError', { message: (error as Error).message })}</div>
   }
 
   // Prepare data for the interfaces table
   const interfacesData = wireGuardConfig?.interfaces?.map((iface) => ({
     name: iface.name,
-    enabled: iface.enabled ? 'Enabled' : 'Disabled',
+    enabled: iface.enabled ? t('wireGuard.enabled') : t('wireGuard.disabled'),
     publicKey: iface.public_key,
     listenPort: iface.listen_port,
     address: iface.address,
@@ -105,13 +106,13 @@ const WireGuardPage: React.FC = () => {
 
   // Prepare columns for the interfaces table
   const interfacesColumns = [
-    { key: 'name', label: 'Name' },
-    { key: 'enabled', label: 'Status' },
-    { key: 'publicKey', label: 'Public Key' },
-    { key: 'listenPort', label: 'Listen Port' },
-    { key: 'address', label: 'Address' },
-    { key: 'endpoint', label: 'Endpoint' },
-    { key: 'peers', label: 'Peers' }
+    { key: 'name', label: t('wireGuard.col.name') },
+    { key: 'enabled', label: t('wireGuard.col.status') },
+    { key: 'publicKey', label: t('wireGuard.col.publicKey') },
+    { key: 'listenPort', label: t('wireGuard.col.listenPort') },
+    { key: 'address', label: t('wireGuard.col.address') },
+    { key: 'endpoint', label: t('wireGuard.col.endpoint') },
+    { key: 'peers', label: t('wireGuard.col.peers') }
   ]
 
   // Prepare data for the peers table
@@ -129,28 +130,28 @@ const WireGuardPage: React.FC = () => {
 
   // Prepare columns for the peers table
   const peersColumns = [
-    { key: 'interface', label: 'Interface' },
-    { key: 'name', label: 'Name' },
-    { key: 'address', label: 'Address' },
-    { key: 'lastHandshake', label: 'Last Handshake' },
-    { key: 'rxBytes', label: 'Received' },
-    { key: 'txBytes', label: 'Sent' }
+    { key: 'interface', label: t('wireGuard.col.interface') },
+    { key: 'name', label: t('wireGuard.col.name') },
+    { key: 'address', label: t('wireGuard.col.address') },
+    { key: 'lastHandshake', label: t('wireGuard.col.lastHandshake') },
+    { key: 'rxBytes', label: t('wireGuard.col.received') },
+    { key: 'txBytes', label: t('wireGuard.col.sent') }
   ]
 
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">WireGuard</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('wireGuard.title')}</h1>
         <div className="flex space-x-2">
           <Button variant="primary" onClick={() => setIsAddPeerOpen(true)}>
-            Add Peer
+            {t('wireGuard.addPeer')}
           </Button>
         </div>
       </div>
 
       {/* Interfaces Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">WireGuard Interfaces</h2>
+        <h2 className="text-lg font-semibold mb-4">{t('wireGuard.interfaces')}</h2>
         <DataTable
           data={interfacesData}
           columns={interfacesColumns}
@@ -161,7 +162,7 @@ const WireGuardPage: React.FC = () => {
 
       {/* Peers Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold mb-4">Peers</h2>
+        <h2 className="text-lg font-semibold mb-4">{t('wireGuard.peers')}</h2>
         <DataTable
           data={peersData}
           columns={peersColumns}
@@ -175,16 +176,16 @@ const WireGuardPage: React.FC = () => {
         <EditDrawer
           isOpen={isAddPeerOpen}
           onClose={() => setIsAddPeerOpen(false)}
-          title="Add WireGuard Peer"
+          title={t('wireGuard.addPeerDrawer')}
         >
           <div className="space-y-4">
-            <FormField label="Interface">
+            <FormField label={t('wireGuard.interface')}>
               <select
                 value={selectedInterface || ''}
                 onChange={(e) => setSelectedInterface(e.target.value)}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
               >
-                <option value="">Select an interface</option>
+                <option value="">{t('wireGuard.selectInterface')}</option>
                 {wireGuardConfig?.interfaces.map((iface) => (
                   <option key={iface.name} value={iface.name}>
                     {iface.name}
@@ -193,24 +194,24 @@ const WireGuardPage: React.FC = () => {
               </select>
             </FormField>
 
-            <FormField label="Peer Name">
+            <FormField label={t('wireGuard.peerName')}>
               <input
                 type="text"
                 value={peerName}
                 onChange={(e) => setPeerName(e.target.value)}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
-                placeholder="Enter peer name"
+                placeholder={t('wireGuard.peerNamePlaceholder')}
               />
             </FormField>
 
-            <FormField label="Keepalive (seconds)">
+            <FormField label={t('wireGuard.keepaliveSeconds')}>
               <input
                 type="number"
                 min="0"
                 value={keepalive}
                 onChange={(e) => setKeepalive(parseInt(e.target.value) || 0)}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 min-h-[40px]"
-                placeholder="0 = off"
+                placeholder={t('wireGuard.keepalivePlaceholder')}
               />
             </FormField>
 
@@ -222,22 +223,22 @@ const WireGuardPage: React.FC = () => {
                 onChange={(e) => setFullTunnel(e.target.checked)}
                 className="mr-2"
               />
-              <label htmlFor="full-tunnel">Send all traffic through Goblin Gate</label>
+              <label htmlFor="full-tunnel">{t('wireGuard.fullTunnel')}</label>
             </div>
 
             <div className="flex justify-end space-x-2 mt-6">
               <Button variant="outline" onClick={() => setIsAddPeerOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={() => {
                   setIsAddPeerModalOpen(true)
                   setIsAddPeerOpen(false)
                 }}
                 disabled={!selectedInterface || !peerName}
               >
-                Add Peer
+                {t('wireGuard.addPeer')}
               </Button>
             </div>
           </div>
@@ -248,20 +249,20 @@ const WireGuardPage: React.FC = () => {
       {isAddPeerModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Confirm Add Peer</h2>
+            <h2 className="text-xl font-bold mb-4">{t('wireGuard.confirmAddPeer')}</h2>
             <p className="mb-4">
-              Are you sure you want to add peer <strong>{peerName}</strong> to interface <strong>{selectedInterface}</strong>?
+              {t('wireGuard.confirmAddPeerBody')} <strong>{peerName}</strong> {t('wireGuard.confirmAddPeerTo')} <strong>{selectedInterface}</strong>?
             </p>
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setIsAddPeerModalOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={handleAddPeer}
                 disabled={isAddingPeer}
               >
-                {isAddingPeer ? 'Adding...' : 'Add Peer'}
+                {isAddingPeer ? t('wireGuard.adding') : t('wireGuard.addPeer')}
               </Button>
             </div>
             {addPeerError && (
@@ -277,41 +278,40 @@ const WireGuardPage: React.FC = () => {
       {showPeerConfig && peerConfig && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Peer Configuration</h2>
-            
+            <h2 className="text-xl font-bold mb-4">{t('wireGuard.peerConfig')}</h2>
+
             {qrCode && (
               <div className="mb-4 bg-white p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">QR Code</h3>
+                <h3 className="font-semibold mb-2">{t('wireGuard.qrCode')}</h3>
                 <div className="bg-white p-2 inline-block">
                   <div dangerouslySetInnerHTML={{ __html: qrCode }} />
                 </div>
               </div>
             )}
-            
+
             <div className="mb-4">
-              <h3 className="font-semibold mb-2">Configuration File</h3>
+              <h3 className="font-semibold mb-2">{t('wireGuard.configFile')}</h3>
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-lg overflow-x-auto">
                 <pre className="text-sm">{peerConfig}</pre>
               </div>
             </div>
-            
+
             <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900 rounded">
               <p className="text-sm">
-                <strong>Important:</strong> The private key is shown only once in this configuration file. 
-                Make sure to save it securely. The private key is never stored by Goblin Gate.
+                <strong>{t('wireGuard.important')}</strong> {t('wireGuard.privateKeyOnce')} {t('wireGuard.privateKeyRest')}
               </p>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setShowPeerConfig(false)}>
-                Close
+                {t('common.close')}
               </Button>
-              <a 
-                href={`data:text/plain;charset=utf-8,${encodeURIComponent(peerConfig)}`} 
+              <a
+                href={`data:text/plain;charset=utf-8,${encodeURIComponent(peerConfig)}`}
                 download={`${peerConfigName}.conf`}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Download .conf
+                {t('wireGuard.downloadConf')}
               </a>
             </div>
           </div>

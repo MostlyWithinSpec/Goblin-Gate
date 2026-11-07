@@ -36,6 +36,18 @@ export interface Interface {
   allow_access?: string[] // ping | https | ssh
   ipv6?: IPv6
   sqm?: SQM
+  offloads?: Offloads
+}
+
+// Offloads overrides network card offloads (ethtool -K); a field left out
+// keeps the driver's default.
+export interface Offloads {
+  gro?: boolean
+  gso?: boolean
+  tso?: boolean
+  lro?: boolean
+  rx_checksum?: boolean
+  tx_checksum?: boolean
 }
 
 export interface VLAN {
@@ -268,6 +280,62 @@ export interface Candidate {
   ups?: UPSSettings
   // box-wide IPS settings; etpro_code is a secret ("" for callers that may not see it)
   ips?: { etpro_code?: string }
+  reverse_proxy?: ReverseProxy
+}
+
+// Reverse proxy (task 133/134): publishes LAN web services on public names
+// with certificates from Let's Encrypt. Types mirror internal/config/proxy.go
+// by JSON name.
+export interface ReverseProxy {
+  enabled: boolean
+  email?: string
+  staging?: boolean
+  // lan_access also sends LAN clients that open a public name to the proxy;
+  // unset means on.
+  lan_access?: boolean
+  hosts?: ProxyHost[]
+}
+
+export interface ProxyHost {
+  name: string
+  enabled: boolean
+  domains: string[]
+  upstream: string // http(s)://host[:port]
+  insecure_skip_verify?: boolean // https upstreams only
+  // allow limits who may connect: address objects of type host or subnet, or
+  // plain addresses/CIDRs. Empty = everyone.
+  allow?: string[]
+  description?: string
+}
+
+// The live status of the proxy: GET /api/v1/reverse-proxy. It describes the
+// running config, so a host saved but not committed yet has no entry here.
+export interface ProxyStatus {
+  enabled: boolean
+  // state is the service's systemd state: active, inactive, failed, ...
+  state: string
+  hosts: ProxyHostStatus[]
+}
+
+export interface ProxyHostStatus {
+  name: string
+  enabled: boolean
+  upstream: string
+  domains: ProxyDomainStatus[]
+}
+
+export interface ProxyDomainStatus {
+  domain: string
+  certificate?: ProxyCertificate
+  error?: { time: string; message: string }
+}
+
+export interface ProxyCertificate {
+  issuer: string
+  not_before: string
+  not_after: string
+  obtained: string
+  staging?: boolean
 }
 
 export function getCandidate(): Promise<Candidate> {
@@ -338,6 +406,10 @@ export interface DDNSStatus {
 export const getDDNSStatus = () => apiClient<{ entries: DDNSStatus[] }>('/api/v1/ddns').then((r) => r.entries ?? [])
 export const updateDDNSNow = (name: string) =>
   apiClient<DDNSStatus>(`/api/v1/ddns/${encodeURIComponent(name)}/update`, { method: 'POST' })
+
+// getProxyStatus reports the reverse proxy as the running config has it
+// published: the service state and each domain's certificate or latest error.
+export const getProxyStatus = () => apiClient<ProxyStatus>('/api/v1/reverse-proxy')
 
 // Log export (task 096/097): forward firewall logs to a remote syslog server
 // or a Loki instance. Types mirror internal/config/logexport.go by JSON name.

@@ -16,6 +16,11 @@ var Routes = map[string]string{
 	"GET /api/v1/blocks":          "blocks:read",
 	"POST /api/v1/blocks":         "blocks:write",
 	"DELETE /api/v1/blocks/{ip}":  "blocks:write",
+	"GET /api/v1/wan/status":      "stats:read",
+	"GET /api/v1/devices":         "devices:read",
+
+	"GET /api/v1/plugin/policies":      "policies:toggle",
+	"PUT /api/v1/plugin/policies/{id}": "policies:toggle",
 }
 
 // RouteCapability returns the capability a route needs and whether

@@ -1,6 +1,7 @@
 // Dashboard model helpers (task 025): built-in widgets, default dashboards,
 // edits, and turning stats query results into ECharts options. Pure
 // functions; the page and widgets use them.
+import { t } from '../../i18n'
 import type { ChartType, Dashboard, Dashboards, StatsQuery, StatsResult, TimeRange, Widget } from '../../api/stats'
 import { bucketFor, rangeToFrom } from '../../api/stats'
 
@@ -50,6 +51,42 @@ export const BUILTINS: Builtin[] = [
 ]
 
 export const builtin = (type: string) => BUILTINS.find((b) => b.type === type)
+
+// builtinLabel names a built-in widget in the current language, or undefined
+// for a custom widget. Every key is a literal so the catalog check can see it.
+// The stored widget keeps the English title it was created with (it is saved
+// data), so where a title is shown the page looks the built-in up by type
+// first; a dashboard's own rename of it wins.
+export function builtinLabel(type: string): string | undefined {
+  switch (type) {
+    case 'system':
+      return t('dashboard.builtin.system')
+    case 'checks':
+      return t('dashboard.builtin.checks')
+    case 'ups':
+      return t('dashboard.builtin.ups')
+    case 'bandwidth':
+      return t('dashboard.builtin.bandwidth')
+    case 'top-talkers':
+      return t('dashboard.builtin.top-talkers')
+    case 'top-destinations':
+      return t('dashboard.builtin.top-destinations')
+    case 'top-blocked':
+      return t('dashboard.builtin.top-blocked')
+    case 'ips-severity':
+      return t('dashboard.builtin.ips-severity')
+    case 'feed-hits':
+      return t('dashboard.builtin.feed-hits')
+    case 'policy-hits':
+      return t('dashboard.builtin.policy-hits')
+    case 'gateways':
+      return t('dashboard.builtin.gateways')
+    case 'live-top-talkers':
+      return t('dashboard.builtin.live-top-talkers')
+    default:
+      return undefined
+  }
+}
 
 let seq = 0
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`

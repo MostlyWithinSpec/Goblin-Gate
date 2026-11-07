@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -44,12 +45,15 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
+	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render"
+	caddyrender "github.com/networkgoblinlabs/goblin-gate/internal/render/caddy"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
+	nicrender "github.com/networkgoblinlabs/goblin-gate/internal/render/nic"
 	nutrender "github.com/networkgoblinlabs/goblin-gate/internal/render/nut"
 	sqmrender "github.com/networkgoblinlabs/goblin-gate/internal/render/sqm"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/suricata"
@@ -60,6 +64,7 @@ import (
 	wgrender "github.com/networkgoblinlabs/goblin-gate/internal/render/wireguard"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
+	"github.com/networkgoblinlabs/goblin-gate/internal/throughput"
 	"github.com/networkgoblinlabs/goblin-gate/internal/upnp"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ups"
 	"github.com/networkgoblinlabs/goblin-gate/internal/version"
@@ -284,7 +289,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, sqmrender.Renderer{},
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, caddyrender.Renderer{}, sqmrender.Renderer{}, nicrender.Renderer{},
 		nutrender.Renderer{Secret: nutSecret(filepath.Join(dataDir, "nut", "monitor.secret"))}}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
@@ -387,6 +392,19 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if o.dev {
 		blockMgr.Run = func(context.Context, []byte) error { return nil }
 	}
+	// throughput test server (task 119): its port is open on one interface
+	// through an nft set, refilled after every ruleset load
+	var tpMgr *throughput.Manager
+	if !o.dev && runtime.GOOS == "linux" {
+		tpMgr = &throughput.Manager{SetOpen: func(devs []string) error {
+			cmd := exec.Command("nft", "-f", "-")
+			cmd.Stdin = bytes.NewReader(nft.ThroughputScript(devs))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("nft: %w: %s", err, strings.TrimSpace(string(out)))
+			}
+			return nil
+		}}
+	}
 	// CrowdSec bouncer (task 104): same sets-after-apply pattern
 	csMgr := &crowdsec.Manager{Logger: logger,
 		Config: func() (config.CrowdSec, error) {
@@ -432,6 +450,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		}
 		blockMgr.Resync(ctx)
 		csMgr.Resync(ctx)
+		if tpMgr != nil {
+			tpMgr.Resync()
+		}
 		if pluginMgr != nil {
 			pluginMgr.Resync(ctx, live)
 		}
@@ -565,6 +586,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if !o.dev && runtime.GOOS == "linux" {
 		// the last capture's pcap stays here until the next one (task 076)
 		apiServer.Capture = &capture.Manager{Dir: filepath.Join(dataDir, "capture")}
+		apiServer.Throughput = tpMgr
+		apiServer.NICs = &nicinfo.Reader{Run: nicinfo.Exec}
 		apiServer.Flows = flowSampler
 		flowSampler.Names = deviceNames(devStore)
 		go flowSampler.Run(ctx)

@@ -24,8 +24,8 @@ func TestFillInterfaces(t *testing.T) {
 	if err := s.RollupAt(m); err != nil {
 		t.Fatal(err)
 	}
-	lookup := func(ip string) string {
-		return map[string]string{"192.168.2.18": "wifi", "192.168.1.5": "lan"}[ip]
+	lookup := func(src, dst string) string {
+		return map[string]string{"192.168.2.18": "wifi", "192.168.1.5": "lan"}[src]
 	}
 	n, err := s.FillInterfaces(lookup)
 	if err != nil || n != 2 {

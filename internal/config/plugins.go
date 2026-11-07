@@ -15,10 +15,21 @@ type Plugin struct {
 	Enabled      bool           `json:"enabled"`
 	Capabilities []string       `json:"capabilities,omitempty"`
 	Settings     map[string]any `json:"settings,omitempty"`
+	// Secrets are the settings the manifest marks secret (passwords,
+	// tokens), kept apart so they are redacted like every other secret:
+	// no API answer, plugin or git backup shows them. The plugin itself gets
+	// them with its settings.
+	Secrets map[string]string `json:"secrets,omitempty"`
+	// Policies are the IDs of the policies this plugin may switch on and
+	// off (capability policies:toggle); it can touch nothing else.
+	Policies []uint32 `json:"policies,omitempty"`
 }
 
 // PluginCapabilities are the capabilities a plugin can ask for.
-var PluginCapabilities = []string{"events:read", "stats:read", "config:read", "notify:send", "blocks:read", "blocks:write"}
+var PluginCapabilities = []string{"events:read", "stats:read", "config:read", "notify:send", "blocks:read", "blocks:write", "devices:read", "policies:toggle"}
+
+// MaxPluginPolicies is how many policies one plugin may switch.
+const MaxPluginPolicies = 32
 
 var pluginNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
@@ -35,6 +46,25 @@ type PluginSpec struct {
 	// CheckSettings returns the problems of a settings object, each
 	// "key: message" (nil = valid).
 	CheckSettings func(map[string]any) []string
+	// Secrets are the settings its manifest marks secret: stored in
+	// Plugin.Secrets, never in Plugin.Settings.
+	Secrets []string
+}
+
+// AllSettings is the plugin's settings with its secrets merged in: what the
+// plugin gets and what its schema checks.
+func (p Plugin) AllSettings() map[string]any {
+	if len(p.Secrets) == 0 {
+		return p.Settings
+	}
+	out := make(map[string]any, len(p.Settings)+len(p.Secrets))
+	for k, v := range p.Settings {
+		out[k] = v
+	}
+	for k, v := range p.Secrets {
+		out[k] = v
+	}
+	return out
 }
 
 var (
@@ -67,6 +97,29 @@ func (v *validator) checkPlugins() {
 			if !slices.Contains(PluginCapabilities, c) {
 				v.add(fmt.Sprintf("%s.capabilities[%d]", path, j), "unknown capability %q", c)
 			}
+		}
+		for key, val := range p.Secrets {
+			if len(key) == 0 || len(key) > 64 || len(val) > 4096 {
+				v.add(path+".secrets", "secret %q: names up to 64 characters, values up to 4096", key)
+			}
+		}
+		if len(p.Policies) > MaxPluginPolicies {
+			v.add(path+".policies", "at most %d policies", MaxPluginPolicies)
+		}
+		ids := map[uint32]bool{}
+		for _, pol := range v.cfg.Policies {
+			ids[pol.ID] = true
+		}
+		for j, id := range p.Policies {
+			switch {
+			case !ids[id]:
+				v.add(fmt.Sprintf("%s.policies[%d]", path, j), "no policy with id %d: remove it from the policies this plugin may switch", id)
+			case slices.Index(p.Policies, id) != j:
+				v.add(fmt.Sprintf("%s.policies[%d]", path, j), "policy %d is listed twice", id)
+			}
+		}
+		if len(p.Policies) > 0 && p.Enabled && !slices.Contains(p.Capabilities, "policies:toggle") {
+			v.add(path+".policies", "switching policies needs the capability policies:toggle")
 		}
 	}
 }
@@ -109,8 +162,18 @@ func CheckInstalledPlugins(cfg *Config) []ValidationError {
 				v.add(fmt.Sprintf("%s.capabilities[%d]", path, j), "plugin %q does not ask for %q", p.Name, c)
 			}
 		}
+		for key := range p.Settings {
+			if slices.Contains(spec.Secrets, key) {
+				v.add(path+".settings", "%s: a secret, stored with the secrets", key)
+			}
+		}
+		for key := range p.Secrets {
+			if !slices.Contains(spec.Secrets, key) {
+				v.add(path+".secrets", "%s: not a secret setting of plugin %q", key, p.Name)
+			}
+		}
 		if spec.CheckSettings != nil {
-			for _, msg := range spec.CheckSettings(p.Settings) {
+			for _, msg := range spec.CheckSettings(p.AllSettings()) {
 				v.add(path+".settings", "%s", msg)
 			}
 		}

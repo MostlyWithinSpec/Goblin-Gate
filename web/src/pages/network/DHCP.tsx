@@ -11,6 +11,7 @@ import {
 } from '../../api/network'
 import type { ValidationError } from '../../api/policy'
 import { cleanDHCP, validateDHCP, type Errors } from './networkLogic'
+import { t } from '../../i18n'
 
 // Draft keeps list fields as text while editing.
 interface Draft extends DHCPServer {
@@ -32,14 +33,14 @@ function Leases() {
   }, [])
   return (
     <section className="mt-6">
-      <h3 className="mb-2 font-semibold text-gray-800 dark:text-white">Active leases</h3>
+      <h3 className="mb-2 font-semibold text-gray-800 dark:text-white">{t('dhcp.activeLeases')}</h3>
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {leases === null && <p className="text-sm text-gray-500">Lease view not available yet.</p>}
-      {leases && leases.length === 0 && <p className="text-sm text-gray-500">No active leases.</p>}
+      {leases === null && <p className="text-sm text-gray-500">{t('dhcp.leasesError')}</p>}
+      {leases && leases.length === 0 && <p className="text-sm text-gray-500">{t('dhcp.leasesNone')}</p>}
       {leases && leases.length > 0 && (
         <div className="max-w-full overflow-x-auto" data-testid="table-scroll">
         <table className="min-w-full text-sm dark:text-gray-200">
-          <thead className="text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">IP</th><th className="px-3 py-2">MAC</th><th className="px-3 py-2">Hostname</th><th className="px-3 py-2">Expires</th></tr></thead>
+          <thead className="text-left text-xs uppercase text-gray-500"><tr><th className="px-3 py-2">IP</th><th className="px-3 py-2">MAC</th><th className="px-3 py-2">{t('dhcp.hostname')}</th><th className="px-3 py-2">{t('dhcp.expires')}</th></tr></thead>
           <tbody>{leases.map((l) => <tr key={l.mac + l.ip} className="border-t border-gray-100 dark:border-gray-700"><td className="px-3 py-1">{l.ip}</td><td className="px-3 py-1 font-mono text-xs">{l.mac}</td><td className="px-3 py-1">{l.hostname}</td><td className="px-3 py-1">{l.expires}</td></tr>)}</tbody>
         </table>
         </div>
@@ -109,7 +110,7 @@ export default function DHCP() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">DHCP Servers</h2>
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{t('dhcp.servers')}</h2>
         <button
           type="button"
           disabled={!loaded || unserved.length === 0}
@@ -119,7 +120,7 @@ export default function DHCP() {
           }}
           className="flex min-h-[40px] items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          <Plus size={16} /> New DHCP server
+          <Plus size={16} /> {t('dhcp.newServer')}
         </button>
       </div>
       {error && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div>}
@@ -134,7 +135,7 @@ export default function DHCP() {
       <div className="max-w-full overflow-x-auto rounded-lg" data-testid="table-scroll">
       <table className="min-w-full rounded bg-white text-sm shadow-sm dark:bg-gray-800 dark:text-gray-200">
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-700">
-          <tr><th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 dark:bg-gray-700">Interface</th><th className="px-3 py-2">Range</th><th className="px-3 py-2">Lease</th><th className="px-3 py-2">Static leases</th><th></th></tr>
+          <tr><th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 dark:bg-gray-700">{t('dhcp.col.interface')}</th><th className="px-3 py-2">{t('dhcp.col.range')}</th><th className="px-3 py-2">{t('dhcp.col.lease')}</th><th className="px-3 py-2">{t('dhcp.col.staticLeases')}</th><th></th></tr>
         </thead>
         <tbody>
           {servers.map((s, i) => (
@@ -145,51 +146,51 @@ export default function DHCP() {
                 </button>
               </td>
               <td className="px-3 py-1">{s.range_start} – {s.range_end}</td>
-              <td className="px-3 py-1">{s.lease_seconds ? `${s.lease_seconds}s` : 'default'}</td>
+              <td className="px-3 py-1">{s.lease_seconds ? `${s.lease_seconds}s` : t('dhcp.default')}</td>
               <td className="px-3 py-1">{s.static_leases?.length ?? 0}</td>
               <td className="px-3 py-1 text-right">
-                <button type="button" aria-label={`Delete DHCP on ${s.interface}`} onClick={() => window.confirm(`Delete the DHCP server on ${s.interface}?`) && save(servers.filter((_, j) => j !== i))} className="inline-flex h-10 w-10 items-center justify-center text-red-600"><Trash2 size={16} /></button>
+                <button type="button" aria-label={t('dhcp.deleteServer', { name: s.interface })} onClick={() => window.confirm(t('dhcp.deleteServerConfirm', { name: s.interface })) && save(servers.filter((_, j) => j !== i))} className="inline-flex h-10 w-10 items-center justify-center text-red-600"><Trash2 size={16} /></button>
               </td>
             </tr>
           ))}
-          {loaded && servers.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">No DHCP servers.</td></tr>}
+          {loaded && servers.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">{t('dhcp.empty')}</td></tr>}
         </tbody>
       </table>
       </div>
 
       {draft && (
-        <form onSubmit={submit} noValidate aria-label="DHCP server" className="mt-4 space-y-3 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
-          <h3 className="font-semibold">{draft.index === null ? 'New DHCP server' : `DHCP on ${draft.d.interface}`}</h3>
+        <form onSubmit={submit} noValidate aria-label={t('dhcp.title')} className="mt-4 space-y-3 rounded bg-white p-4 text-sm text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-300">
+          <h3 className="font-semibold">{draft.index === null ? t('dhcp.newServer') : t('dhcp.onInterface', { name: draft.d.interface })}</h3>
           <label className="block">
-            Interface
-            <select aria-label="Interface" className={input} value={draft.d.interface} disabled={draft.index !== null} onChange={(e) => set('interface', e.target.value)}>
+            {t('dhcp.col.interface')}
+            <select aria-label={t('dhcp.interfaceAria')} className={input} value={draft.d.interface} disabled={draft.index !== null} onChange={(e) => set('interface', e.target.value)}>
               {(draft.index === null ? unserved : ifs).map((i) => <option key={i.name} value={i.name}>{i.name} ({i.address})</option>)}
             </select>
             {err('interface')}
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label>Range start<input aria-label="Range start" className={input} value={draft.d.range_start} onChange={(e) => set('range_start', e.target.value)} />{err('range_start')}</label>
-            <label>Range end<input aria-label="Range end" className={input} value={draft.d.range_end} onChange={(e) => set('range_end', e.target.value)} />{err('range_end')}</label>
+            <label>{t('dhcp.rangeStart')}<input aria-label={t('dhcp.rangeStart')} className={input} value={draft.d.range_start} onChange={(e) => set('range_start', e.target.value)} />{err('range_start')}</label>
+            <label>{t('dhcp.rangeEnd')}<input aria-label={t('dhcp.rangeEnd')} className={input} value={draft.d.range_end} onChange={(e) => set('range_end', e.target.value)} />{err('range_end')}</label>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <label>Lease (seconds)<input aria-label="Lease seconds" type="number" min={0} placeholder="default" className={input} value={draft.d.lease_seconds ?? ''} onChange={(e) => set('lease_seconds', e.target.value === '' ? undefined : Number(e.target.value))} />{err('lease_seconds')}</label>
-            <label>Gateway<input aria-label="Gateway" placeholder="this box" className={input} value={draft.d.gateway ?? ''} onChange={(e) => set('gateway', e.target.value)} />{err('gateway')}</label>
-            <label>DNS servers<input aria-label="DNS servers" placeholder="this box" className={input} value={draft.d.dnsText} onChange={(e) => set('dnsText', e.target.value)} />{err('dns')}</label>
+            <label>{t('dhcp.leaseSeconds')}<input aria-label={t('dhcp.leaseSecondsAria')} type="number" min={0} placeholder={t('dhcp.default')} className={input} value={draft.d.lease_seconds ?? ''} onChange={(e) => set('lease_seconds', e.target.value === '' ? undefined : Number(e.target.value))} />{err('lease_seconds')}</label>
+            <label>{t('dhcp.gw')}<input aria-label={t('dhcp.gw')} placeholder={t('dhcp.gwPlaceholder')} className={input} value={draft.d.gateway ?? ''} onChange={(e) => set('gateway', e.target.value)} />{err('gateway')}</label>
+            <label>{t('dhcp.dnsServers')}<input aria-label={t('dhcp.dnsServers')} placeholder={t('dhcp.dnsPlaceholder')} className={input} value={draft.d.dnsText} onChange={(e) => set('dnsText', e.target.value)} />{err('dns')}</label>
           </div>
 
           <fieldset>
-            <legend className="mb-1 font-medium">Static leases</legend>
+            <legend className="mb-1 font-medium">{t('dhcp.staticLeases')}</legend>
             <div className="max-w-full overflow-x-auto">
             <table className="min-w-full">
-              <thead className="text-left text-xs uppercase text-gray-500"><tr><th>MAC</th><th>IP</th><th>Hostname</th><th></th></tr></thead>
+              <thead className="text-left text-xs uppercase text-gray-500"><tr><th>MAC</th><th>IP</th><th>{t('dhcp.hostname')}</th><th></th></tr></thead>
               <tbody>
                 {draft.d.static_leases!.map((l, i) => (
                   <tr key={i}>
-                    <td><input aria-label={`Lease ${i + 1} MAC`} className={input} value={l.mac} onChange={(e) => setLease(i, 'mac', e.target.value)} /></td>
-                    <td><input aria-label={`Lease ${i + 1} IP`} className={input} value={l.ip} onChange={(e) => setLease(i, 'ip', e.target.value)} /></td>
-                    <td><input aria-label={`Lease ${i + 1} hostname`} className={input} value={l.hostname ?? ''} onChange={(e) => setLease(i, 'hostname', e.target.value)} /></td>
+                    <td><input aria-label={t('dhcp.newLeaseMac', { n: i + 1 })} className={input} value={l.mac} onChange={(e) => setLease(i, 'mac', e.target.value)} /></td>
+                    <td><input aria-label={t('dhcp.newLeaseIp', { n: i + 1 })} className={input} value={l.ip} onChange={(e) => setLease(i, 'ip', e.target.value)} /></td>
+                    <td><input aria-label={t('dhcp.newLeaseHostname', { n: i + 1 })} className={input} value={l.hostname ?? ''} onChange={(e) => setLease(i, 'hostname', e.target.value)} /></td>
                     <td>
-                      <button type="button" aria-label={`Remove lease ${i + 1}`} className="inline-flex h-10 w-10 items-center justify-center text-red-600" onClick={() => set('static_leases', draft.d.static_leases!.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
+                      <button type="button" aria-label={t('dhcp.deleteLease', { n: i + 1 })} className="inline-flex h-10 w-10 items-center justify-center text-red-600" onClick={() => set('static_leases', draft.d.static_leases!.filter((_, j) => j !== i))}><Trash2 size={14} /></button>
                     </td>
                   </tr>
                 ))}
@@ -197,11 +198,11 @@ export default function DHCP() {
             </table>
             </div>
             {leaseErrors.map(([k, m]) => <p key={k} className="text-xs text-red-600" role="alert">{m}</p>)}
-            <button type="button" className="mt-1 min-h-[40px] text-sm text-blue-600" onClick={() => set('static_leases', [...draft.d.static_leases!, { mac: '', ip: '' }])}>+ Add static lease</button>
+            <button type="button" className="mt-1 min-h-[40px] text-sm text-blue-600" onClick={() => set('static_leases', [...draft.d.static_leases!, { mac: '', ip: '' }])}>{t('dhcp.addLease')}</button>
           </fieldset>
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" onClick={() => setDraft(null)} className="min-h-[40px] rounded border border-gray-300 px-3 py-1">Cancel</button>
-            <button type="submit" className="min-h-[40px] rounded bg-blue-600 px-3 py-1 text-white">Save</button>
+            <button type="button" onClick={() => setDraft(null)} className="min-h-[40px] rounded border border-gray-300 px-3 py-1">{t('common.cancel')}</button>
+            <button type="submit" className="min-h-[40px] rounded bg-blue-600 px-3 py-1 text-white">{t('dhcp.save')}</button>
           </div>
         </form>
       )}

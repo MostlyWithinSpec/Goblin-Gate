@@ -98,6 +98,35 @@ func (s *Store) SetCandidate(cfg *Config) error {
 	return nil
 }
 
+// EditCandidate changes the in-flight config with edit, only if there is
+// one (no candidate stays no candidate); edit returns false to leave it.
+func (s *Store) EditCandidate(edit func(*Config) bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, err := os.ReadFile(s.candidatePath())
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("config store: read candidate config: %w", err)
+	}
+	cfg, err := loadConfig(b)
+	if err != nil {
+		return err
+	}
+	if !edit(cfg) {
+		return nil
+	}
+	data, err := marshalConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("config store: edit candidate: %w", err)
+	}
+	if err := atomicWrite(s.candidatePath(), data); err != nil {
+		return fmt.Errorf("config store: edit candidate: %w", err)
+	}
+	return nil
+}
+
 // DiscardCandidate removes the in-flight config, if any.
 func (s *Store) DiscardCandidate() error {
 	s.mu.Lock()

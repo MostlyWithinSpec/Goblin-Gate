@@ -17,6 +17,12 @@ func (s *Server) geoipReady(w http.ResponseWriter) bool {
 	return true
 }
 
+// country is one entry of GET /api/v1/geoip's country list.
+type country struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
 // GET /api/v1/geoip → geoip.Status plus the country list
 // ({code, name}, for pickers).
 func (s *Server) geoipStatus(w http.ResponseWriter, r *http.Request) {
@@ -24,10 +30,6 @@ func (s *Server) geoipStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	live, _ := s.Store.Running()
-	type country struct {
-		Code string `json:"code"`
-		Name string `json:"name"`
-	}
 	countries := make([]country, 0, len(config.Countries))
 	for code, name := range config.Countries {
 		countries = append(countries, country{code, name})

@@ -187,34 +187,29 @@ func (s *Store) CountByAction(kind string, since int64) (map[string]int64, error
 
 // FillInterfaces sets the in_intf of traffic events stored without one (the
 // IPS's flow records, before the ingester filled it in) from their source
-// address, and recomputes the minute rollups it touched. lookup names the
-// interface whose network holds an address ("" = unknown). It reads the
+// and destination addresses, and recomputes the minute rollups it touched.
+// lookup names the interface traffic from src to dst came in on ("" =
+// unknown). It reads the
 // events once and writes in small transactions, so new events keep flowing in
 // meanwhile. It returns how many events it changed.
-func (s *Store) FillInterfaces(lookup func(ip string) string) (int64, error) {
+func (s *Store) FillInterfaces(lookup func(src, dst string) string) (int64, error) {
 	type fix struct {
 		id   int64
 		name string
 	}
-	rows, err := s.db.Query(`SELECT id, time, src_ip FROM events WHERE kind = 'traffic' AND in_intf = '' AND src_ip != ''`)
+	rows, err := s.db.Query(`SELECT id, time, src_ip, dst_ip FROM events WHERE kind = 'traffic' AND in_intf = '' AND src_ip != ''`)
 	if err != nil {
 		return 0, fmt.Errorf("fill interfaces: %w", err)
 	}
-	names := map[string]string{} // lookups, once per address
 	minutes := map[int64]bool{}
 	var fixes []fix
 	for rows.Next() {
 		var id, t int64
-		var ip string
-		if rows.Scan(&id, &t, &ip) != nil {
+		var src, dst string
+		if rows.Scan(&id, &t, &src, &dst) != nil {
 			continue
 		}
-		n, ok := names[ip]
-		if !ok {
-			n = lookup(ip)
-			names[ip] = n
-		}
-		if n != "" {
+		if n := lookup(src, dst); n != "" {
 			fixes = append(fixes, fix{id, n})
 			minutes[t-t%60] = true
 		}

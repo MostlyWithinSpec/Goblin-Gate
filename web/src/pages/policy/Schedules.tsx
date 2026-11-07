@@ -1,6 +1,7 @@
 // Named time schedules (config "schedules"): one or more ranges of days plus
 // start/end times; policies can attach one to match traffic only in those hours.
 import { ConfigList, inputClass, omitEmpty } from '../../components/ConfigList'
+import { t } from '../../i18n'
 import type { Schedule, ScheduleRange } from '../../api/objects'
 import { DAYS, DAY_LABELS, newRange, validateSchedule, weekCoverage } from './scheduleLogic'
 
@@ -25,9 +26,9 @@ function DayPicker({ value, onChange }: { value: string[]; onChange: (v: string[
         ))}
       </div>
       <div className="mt-1 flex gap-2 text-xs text-gray-500">
-        <button type="button" onClick={() => onChange([...DAYS])}>every day</button>
-        <button type="button" onClick={() => onChange(['mon', 'tue', 'wed', 'thu', 'fri'])}>weekdays</button>
-        <button type="button" onClick={() => onChange(['sat', 'sun'])}>weekend</button>
+        <button type="button" onClick={() => onChange([...DAYS])}>{t('schedules.everyDay')}</button>
+        <button type="button" onClick={() => onChange(['mon', 'tue', 'wed', 'thu', 'fri'])}>{t('schedules.weekdays')}</button>
+        <button type="button" onClick={() => onChange(['sat', 'sun'])}>{t('schedules.weekend')}</button>
       </div>
     </div>
   )
@@ -57,9 +58,9 @@ function RangeRow({ r, onChange, onRemove }: { r: ScheduleRange; onChange: (r: S
       <DayPicker value={r.days} onChange={(days) => onChange({ ...r, days })} />
       <div className="mt-2 flex items-center gap-2">
         <label className="text-xs text-gray-700 dark:text-gray-300">
-          From
+          {t('schedules.from')}
           <input
-            aria-label="Start time"
+            aria-label={t('schedules.startTime')}
             type="time"
             className={inputClass + ' w-28'}
             value={r.start}
@@ -67,9 +68,9 @@ function RangeRow({ r, onChange, onRemove }: { r: ScheduleRange; onChange: (r: S
           />
         </label>
         <label className="text-xs text-gray-700 dark:text-gray-300">
-          To
+          {t('schedules.to')}
           <input
-            aria-label="End time"
+            aria-label={t('schedules.endTime')}
             type="time"
             disabled={midnight}
             className={inputClass + ' w-28'}
@@ -79,11 +80,11 @@ function RangeRow({ r, onChange, onRemove }: { r: ScheduleRange; onChange: (r: S
         </label>
         <label className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={midnight} onChange={(e) => onChange({ ...r, end: e.target.checked ? '24:00' : '23:59' })} />
-          until midnight
+          {t('schedules.untilMidnight')}
         </label>
         {onRemove && (
-          <button type="button" aria-label="Remove range" onClick={onRemove} className="ml-auto text-xs text-red-600">
-            remove
+          <button type="button" aria-label={t('schedules.removeRange')} onClick={onRemove} className="ml-auto text-xs text-red-600">
+            {t('schedules.remove')}
           </button>
         )}
       </div>
@@ -94,23 +95,23 @@ function RangeRow({ r, onChange, onRemove }: { r: ScheduleRange; onChange: (r: S
 export default function Schedules() {
   return (
     <ConfigList<Schedule>
-      title="Schedules"
+      title={t('schedules.title')}
       path="schedules"
-      newLabel="New schedule"
+      newLabel={t('schedules.newSchedule')}
       select={(c) => c.schedules}
       empty={() => ({ name: '', ranges: [newRange()] })}
       clean={(s) => omitEmpty({ ...s, comment: s.comment?.trim(), ranges: s.ranges.map((r) => ({ ...r, days: [...r.days].sort((a, b) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number])) })) })}
       validate={(s) => validateSchedule(s)}
       columns={[
-        { label: 'Week', render: (s) => <WeekStrip s={s} /> },
-        { label: 'Ranges', render: (s) => s.ranges.map((r, i) => `${[...r.days].sort((a, b) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number])).map((d) => DAY_LABELS[d as keyof typeof DAY_LABELS]).join(' ')} ${r.start}–${r.end}`).join('; ') },
-        { label: 'Comment', render: (s) => s.comment },
+        { label: t('schedules.col.week'), render: (s) => <WeekStrip s={s} /> },
+        { label: t('schedules.col.ranges'), render: (s) => s.ranges.map((r, i) => `${[...r.days].sort((a, b) => DAYS.indexOf(a as (typeof DAYS)[number]) - DAYS.indexOf(b as (typeof DAYS)[number])).map((d) => DAY_LABELS[d as keyof typeof DAY_LABELS]).join(' ')} ${r.start}–${r.end}`).join('; ') },
+        { label: t('schedules.col.comment'), render: (s) => s.comment },
       ]}
       form={(s, set, { err }) => (
         <>
           <label className="block">
-            Comment
-            <input aria-label="Comment" className={inputClass} value={s.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
+            {t('schedules.comment')}
+            <input aria-label={t('schedules.comment')} className={inputClass} value={s.comment ?? ''} onChange={(e) => set({ comment: e.target.value })} />
           </label>
           <div className="space-y-2">
             {s.ranges.map((r, i) => (
@@ -123,7 +124,7 @@ export default function Schedules() {
             ))}
           </div>
           <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => set({ ranges: [...s.ranges, newRange()] })}>
-            + Add range
+            {t('schedules.addRange')}
           </button>
           {err('ranges')}
         </>

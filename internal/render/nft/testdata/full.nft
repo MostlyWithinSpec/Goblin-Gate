@@ -149,6 +149,11 @@ table inet goblin {
 		comment "temporary blocks"
 	}
 
+	set throughput_ifs {
+		type ifname
+		comment "throughput test server open"
+	}
+
 	counter feedhit_botnet_c2 {
 		comment "threat feed botnet-c2 drops"
 	}
@@ -217,6 +222,7 @@ table inet goblin {
 		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv4 ip saddr != 0.0.0.0 fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		iifname { "eth1", "eth1.20", "eth2" } meta nfproto ipv6 ip6 saddr != :: fib saddr . iif oif missing drop comment "anti-spoofing: source not reachable through this interface"
 		jump threat_feeds_input
+		iifname @throughput_ifs meta l4proto { tcp, udp } th dport 5201 accept
 		iifname "eth1.20" meta l4proto { tcp, udp } th dport 5300 accept comment "guest: web filter dns"
 		iifname "eth1.20" tcp dport 80 accept comment "guest: block page"
 		iifname "eth1" meta l4proto { tcp, udp } th dport 5300 accept comment "lan: web filter dns"

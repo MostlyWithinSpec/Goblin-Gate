@@ -20,6 +20,26 @@ const (
 	blockChain     = "temp_blocks"
 )
 
+// The throughput test server (internal/throughput) listens on
+// ThroughputPort; goblind puts the one interface it serves into
+// ThroughputSet while a test runs (and again after a ruleset load), so the
+// port is never open anywhere else.
+const (
+	ThroughputSet  = "throughput_ifs"
+	ThroughputPort = 5201
+)
+
+// ThroughputScript returns an nft script that leaves exactly the given
+// interfaces in ThroughputSet.
+func ThroughputScript(ifnames []string) []byte {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "flush set inet %s %s\n", FilterTable, ThroughputSet)
+	for _, n := range ifnames {
+		fmt.Fprintf(&b, "add element inet %s %s { %s }\n", FilterTable, ThroughputSet, quote(n))
+	}
+	return b.Bytes()
+}
+
 // blockRules is the temp_blocks chain. Logging is rate limited (a blocked
 // host may keep sending); every packet is dropped.
 func blockRules() []string {

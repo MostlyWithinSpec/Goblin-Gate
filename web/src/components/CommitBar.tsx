@@ -6,6 +6,7 @@ import { Button } from '../components/Button'
 import { Badge } from '../components/Badge'
 import { Dialog } from '../components/Dialog'
 import { DiffViewer } from '../components/DiffViewer'
+import { t } from '../i18n'
 
 interface FieldError {
   path: string
@@ -86,9 +87,9 @@ export const CommitBar: React.FC = () => {
     if (!deadline && prevDeadlineRef.current) {
       // pending_confirm went away: confirmed here, rolled back at the
       // deadline, or confirmed some other way (another tab, the CLI).
-      if (confirmedRef.current) setDone('Commit confirmed')
-      else if (Date.now() >= new Date(prevDeadlineRef.current).getTime() - 2000) setDone('The commit was rolled back (not confirmed in time)')
-      else setDone('The commit is no longer waiting for confirmation')
+      if (confirmedRef.current) setDone(t('commit.confirmed'))
+      else if (Date.now() >= new Date(prevDeadlineRef.current).getTime() - 2000) setDone(t('commit.rolledBack'))
+      else setDone(t('commit.noLongerWaiting'))
       confirmedRef.current = false
       queryClient.invalidateQueries()
       refetch()
@@ -114,7 +115,7 @@ export const CommitBar: React.FC = () => {
       const res = await commitConfig(comment.trim(), autoRollback ? minutes : 0)
       setComment('')
       setOpen(false)
-      setDone(`Committed revision ${res.revision}`)
+      setDone(t('commit.committed', { revision: res.revision }))
       await queryClient.invalidateQueries()
       refetch()
     } catch (e) {
@@ -130,7 +131,7 @@ export const CommitBar: React.FC = () => {
     try {
       await confirmCommit()
       confirmedRef.current = true
-      setDone('Commit confirmed')
+      setDone(t('commit.confirmed'))
       refetchStatus()
     } catch (e) {
       setDone((e as Error).message)
@@ -155,12 +156,12 @@ export const CommitBar: React.FC = () => {
           className={`${isUrgent ? 'bg-red-600' : 'bg-yellow-500'} text-white px-4 py-2 rounded-lg flex items-center space-x-3`}
           role="status"
         >
-          <span>Commit pending confirmation</span>
+          <span>{t('commit.pendingConfirmation')}</span>
           {remainingMs !== null && remainingMs > 0 && (
             <span className="font-mono text-sm">{formatRemaining(remainingMs)}</span>
           )}
           <Button variant="secondary" size="sm" onClick={handleConfirm} disabled={busy}>
-            Confirm
+            {t('commit.confirm')}
           </Button>
         </div>
       )}
@@ -173,18 +174,18 @@ export const CommitBar: React.FC = () => {
       <div className="flex items-center space-x-2">
         <Button variant="secondary" size="sm" onClick={openDialog} disabled={changesCount === 0}>
           <Badge variant="secondary">{changesCount}</Badge>
-          <span className="ml-1">Changes</span>
+          <span className="ml-1">{t('commit.changes')}</span>
         </Button>
       </div>
 
-      <Dialog open={open} onClose={() => setOpen(false)} title="Review Changes" size="large">
+      <Dialog open={open} onClose={() => setOpen(false)} title={t('commit.review')} size="large">
         <div className="max-h-96 overflow-y-auto">
           {isLoading ? (
-            <div className="text-center py-8">Loading changes...</div>
+            <div className="text-center py-8">{t('commit.loading')}</div>
           ) : diffData?.changes && diffData.changes.length > 0 ? (
             <DiffViewer changes={diffData.changes} />
           ) : (
-            <div className="text-center py-8 text-gray-500">No changes to review</div>
+            <div className="text-center py-8 text-gray-500">{t('commit.none')}</div>
           )}
         </div>
         {error && (
@@ -202,9 +203,9 @@ export const CommitBar: React.FC = () => {
           </div>
         )}
         <label className="mt-4 block text-sm text-gray-700 dark:text-gray-300">
-          Comment (optional)
+          {t('commit.comment')}
           <input
-            aria-label="Commit comment"
+            aria-label={t('commit.commentLabel')}
             className="mt-1 block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 min-h-[40px]"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -221,11 +222,11 @@ export const CommitBar: React.FC = () => {
             className="rounded border-gray-300 dark:border-gray-600"
           />
           <label htmlFor="auto-rollback" className="text-sm text-gray-700 dark:text-gray-300">
-            Roll back automatically unless I confirm within
+            {t('commit.autoRollback')}
           </label>
           <input
             type="number"
-            aria-label="Rollback minutes"
+            aria-label={t('commit.rollbackMinutes')}
             min={1}
             max={60}
             value={minutes}
@@ -235,20 +236,20 @@ export const CommitBar: React.FC = () => {
             }}
             className="w-16 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
           />
-          <span className="text-sm text-gray-700 dark:text-gray-300">minutes</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">{t('commit.minutes')}</span>
         </div>
         {autoRollback && (diffData?.changes ?? []).some((c) => isRiskyPath(c.path)) && (
           <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
-            This change touches network access settings — auto-rollback is recommended.
+            {t('commit.riskyHint')}
           </p>
         )}
 
         <div className="flex justify-end space-x-2 mt-4">
           <Button variant="secondary" onClick={() => setOpen(false)}>
-            Close
+            {t('common.close')}
           </Button>
           <Button variant="primary" onClick={handleCommit} disabled={changesCount === 0 || busy}>
-            {busy ? 'Committing…' : 'Commit'}
+            {busy ? t('commit.committing') : t('commit.commit')}
           </Button>
         </div>
       </Dialog>

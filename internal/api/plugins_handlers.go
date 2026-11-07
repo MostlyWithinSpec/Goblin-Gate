@@ -66,6 +66,8 @@ func (s *Server) PluginRoutes() http.Handler {
 	s.register(add)
 	add("GET /api/v1/plugin/self", s.pluginSelf)
 	add("POST /api/v1/plugin/notify", s.pluginNotify)
+	add("GET /api/v1/plugin/policies", s.pluginPolicies)
+	add("PUT /api/v1/plugin/policies/{id}", s.pluginSwitchPolicy)
 	mux.Handle("/", s.pluginAuth("", "-", nil))
 	return s.middleware(mux)
 }
@@ -120,7 +122,7 @@ func (s *Server) pluginSelf(w http.ResponseWriter, r *http.Request) {
 	settings := map[string]any{}
 	for _, p := range cfg.Plugins {
 		if p.Name == id.Name {
-			settings = p.Settings
+			settings = p.AllSettings() // its own secrets included
 		}
 	}
 	if in, ok := s.Plugins.Installed(id.Name); ok && in.Manifest != nil {
@@ -219,12 +221,14 @@ func (s *Server) editPlugin(w http.ResponseWriter, r *http.Request, change func(
 	s.storeCandidate(w, cfg)
 }
 
+type pluginEnableRequest struct {
+	Capabilities *[]string `json:"capabilities"`
+}
+
 // POST /api/v1/plugins/{name}/enable {capabilities?} → enables the plugin in
 // the candidate with the approved capabilities (default: all it asks for).
 func (s *Server) enablePlugin(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Capabilities *[]string `json:"capabilities"`
-	}
+	var req pluginEnableRequest
 	if r.ContentLength != 0 && !decodeJSON(w, r, &req) {
 		return
 	}
@@ -251,12 +255,14 @@ func (s *Server) disablePlugin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type pluginSettingsRequest struct {
+	Settings map[string]any `json:"settings"`
+}
+
 // PUT /api/v1/plugins/{name}/settings {settings} → checks them against the
 // manifest's schema and stores them in the candidate.
 func (s *Server) pluginSettings(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Settings map[string]any `json:"settings"`
-	}
+	var req pluginSettingsRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -265,11 +271,34 @@ func (s *Server) pluginSettings(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "plugin_invalid", "plugin "+p.Name+" cannot run: "+in.Problem, nil)
 			return false
 		}
-		if msgs := in.Manifest.CheckSettings(req.Settings); len(msgs) > 0 {
+		settings, secrets := in.Manifest.SplitSettings(req.Settings, p.Secrets)
+		all := config.Plugin{Settings: settings, Secrets: secrets}.AllSettings()
+		if msgs := in.Manifest.CheckSettings(all); len(msgs) > 0 {
 			writeError(w, http.StatusBadRequest, "validation_failed", "the plugin settings are not valid", msgs)
 			return false
 		}
-		p.Settings = req.Settings
+		p.Settings, p.Secrets = settings, secrets
+		return true
+	})
+}
+
+type pluginPoliciesRequest struct {
+	Policies []uint32 `json:"policies"`
+}
+
+// PUT /api/v1/plugins/{name}/policies {policies: [id]} → stores the
+// policies the plugin may switch (capability policies:toggle) in the
+// candidate; [] = none.
+func (s *Server) pluginPoliciesSetting(w http.ResponseWriter, r *http.Request) {
+	var req pluginPoliciesRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	s.editPlugin(w, r, func(p *config.Plugin, _ *plugins.Installed) bool {
+		p.Policies = slices.Clone(req.Policies)
+		if len(p.Policies) == 0 {
+			p.Policies = nil
+		}
 		return true
 	})
 }

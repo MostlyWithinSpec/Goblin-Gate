@@ -310,14 +310,16 @@ func (s *Server) createAdmin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"admin": adminInfo{Username: req.Username, Role: req.Role, HasPassword: true}})
 }
 
+type adminUpdateRequest struct {
+	Role     *string `json:"role"`
+	Password *string `json:"password"`
+}
+
 // PATCH /api/v1/admins/{name} {role?, password?}: change the role or set a new
 // password (admins reset other admins' passwords here; no current password).
 func (s *Server) updateAdmin(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	var req struct {
-		Role     *string `json:"role"`
-		Password *string `json:"password"`
-	}
+	var req adminUpdateRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

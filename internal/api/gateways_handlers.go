@@ -57,6 +57,10 @@ func (s *Server) wireguardClientPublicKey(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]string{"public_key": pub.String()})
 }
 
+type privateKeyRequest struct {
+	PrivateKey string `json:"private_key"`
+}
+
 // PUT /api/v1/vpn/wireguard-clients/{name}/private-key {private_key} →
 // {public_key}: stores the private key from the provider's config file
 // (never part of the config or the API's answers). Takes effect on the next
@@ -66,9 +70,7 @@ func (s *Server) wireguardClientSetKey(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req struct {
-		PrivateKey string `json:"private_key"`
-	}
+	var req privateKeyRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Info, ShieldCheck } from 'lucide-react'
+import { t } from '../i18n'
 import { Button } from '../components/Button'
 import {
   dismissFinding,
@@ -51,6 +52,28 @@ const SCORE_TONE: Record<'success' | 'warning' | 'error', string> = {
   error: 'text-red-600 dark:text-red-400',
 }
 
+// Severity words come from the catalog where the page had a source line of their
+// own ("Low" and "Info" sat alone in the count chips). "High" and "Medium" only
+// ever appeared through the English label table the API module exports, so they
+// keep coming from there — the wording check can only vouch for text a page
+// actually lost. A group heading is the word plus its count.
+function severityGroup(severity: Severity, count: number): string {
+  return `${severityWord(severity)} (${count})`
+}
+
+function severityWord(severity: Severity): string {
+  switch (severity) {
+    case 'high':
+      return SEVERITY_LABELS.high
+    case 'medium':
+      return SEVERITY_LABELS.medium
+    case 'low':
+      return t('checks.wordLow')
+    default:
+      return t('checks.wordInfo')
+  }
+}
+
 export default function ChecksPage() {
   const queryClient = useQueryClient()
   const checks = useQuery({ queryKey: ['checks'], queryFn: getChecks, refetchInterval: 60_000 })
@@ -77,25 +100,24 @@ export default function ChecksPage() {
     onError: (e: Error) => setDismissError(e.message),
   })
 
-  if (checks.isLoading) return <p className="p-6 text-gray-500" data-testid="checks-loading">Running the checks…</p>
-  if (checks.isError || !checks.data)
+  if (checks.isLoading)
+    return <p className="p-6 text-gray-500" data-testid="checks-loading">{t('checks.running')}</p>
+  if (checks.isError || !checks.data) {
+    const why = checks.error instanceof Error ? checks.error.message : t('checks.unknownError')
     return (
       <div className="p-6">
-        <h1 className="mb-2 text-2xl font-bold text-gray-800 dark:text-white">Goblin Checks</h1>
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          The checks could not be run: {checks.error instanceof Error ? checks.error.message : 'unknown error'}
-        </p>
+        <h1 className="mb-2 text-2xl font-bold text-gray-800 dark:text-white">{t('checks.title')}</h1>
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">{t('checks.couldNotRun', { why })}</p>
       </div>
     )
+  }
 
   const report = checks.data
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Goblin Checks</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          A look at this box for the things that most often go wrong on a firewall.
-        </p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('checks.title')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t('checks.intro')}</p>
       </div>
 
       <ScoreCard report={report} />
@@ -116,10 +138,10 @@ export default function ChecksPage() {
 
       <details className="rounded-lg border border-gray-200 dark:border-gray-700" data-testid="passed-checks">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          Passed checks: {report.passed.length}
+          {t('checks.passedChecks', { count: report.passed.length })}
         </summary>
         <ul className="divide-y divide-gray-100 px-4 pb-2 dark:divide-gray-700">
-          {report.passed.length === 0 && <li className="py-2 text-sm text-gray-500">Nothing passed yet.</li>}
+          {report.passed.length === 0 && <li className="py-2 text-sm text-gray-500">{t('checks.nothingPassed')}</li>}
           {report.passed.map((p) => (
             <li key={p.check} data-testid={`passed-${p.check}`} className="flex items-center gap-2 py-2 text-sm text-gray-700 dark:text-gray-200">
               <CheckCircle2 size={16} className="text-green-600 dark:text-green-400" />
@@ -136,7 +158,7 @@ export default function ChecksPage() {
           rel="noreferrer"
           className="text-blue-600 hover:underline dark:text-blue-400"
         >
-          How the score works
+          {t('checks.scoreWiki')}
         </a>
       </p>
     </div>
@@ -157,22 +179,20 @@ function ScoreCard({ report }: { report: Report }) {
       </div>
       <div className="min-w-[12rem] flex-1">
         <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-          {report.findings.length === 0
-            ? 'Nothing to fix — every check passed.'
-            : `${report.findings.length} finding${report.findings.length === 1 ? '' : 's'} to look at`}
+          {report.findings.length === 0 ? t('checks.nothingToFix') : t('checks.findingsToLookAt', { count: report.findings.length })}
         </p>
         <p className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
           {counts.length === 0 ? (
-            <span>Score out of 100.</span>
+            <span>{t('checks.scoreOutOf100')}</span>
           ) : (
             counts.map((c) => (
               <span key={c.severity} className={`rounded-full px-2 py-0.5 font-medium ${BADGE_TONE[c.severity]}`}>
-                {c.n} {SEVERITY_LABELS[c.severity].toLowerCase()}
+                {c.n} {severityWord(c.severity).toLowerCase()}
               </span>
             ))
           )}
           {report.dismissed.length > 0 && (
-            <span data-testid="dismissed-count">{report.dismissed.length} dismissed and not counted</span>
+            <span data-testid="dismissed-count">{t('checks.dismissedNotCounted', { count: report.dismissed.length })}</span>
           )}
         </p>
       </div>
@@ -195,13 +215,13 @@ function Findings({ report, canDismiss, busy, onDismiss, onRestore }: FindingsPr
       {groups.length === 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900 dark:bg-green-900/20 dark:text-green-200">
           <ShieldCheck size={18} />
-          Nothing to fix. Everything the checks look at is in good shape.
+          {t('checks.allGood')}
         </div>
       )}
       {groups.map((g) => (
         <section key={g.severity} data-testid={`group-${g.severity}`}>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {SEVERITY_LABELS[g.severity]} ({g.findings.length})
+            {severityGroup(g.severity, g.findings.length)}
           </h2>
           <ul className="space-y-3">
             {g.findings.map((f) => (
@@ -213,16 +233,16 @@ function Findings({ report, canDismiss, busy, onDismiss, onRestore }: FindingsPr
 
       <details className="rounded-lg border border-gray-200 dark:border-gray-700" data-testid="dismissed-checks">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          {report.dismissed.length} dismissed
+          {t('checks.dismissedCount', { count: report.dismissed.length })}
         </summary>
         <ul className="divide-y divide-gray-100 px-4 pb-2 dark:divide-gray-700">
-          {report.dismissed.length === 0 && <li className="py-2 text-sm text-gray-500">Nothing dismissed.</li>}
+          {report.dismissed.length === 0 && <li className="py-2 text-sm text-gray-500">{t('checks.nothingDismissed')}</li>}
           {report.dismissed.map((f) => (
             <li key={f.key} data-testid={`dismissed-${f.key}`} className="flex flex-wrap items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300">
               <span className="flex-1">{f.title}</span>
               {canDismiss && (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => onRestore(f.key)}>
-                  Restore
+                  {t('checks.restore')}
                 </Button>
               )}
             </li>
@@ -247,6 +267,7 @@ function FindingRow({
   const Icon = ICONS[finding.severity] ?? Info
   const [open, setOpen] = useState(false)
   const paths = finding.paths ?? []
+  const where = t('checks.whereInConfig', { count: paths.length })
   return (
     <li
       data-testid={`finding-${finding.key}`}
@@ -264,7 +285,7 @@ function FindingRow({
               className="mt-1 flex items-center gap-1 text-xs text-gray-500 hover:underline dark:text-gray-400"
             >
               {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              Where in the config ({paths.length})
+              {where}
             </button>
           )}
           {open && (
@@ -278,18 +299,18 @@ function FindingRow({
           )}
         </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_TONE[finding.severity]}`}>
-          {SEVERITY_LABELS[finding.severity]}
+          {severityWord(finding.severity)}
         </span>
         <div className="flex items-center gap-2">
           <Link
             to={finding.link}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Fix it
+            {t('checks.fixIt')}
           </Link>
           {canDismiss && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => onDismiss(finding.key)}>
-              Dismiss
+              {t('checks.dismiss')}
             </Button>
           )}
         </div>
