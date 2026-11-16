@@ -40,8 +40,14 @@ ACCEL=kvm; qemu-system-x86_64 -accel kvm -M none -display none -S -daemonize -pi
 
 # --- the repository: the old and the new version
 REPO=/tmp/repo
-APT_SIGNING_KEY="$(cat /key/test.asc)" bash /scripts/apt-repo.sh "$REPO" beta "$(deb "$OLD")" "$(deb "$NEW")" ||
-	{ log "could not build the repository"; exit 1; }
+# like release.yml: a pre-release goes to beta, a release to stable and beta (a box that never picked a
+# channel follows stable since 0.1.0)
+CHANNELS=beta
+case "$NEW" in *~*) ;; *) CHANNELS="stable beta" ;; esac
+for ch in $CHANNELS; do
+	APT_SIGNING_KEY="$(cat /key/test.asc)" bash /scripts/apt-repo.sh "$REPO" "$ch" "$(deb "$OLD")" "$(deb "$NEW")" ||
+		{ log "could not build the repository ($ch)"; exit 1; }
+done
 
 # --- firewall disk: install once per ISO (cached), then a fresh overlay per run
 BASE=$W/base-$(basename "$ISO" .iso).qcow2

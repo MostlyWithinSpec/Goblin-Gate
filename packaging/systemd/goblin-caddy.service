@@ -16,10 +16,12 @@ StateDirectory=goblin-caddy
 StateDirectoryMode=0700
 Environment=HOME=/var/lib/goblin-caddy XDG_DATA_HOME=/var/lib/goblin-caddy XDG_CONFIG_HOME=/var/lib/goblin-caddy
 # /etc/goblingate is root's: root ("+") copies the config into the runtime
-# directory for the throwaway user, read-only
+# directory for the throwaway user, read-only. The owner comes from the
+# directory systemd made for that user, not from its name: the name only
+# resolves with libnss-systemd.
 RuntimeDirectory=goblin-caddy
 RuntimeDirectoryMode=0700
-ExecStartPre=+/usr/bin/install -m 0400 -o goblin-caddy -g goblin-caddy /etc/goblingate/caddy/caddy.json /run/goblin-caddy/caddy.json
+ExecStartPre=+/bin/sh -c 'install -m 0400 -o "$(stat -c %%u /run/goblin-caddy)" -g "$(stat -c %%g /run/goblin-caddy)" /etc/goblingate/caddy/caddy.json /run/goblin-caddy/caddy.json'
 ExecStart=/usr/bin/caddy run --config /run/goblin-caddy/caddy.json
 Restart=on-failure
 RestartSec=5
