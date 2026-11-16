@@ -59,3 +59,69 @@ gateway latency and loss, IPS alerts, and CPU and memory.
 | `goblin_commits_total`, `goblin_config_revision` | | commits made; running revision |
 
 Use `rate()` / `increase()` on the `_total` counters; Prometheus handles their restarts.
+
+## Flow export
+
+Prometheus keeps rates and totals, not per-connection history. For long-term traffic history — who talked to
+whom, for how long, how much — send the box's connections to a flow collector as **NetFlow v9** or **IPFIX**
+over UDP. Nothing extra runs on the box: no ulogd, no kernel module.
+
+**Log & Report → Flow export** (or the `flow_export` section):
+
+| Field | Meaning |
+|---|---|
+| `enabled` | off by default |
+| `collector` | the collector's `host:port`, e.g. `10.0.0.5:2055`. A DNS name is looked up at start and every 5 minutes. |
+| `protocol` | `ipfix` (default) or `netflow9` |
+| `active_timeout_seconds` | default 60, 10–600: a connection still alive after this gets a record every timeout with the counters since the last one, so a long download shows up while it runs |
+
+Templates are resent every 20 packets and every 60 s, so a collector that restarts mid-night gets them back.
+Every packet that carries data also carries the templates while a resend is due, because collectors decode
+packets on several workers and a data packet can otherwise overtake its template.
+`GET /api/v1/flow-export` shows what has been sent (`packets_sent`, `records_sent`, `last_error`, `last_sent`).
+While the collector cannot be reached, up to 100,000 records wait for it; beyond that the oldest are dropped
+and counted in `records_dropped`.
+
+### The sampling limit
+
+The records come from the connection tracking table, which the box reads **every 3 seconds**. That means:
+
+- a connection that starts and ends between two reads is never seen at all;
+- byte and packet counters are conntrack's, reported as deltas between two records;
+- the start and end times are sample times, not the real first and last packet;
+- one connection gives two records, one per direction, each with that direction's bytes and packets.
+
+Short connections (a DNS query, a redirect) are what you lose. For per-packet accounting you need a
+packet-level sensor; this is a sampled record of what was connected.
+
+### ntopng
+
+```bash
+docker run -d --restart unless-stopped --name ntopng -p 3000:3000 ntop/ntopng:community \
+  --http-port=3000 -i 127.0.0.1:2055
+```
+
+Then set the collector to `<host>:2055` with protocol `netflow9` (or `ipfix`). ntopng decodes both.
+
+### GoFlow2
+
+```bash
+docker run -d --restart unless-stopped --name goflow2 -p 2055:2055/udp \
+  -eGF_CORRELATE=false networkstatic/goflow:latest -listen=0.0.0.0:2055 -format=json -kafka=host:9092
+```
+
+GoFlow2 listens for both versions on one port and prints the records as JSON. With `-format=console` you can
+watch them arrive before wiring up a sink:
+
+```bash
+docker run --rm -p 2055:2055/udp networkstatic/goflow:latest -listen=0.0.0.0:2055 -format=console
+```
+
+### nfdump / nfcapd
+
+```bash
+nfcapd -l -p 2055 -n /var/flowdata
+```
+
+`nfcapd` takes both v9 and IPFIX with templates (`-l`), then `nfdump -r /var/flowdata/...` reads them back.
+

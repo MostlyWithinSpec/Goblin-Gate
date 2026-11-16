@@ -1,0 +1,16 @@
+{
+  "name": "hello",
+  "version": "0.1.0",
+  "description": "Example plugin: logs a greeting with the box's uptime and session count every minute",
+  "min_goblind": "0.2.0~beta.1",
+  "capabilities": ["stats:read"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "greeting": {"type": "string", "default": "hello", "maxLength": 64,
+                   "description": "the word to log next to the load"},
+      "token": {"type": "string", "maxLength": 256, "secret": true,
+                "description": "a secret, to show how secrets work; this plugin only logs whether one is set"}
+    }
+  }
+}

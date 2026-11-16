@@ -16,6 +16,7 @@ import Log from './pages/Log'
 import PacketCapture from './pages/log/PacketCapture'
 import Live from './pages/log/Live'
 import LogExportPage from './pages/log/Export'
+import FlowExportPage from './pages/log/FlowExport'
 import Events from './pages/Events'
 import System from './pages/System'
 import { Revisions } from './pages/Revisions'
@@ -112,6 +113,7 @@ function App() {
               <Route path="/log/capture" element={<PacketCapture />} />
               <Route path="/log/live" element={<Live />} />
               <Route path="/log/export" element={<LogExportPage />} />
+              <Route path="/log/flow-export" element={<FlowExportPage />} />
               <Route path="/events" element={<Events />} />
               <Route path="/system" element={<System />} />
               <Route path="/system/revisions" element={<Revisions />} />

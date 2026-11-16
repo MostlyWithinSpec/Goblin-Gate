@@ -1,0 +1,18 @@
+[
+ {"Id":"c1","Names":["/nginx"],"Image":"nginx:1.27","State":"running","Status":"Up 2 hours",
+  "Labels":{"gg-web":"","com.docker.compose.project":"site"},
+  "HostConfig":{"NetworkMode":"bridge"},
+  "NetworkSettings":{"Networks":{"bridge":{"NetworkID":"aaa111","IPAddress":"172.17.0.2","GlobalIPv6Address":"","MacAddress":"02:42:ac:11:00:02"}}}},
+ {"Id":"c2","Names":["/homeassistant"],"Image":"ghcr.io/home-assistant/home-assistant:stable","State":"running","Status":"Up 3 days",
+  "Labels":{"gg-iot":"yes"},
+  "HostConfig":{"NetworkMode":"lan20"},
+  "NetworkSettings":{"Networks":{"lan20":{"NetworkID":"ddd444","IPAddress":"192.168.20.70","GlobalIPv6Address":"fd00:20::70","MacAddress":"02:42:c0:a8:14:46"}}}},
+ {"Id":"c3","Names":["/web-batch"],"Image":"busybox","State":"running","Status":"Up 1 minute",
+  "Labels":{},
+  "HostConfig":{"NetworkMode":"none"},
+  "NetworkSettings":{"Networks":{"none":{"NetworkID":"ccc333","IPAddress":"","GlobalIPv6Address":"","MacAddress":""}}}},
+ {"Id":"c4","Names":["/plex"],"Image":"plexinc/pms-docker","State":"running","Status":"Up 5 hours",
+  "Labels":{"gg-media":""},
+  "HostConfig":{"NetworkMode":"host"},
+  "NetworkSettings":{"Networks":{"host":{"NetworkID":"bbb222","IPAddress":"","GlobalIPv6Address":"","MacAddress":""}}}}
+]

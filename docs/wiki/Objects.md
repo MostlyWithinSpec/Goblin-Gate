@@ -15,6 +15,24 @@ import (for example `lan-net`).
 
 Names are 1-63 letters, digits, `.`, `_` or `-`.
 
+## Live addresses
+
+An address of type **live** has no addresses of its own: a plugin keeps them up to date, such as the VMs
+and containers a homelab plugin finds on your hypervisor. Its value is the plugin's name, and that plugin
+must have the `objects:write` capability approved (Plugins → the plugin → Enable). Use it in policies and
+groups like any other address.
+
+- The members change without a commit: the plugin sends them and the firewall uses them within a second.
+  Every change is in the audit log (`live_object_update`).
+- A new live address is empty and matches nothing until its plugin fills it. Renaming it or giving it to
+  another plugin empties it again.
+- The plugin may put in hosts and networks up to `/16` (IPv4) or `/48` (IPv6), 4096 at most; a plugin can
+  keep at most 32 live addresses.
+- The policy simulator matches live addresses against their current members.
+
+A plugin decides who a policy on its live addresses matches, so use them in policies you would let it steer:
+blocking or allowing its VMs is fine; an allow rule for your admin access is not.
+
 ## Deleting objects
 
 The trash icon at the end of a row deletes an object after a confirmation. If a policy, a group or a profile

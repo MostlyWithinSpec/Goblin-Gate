@@ -16,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/networkgoblinlabs/goblin-gate/pkg/pluginsdk"
 )
 
 // TestMosquittoE2E runs the bridge against Debian's mosquitto with a
@@ -94,7 +96,7 @@ func TestMosquittoE2E(t *testing.T) {
 	}
 	var dialed []*MQTT
 	var dmu sync.Mutex
-	b := &Bridge{API: &Client{HTTP: api.Client(), Base: api.URL}, Settings: settings, Version: "test",
+	b := &Bridge{API: Client{Client: &pluginsdk.Client{HTTP: api.Client(), Base: api.URL}}, Settings: settings, Version: "test",
 		Capabilities: []string{"stats:read", "devices:read", "policies:toggle"}, StateDir: dir,
 		Dial: func(ctx context.Context, o MQTTOptions) (Conn, error) {
 			c, err := DialMQTT(ctx, o)
@@ -222,7 +224,7 @@ func TestServeForHomeAssistant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := &Bridge{API: &Client{HTTP: api.Client(), Base: api.URL}, Settings: settings, Version: "e2e",
+	b := &Bridge{API: Client{Client: &pluginsdk.Client{HTTP: api.Client(), Base: api.URL}}, Settings: settings, Version: "e2e",
 		Capabilities: []string{"stats:read", "devices:read", "policies:toggle"}, StateDir: t.TempDir()}
 	b.Run(context.Background())
 }

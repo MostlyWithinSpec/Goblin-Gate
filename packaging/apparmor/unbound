@@ -1,0 +1,15 @@
+# Goblin Gate: additions to Debian's AppArmor profile for Unbound
+# (/etc/apparmor.d/usr.sbin.unbound), included from its local override.
+# Debian's profile covers /etc/unbound and /var/lib/unbound; Goblin Gate's
+# configuration also uses these.
+
+  # the control socket in the unit's runtime directory (goblind reloads
+  # zones and reads statistics through it)
+  /run/unbound/ r,
+  /run/unbound/unbound.ctl rw,
+
+  # forwarders over TLS check the upstream's certificate
+  include <abstractions/ssl_certs>
+
+  # systemd stops and reloads it
+  signal (receive) peer=unconfined,

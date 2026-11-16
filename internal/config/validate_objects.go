@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -39,10 +40,58 @@ func (v *validator) checkAddresses() {
 					v.add(p+".value", "unknown country code %q: want ISO 3166 codes like US, CA", c)
 				}
 			}
+		case "live":
+			v.checkLiveAddress(p, a)
 		default:
-			v.add(p+".type", "unknown type %q: want subnet, host, range, fqdn or country", a.Type)
+			v.add(p+".type", "unknown type %q: want subnet, host, range, fqdn, country or live", a.Type)
 		}
 	}
+}
+
+// MaxLiveObjectsPerPlugin is how many live address objects one plugin may
+// keep.
+const MaxLiveObjectsPerPlugin = 32
+
+// checkLiveAddress: a live object's value names the plugin that keeps its
+// members (capability objects:write). The plugin's entry must approve it, so
+// a typo cannot leave an object nobody fills; a disabled plugin is fine (its
+// object keeps the last members it set).
+func (v *validator) checkLiveAddress(p string, a Address) {
+	if !ValidPluginName(a.Value) {
+		v.add(p+".value", "a live object's value is the plugin that keeps it up to date; %q is not a plugin name", a.Value)
+		return
+	}
+	approved := false
+	for _, pl := range v.cfg.Plugins {
+		if pl.Name == a.Value && slices.Contains(pl.Capabilities, "objects:write") {
+			approved = true
+		}
+	}
+	if !approved {
+		v.add(p+".value", "plugin %s does not have objects:write approved: enable it with that capability first", a.Value)
+		return
+	}
+	n := 0
+	for _, o := range v.cfg.Addresses {
+		if o.Type == "live" && o.Value == a.Value {
+			n++
+		}
+	}
+	if n > MaxLiveObjectsPerPlugin && a.Name == lastLiveOf(v.cfg.Addresses, a.Value) {
+		v.add(p+".value", "plugin %s keeps %d live objects, at most %d", a.Value, n, MaxLiveObjectsPerPlugin)
+	}
+}
+
+// lastLiveOf names the last live object of plugin, so a limit error is
+// reported once.
+func lastLiveOf(addrs []Address, plugin string) string {
+	name := ""
+	for _, a := range addrs {
+		if a.Type == "live" && a.Value == plugin {
+			name = a.Name
+		}
+	}
+	return name
 }
 
 func (v *validator) checkRange(p, value string) {

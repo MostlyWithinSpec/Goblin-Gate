@@ -37,6 +37,7 @@ func (r *fakeRunner) lines(root string) []string {
 	for _, c := range r.cmds {
 		line := strings.Join(c, " ")
 		line = strings.ReplaceAll(line, filepath.Join(root, "var", "lib", "goblingate", "apply", "check")+string(filepath.Separator), "CHECK/")
+		line = strings.ReplaceAll(line, filepath.Join(root, "etc", "kea")+string(filepath.Separator), "/etc/kea/")
 		out = append(out, line)
 	}
 	r.cmds = nil
@@ -93,7 +94,7 @@ func TestApplyFirstRun(t *testing.T) {
 	}
 	want := []string{
 		"nft -c -f CHECK/nft-goblin.nft",
-		"kea-dhcp4 -t CHECK/kea-kea-dhcp4.conf",
+		"kea-dhcp4 -t /etc/kea/.goblin-check-kea-dhcp4.conf",
 		"unbound-checkconf CHECK/unbound-goblin.conf",
 		"/usr/lib/systemd/systemd-sysctl /etc/sysctl.d/90-goblin.conf",
 		"networkctl reload",

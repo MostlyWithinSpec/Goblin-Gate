@@ -45,6 +45,20 @@ printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf 2>/dev/null || true
 # still come from the CD. goblind comments out the installer's cdrom: line
 # when it writes the APT sources (apply group "apt").
 
+# AppArmor: Goblin Gate's profiles for Suricata and Caddy, and its additions to
+# Debian's Unbound profile (through the profile's local override). They are
+# loaded now, so the daemons restarted below start confined.
+AA_UNBOUND=/etc/apparmor.d/local/usr.sbin.unbound
+AA_LINE='include "/usr/share/goblin-gate/apparmor/unbound"'
+mkdir -p /etc/apparmor.d/local
+[ -f "$AA_UNBOUND" ] || : > "$AA_UNBOUND"
+grep -qxF "$AA_LINE" "$AA_UNBOUND" || printf '%s\n' "$AA_LINE" >> "$AA_UNBOUND"
+if command -v apparmor_parser >/dev/null 2>&1 && aa-enabled -q 2>/dev/null; then
+	for p in goblin-gate.suricata goblin-gate.caddy usr.sbin.unbound; do
+		[ -f "/etc/apparmor.d/$p" ] && apparmor_parser -r -T -W "/etc/apparmor.d/$p" || true
+	done
+fi
+
 if [ -d /run/systemd/system ]; then
 	systemctl daemon-reload || true
 fi
@@ -73,5 +87,7 @@ if [ -d /run/systemd/system ]; then
 	systemctl try-restart kea-dhcp4-server.service || true
 	# pick up the sandboxed unit; the queues bypass Suricata while it restarts
 	systemctl try-restart 'goblin-suricata@*.service' || true
+	# confined from now on
+	systemctl try-restart goblin-caddy.service || true
 fi
 exit 0

@@ -1,11 +1,12 @@
 // Network → Reverse Proxy: the settings card saves the whole reverse_proxy
-// object, the hosts table edits reverse_proxy.hosts, and the status table shows
-// what the box has published. No network: the API module is mocked.
+// object, the Certificate authority card saves internal_ca and shows its root,
+// the hosts table edits reverse_proxy.hosts, and the status table shows what
+// the box has published. No network: the API module is mocked.
 import React from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { Candidate, ProxyStatus } from '../api/objects'
+import type { Candidate, InternalCAStatus, ProxyStatus } from '../api/objects'
 
 vi.mock('../api/objects', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/objects')>()
@@ -14,6 +15,7 @@ vi.mock('../api/objects', async (importOriginal) => {
     getCandidate: vi.fn(),
     patchSection: vi.fn(),
     getProxyStatus: vi.fn(),
+    getInternalCAStatus: vi.fn(),
   }
 })
 
@@ -49,6 +51,30 @@ const status: ProxyStatus = {
   ],
 }
 
+const caOff: InternalCAStatus = {
+  enabled: false,
+  acme: false,
+  ready: false,
+  acme_directories: [],
+  lifetime_hours: 48,
+  internal_hosts: [],
+}
+
+const caReady: InternalCAStatus = {
+  enabled: true,
+  acme: true,
+  ready: true,
+  root: {
+    subject: 'Goblin Gate Local CA',
+    sha256: 'AB:CD:EF:01:23:45:67:89',
+    not_before: '2026-11-01T00:00:00Z',
+    not_after: '2036-10-30T00:00:00Z',
+  },
+  acme_directories: ['https://gate.home.lan:9443/acme/local/directory', 'https://192.168.1.1:9443/acme/local/directory'],
+  lifetime_hours: 24,
+  internal_hosts: ['nas.home.lan'],
+}
+
 const lastPatch = () => {
   const calls = vi.mocked(api.patchSection).mock.calls
   return calls[calls.length - 1]
@@ -69,6 +95,7 @@ beforeEach(() => {
   vi.mocked(api.getCandidate).mockReset().mockResolvedValue(structuredClone(base))
   vi.mocked(api.patchSection).mockReset().mockResolvedValue({ status: 'ok', validation_errors: null })
   vi.mocked(api.getProxyStatus).mockReset().mockResolvedValue(structuredClone(status))
+  vi.mocked(api.getInternalCAStatus).mockReset().mockResolvedValue(structuredClone(caOff))
 })
 
 describe('ReverseProxy settings', () => {
@@ -321,5 +348,207 @@ describe('ReverseProxy status', () => {
     wrap(<ReverseProxy />)
     expect(await screen.findByText('inactive')).toBeInTheDocument()
     expect(screen.getByText(/not running/i)).toBeInTheDocument()
+  })
+})
+
+const caForm = () => screen.findByRole('form', { name: /certificate authority settings/i })
+
+describe('ReverseProxy certificate authority', () => {
+  it('saves internal_ca with the ACME directory, its networks and the lifetime', async () => {
+    wrap(<ReverseProxy />)
+    const form = await caForm()
+    fireEvent.click(within(form).getByRole('checkbox', { name: /enable the internal certificate authority/i }))
+    fireEvent.click(within(form).getByRole('checkbox', { name: /serve an acme directory on the lan/i }))
+    fireEvent.change(within(form).getByLabelText('Add an allowed network'), { target: { value: 'office' } })
+    fireEvent.change(within(form).getByLabelText('Or type an address or CIDR'), { target: { value: '10.10.0.0/24' } })
+    fireEvent.change(within(form).getByLabelText(/certificate lifetime/i), { target: { value: '24' } })
+    fireEvent.click(within(form).getByRole('button', { name: /^Save$/i }))
+
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    const [path, value] = lastPatch()
+    expect(path).toBe('internal_ca')
+    expect(value).toEqual({ enabled: true, acme: true, acme_allow: ['office', '10.10.0.0/24'], lifetime_hours: 24 })
+  })
+
+  it('keeps the defaults out of the saved config and hides the ACME fields when off', async () => {
+    wrap(<ReverseProxy />)
+    const form = await caForm()
+    const acme = within(form).queryByRole('checkbox', { name: /serve an acme directory/i })
+    expect(acme).toBeNull()
+    fireEvent.click(within(form).getByRole('checkbox', { name: /enable the internal certificate authority/i }))
+    expect(await within(form).findByRole('checkbox', { name: /serve an acme directory/i })).not.toBeChecked()
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Home CA' } })
+    fireEvent.click(within(form).getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    // 48 h is the default, so it is not stored
+    expect(lastPatch()[1]).toEqual({ enabled: true, name: 'Home CA' })
+  })
+
+  it('drops acme_allow when the ACME directory goes off', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({
+      ...base,
+      internal_ca: { enabled: true, acme: true, acme_allow: ['office'], lifetime_hours: 24 },
+    })
+    wrap(<ReverseProxy />)
+    const form = await caForm()
+    expect(within(form).getByRole('checkbox', { name: /serve an acme directory/i })).toBeChecked()
+    fireEvent.click(within(form).getByRole('checkbox', { name: /serve an acme directory/i }))
+    fireEvent.click(within(form).getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(lastPatch()[1]).toEqual({ enabled: true, lifetime_hours: 24 })
+  })
+
+  it('rejects a lifetime outside 1-120 before saving', async () => {
+    wrap(<ReverseProxy />)
+    const form = await caForm()
+    fireEvent.click(within(form).getByRole('checkbox', { name: /enable the internal certificate authority/i }))
+    fireEvent.change(within(form).getByLabelText(/certificate lifetime/i), { target: { value: '500' } })
+    fireEvent.click(within(form).getByRole('button', { name: /^Save$/i }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent(/1 to 120/i)
+    expect(api.patchSection).not.toHaveBeenCalled()
+  })
+
+  it('shows a server error for the ACME directory next to its checkbox', async () => {
+    vi.mocked(api.patchSection).mockResolvedValue({
+      status: 'ok',
+      validation_errors: [{ path: 'internal_ca.acme', message: 'needs an enabled LAN-side interface with a static IPv4 address' }],
+    })
+    wrap(<ReverseProxy />)
+    const form = await caForm()
+    fireEvent.click(within(form).getByRole('checkbox', { name: /enable the internal certificate authority/i }))
+    fireEvent.click(within(form).getByRole('checkbox', { name: /serve an acme directory/i }))
+    fireEvent.click(within(form).getByRole('button', { name: /^Save$/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/LAN-side interface/)
+  })
+
+  it('says there is no root to download while the CA is off', async () => {
+    wrap(<ReverseProxy />)
+    expect(await screen.findByText(/authority is off/i)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /download root/i })).toBeNull()
+  })
+
+  it('announces the root a commit has yet to make', async () => {
+    vi.mocked(api.getInternalCAStatus).mockResolvedValue({ ...caOff, enabled: true, ready: false })
+    wrap(<ReverseProxy />)
+    expect(await screen.findByRole('status', { name: /make its root certificate/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /download root/i })).toBeNull()
+  })
+
+  it('shows the fingerprint and expiry and links both root downloads', async () => {
+    vi.mocked(api.getInternalCAStatus).mockResolvedValue(structuredClone(caReady))
+    wrap(<ReverseProxy />)
+    expect(await screen.findByText('AB:CD:EF:01:23:45:67:89')).toBeInTheDocument()
+    expect(screen.getByText('Goblin Gate Local CA')).toBeInTheDocument()
+    const pem = screen.getByRole('link', { name: /download root \(\.pem\)/i })
+    const der = screen.getByRole('link', { name: /download root \(\.crt\)/i })
+    expect(pem).toHaveAttribute('href', '/api/v1/internal-ca/root.crt')
+    expect(der).toHaveAttribute('href', '/api/v1/internal-ca/root.crt?format=der')
+    // the ACME directory URLs to copy into a client, and the internal names
+    expect(screen.getByText('https://gate.home.lan:9443/acme/local/directory')).toBeInTheDocument()
+    expect(screen.getByText('nas.home.lan')).toBeInTheDocument()
+  })
+
+  it('copies the ACME directory URL', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.mocked(api.getInternalCAStatus).mockResolvedValue(structuredClone(caReady))
+    wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: /copy the directory url/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://gate.home.lan:9443/acme/local/directory'))
+    expect(await screen.findByRole('button', { name: /copied/i })).toBeInTheDocument()
+  })
+
+  it('links the wiki page on trusting the root', async () => {
+    wrap(<ReverseProxy />)
+    const link = await screen.findByRole('link', { name: /internal ca/i })
+    expect(link.getAttribute('href')).toMatch('wiki/Internal-CA')
+  })
+})
+
+describe('ReverseProxy host issuer', () => {
+  it('offers the issuer select only while the CA is enabled in the candidate', async () => {
+    const off = wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: /publish a service/i }))
+    expect(screen.queryByLabelText('Certificate issuer')).toBeNull()
+    off.unmount()
+
+    vi.mocked(api.getCandidate).mockResolvedValue({ ...base, internal_ca: { enabled: true } })
+    wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: /publish a service/i }))
+    const issuer = within(drawer()).getByLabelText('Certificate issuer') as HTMLSelectElement
+    expect(within(issuer).getByRole('option', { name: /let's encrypt/i })).toBeInTheDocument()
+    expect(within(issuer).getByRole('option', { name: /internal certificate authority/i })).toBeInTheDocument()
+    // Let's Encrypt stays the default
+    expect(issuer.value).toBe('')
+  })
+
+  it('saves issuer internal for a host and explains the local name', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ ...base, internal_ca: { enabled: true, acme: true } })
+    wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: /publish a service/i }))
+    fireEvent.change(within(drawer()).getByLabelText('Name'), { target: { value: 'nas' } })
+    fireEvent.change(within(drawer()).getByLabelText('Domains'), { target: { value: 'nas.home.lan' } })
+    fireEvent.change(within(drawer()).getByLabelText('Upstream'), { target: { value: 'http://10.0.0.5:5000' } })
+    fireEvent.change(within(drawer()).getByLabelText('Certificate issuer'), { target: { value: 'internal' } })
+    expect(within(drawer()).getByLabelText(/nas\.home\.lan/)).toBeInTheDocument()
+    fireEvent.click(within(drawer()).getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect(lastPatch()[1]).toEqual([
+      { name: 'nas', enabled: true, domains: ['nas.home.lan'], upstream: 'http://10.0.0.5:5000', issuer: 'internal' },
+    ])
+  })
+
+  it('leaves the issuer out for a Let’s Encrypt host', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({ ...base, internal_ca: { enabled: true } })
+    wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: /publish a service/i }))
+    fireEvent.change(within(drawer()).getByLabelText('Name'), { target: { value: 'jellyfin' } })
+    fireEvent.change(within(drawer()).getByLabelText('Domains'), { target: { value: 'media.example.com' } })
+    fireEvent.change(within(drawer()).getByLabelText('Upstream'), { target: { value: 'http://10.0.0.2:8096' } })
+    fireEvent.click(within(drawer()).getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect((lastPatch()[1] as api.ProxyHost[])[0].issuer).toBeUndefined()
+  })
+
+  it('keeps an internal issuer that an edit does not touch', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({
+      ...base,
+      internal_ca: { enabled: true },
+      reverse_proxy: {
+        enabled: true,
+        hosts: [{ name: 'nas', enabled: true, domains: ['nas.home.lan'], upstream: 'http://10.0.0.5:5000', issuer: 'internal' }],
+      },
+    })
+    wrap(<ReverseProxy />)
+    fireEvent.click(await screen.findByRole('button', { name: 'nas' }))
+    expect(screen.getByLabelText('Certificate issuer')).toHaveValue('internal')
+    fireEvent.change(screen.getByLabelText('Upstream'), { target: { value: 'http://10.0.0.5:5001' } })
+    fireEvent.click(within(drawer()).getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.patchSection).toHaveBeenCalled())
+    expect((lastPatch()[1] as api.ProxyHost[])[0]).toEqual({
+      name: 'nas',
+      enabled: true,
+      domains: ['nas.home.lan'],
+      upstream: 'http://10.0.0.5:5001',
+      issuer: 'internal',
+    })
+  })
+
+  it('lists the issuer in the hosts table', async () => {
+    vi.mocked(api.getCandidate).mockResolvedValue({
+      ...base,
+      reverse_proxy: {
+        enabled: true,
+        hosts: [
+          { name: 'jellyfin', enabled: true, domains: ['media.example.com'], upstream: 'http://10.0.0.2:8096' },
+          { name: 'nas', enabled: true, domains: ['nas.home.lan'], upstream: 'http://10.0.0.5:5000', issuer: 'internal' },
+        ],
+      },
+    })
+    wrap(<ReverseProxy />)
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Internal certificate authority')).toBeInTheDocument()
+    expect(within(table).getByText("Let's Encrypt")).toBeInTheDocument()
   })
 })

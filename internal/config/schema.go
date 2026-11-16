@@ -54,6 +54,12 @@ type Config struct {
 	IPS IPSSettings `json:"ips,omitzero"`
 	// ReverseProxy publishes LAN web services with Let's Encrypt certificates.
 	ReverseProxy ReverseProxy `json:"reverse_proxy,omitzero"`
+	// InternalCA is a private CA for the LAN, with an optional ACME
+	// directory (task 142).
+	InternalCA InternalCA `json:"internal_ca,omitzero"`
+	// FlowExport sends sampled connections to a NetFlow v9 / IPFIX collector
+	// over UDP (task 144).
+	FlowExport FlowExport `json:"flow_export,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

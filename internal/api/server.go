@@ -23,11 +23,13 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/diag"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/flowexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
+	"github.com/networkgoblinlabs/goblin-gate/internal/liveobjects"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
@@ -53,6 +55,7 @@ type Server struct {
 	Commit *commit.Engine
 
 	policySwitches switchLimiter
+	liveUpdates    liveLimiter
 	Logger         *slog.Logger
 
 	// Authn turns on authentication (sessions, API tokens, the local
@@ -77,6 +80,11 @@ type Server struct {
 	DDNS *ddns.Manager
 	// GeoIP owns the country database (task 094); nil answers 503.
 	GeoIP *geoip.Manager
+	// LiveObjects keeps the members of live address objects (plugins with
+	// objects:write); RefillLive loads an object's new members into the
+	// sets that use it (geoip.Manager.RefillLive).
+	LiveObjects *liveobjects.Store
+	RefillLive  func(objects ...string)
 	// GitBackup records revisions in git and pushes them (task 098); nil
 	// answers 503.
 	GitBackup *gitbackup.Manager
@@ -97,6 +105,9 @@ type Server struct {
 	// LogExport forwards events to remote syslog / Loki (task 096); nil
 	// answers 503.
 	LogExport *logexport.Exporter
+	// FlowExport sends sampled connections to a NetFlow v9 / IPFIX collector
+	// (task 144); nil answers 503.
+	FlowExport *flowexport.Exporter
 	// Notify sends alerts (task 053); nil sends none.
 	Notify *notify.Dispatcher
 	// Updates installs package updates (task 051); nil answers 503 (dev mode).
@@ -158,6 +169,9 @@ type Server struct {
 	Flows *flows.Sampler
 	// ReverseProxy reads the reverse proxy's state; nil = the real box.
 	ReverseProxy *reverseproxy.Reader
+	// InternalCARoot is the internal CA's root certificate ("" =
+	// caddy.RootPath).
+	InternalCARoot string
 
 	// DiagRunner runs ping/traceroute and DiagLookup does DNS lookups for
 	// the diagnostics; nil = the real ones (tests replace them).
@@ -211,6 +225,8 @@ func (s *Server) openRoutes(handle func(pattern string, h http.Handler)) {
 	handle("POST /api/v1/setup", http.HandlerFunc(s.setup))
 	handle("GET /api/v1/system/devices", s.openDuringSetup(s.devices))
 	handle("GET /api/v1/openapi.json", http.HandlerFunc(s.openAPI))
+	// the internal CA's root: public, fetched by devices before they trust it
+	handle("GET /api/v1/internal-ca/root.crt", http.HandlerFunc(s.internalCARoot))
 	// Prometheus scrapers have no session: /metrics checks its own allow
 	// list and API tokens.
 	handle("GET /metrics", http.HandlerFunc(s.metrics))
@@ -286,6 +302,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("GET /api/v1/checks", s.checks)
 	handle("GET /api/v1/ups", s.upsStatus)
 	handle("GET /api/v1/reverse-proxy", s.reverseProxyStatus)
+	handle("GET /api/v1/internal-ca", s.internalCAStatus)
 	handle("POST /api/v1/system/reboot", s.reboot)
 	handle("GET /api/v1/ips/rules", s.ipsRules)
 	handle("GET /api/v1/templates", s.listTemplates)
@@ -319,6 +336,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("DELETE /api/v1/auth/sessions/{id}", s.deleteSession)
 	handle("GET /api/v1/flows", s.listFlows)
 	handle("GET /api/v1/flows/devices", s.flowDevices)
+	handle("GET /api/v1/flow-export", s.flowExportStatus)
 	handle("POST /api/v1/capture", s.startCapture)
 	handle("GET /api/v1/capture/{id}", s.captureStatus)
 	handle("GET /api/v1/capture/{id}/live", s.captureLive)
@@ -332,6 +350,7 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/devices/{mac}/wake", s.wakeDevice)
 	handle("DELETE /api/v1/devices/{mac}", s.deleteDevice)
 	handle("GET /api/v1/plugins", s.listPlugins)
+	handle("GET /api/v1/live-objects", s.listLiveObjects)
 	handle("POST /api/v1/plugins/{name}/enable", s.enablePlugin)
 	handle("POST /api/v1/plugins/{name}/disable", s.disablePlugin)
 	handle("PUT /api/v1/plugins/{name}/settings", s.pluginSettings)

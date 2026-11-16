@@ -32,23 +32,32 @@ const (
 
 // Flow is one tracked connection, seen from the side that started it.
 type Flow struct {
-	Protocol  string     `json:"protocol"`
-	Src       netip.Addr `json:"src"`
-	SrcPort   int        `json:"src_port,omitempty"`
-	Dst       netip.Addr `json:"dst"`
-	DstPort   int        `json:"dst_port,omitempty"`
-	State     string     `json:"state,omitempty"` // TCP state; "" for other protocols
-	BytesOut  uint64     `json:"bytes_out"`       // from the side that started it
-	BytesIn   uint64     `json:"bytes_in"`
-	Packets   uint64     `json:"packets"`
-	RateOut   float64    `json:"rate_out_bps"`
-	RateIn    float64    `json:"rate_in_bps"`
-	Age       int64      `json:"age_seconds,omitempty"`
-	Device    netip.Addr `json:"-"` // the box's own network's address in the flow (who to count it for)
-	DeviceIn  bool       `json:"-"` // the device received bytes_out (an inbound connection)
-	SrcDevice *Device    `json:"src_device,omitempty"`
-	key       string
+	Protocol string     `json:"protocol"`
+	Src      netip.Addr `json:"src"`
+	SrcPort  int        `json:"src_port,omitempty"`
+	Dst      netip.Addr `json:"dst"`
+	DstPort  int        `json:"dst_port,omitempty"`
+	State    string     `json:"state,omitempty"` // TCP state; "" for other protocols
+	BytesOut uint64     `json:"bytes_out"`       // from the side that started it
+	BytesIn  uint64     `json:"bytes_in"`
+	Packets  uint64     `json:"packets"`
+	// PacketsOut and PacketsIn split Packets by direction, like the byte
+	// counters (flow export reports each direction on its own).
+	PacketsOut uint64     `json:"-"`
+	PacketsIn  uint64     `json:"-"`
+	RateOut    float64    `json:"rate_out_bps"`
+	RateIn     float64    `json:"rate_in_bps"`
+	Age        int64      `json:"age_seconds,omitempty"`
+	Device     netip.Addr `json:"-"` // the box's own network's address in the flow (who to count it for)
+	DeviceIn   bool       `json:"-"` // the device received bytes_out (an inbound connection)
+	SrcDevice  *Device    `json:"src_device,omitempty"`
+	key        string
 }
+
+// Key returns the flow's identity: protocol, addresses and ports. Two
+// samples describe the same connection when their keys are equal, so an
+// observer (flow export, task 144) can match flows across samples.
+func (f Flow) Key() string { return f.key }
 
 // Device is a name for an address of the local networks (device inventory).
 type Device struct {
@@ -77,6 +86,10 @@ type Sampler struct {
 	Names  func(netip.Addr) (Device, bool)
 	Logger *slog.Logger
 	Now    func() time.Time
+	// Observe, when set, is called after every successful Sample with the
+	// full list of that sample (not limited, not filtered; the same order the
+	// sample keeps). It runs on the sampling goroutine, so it must not block.
+	Observe func(at time.Time, flows []Flow)
 
 	mu      sync.Mutex
 	local   []netip.Prefix // SetLocalPrefixes; overrides Local
@@ -155,7 +168,6 @@ func (s *Sampler) Sample() error {
 	}
 	now := s.now()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	local := s.Local
 	if s.local != nil {
 		prefixes := s.local
@@ -201,6 +213,11 @@ func (s *Sampler) Sample() error {
 		return flows[i].RateOut+flows[i].RateIn > flows[j].RateOut+flows[j].RateIn
 	})
 	s.flows, s.at, s.prev, s.prevAt = flows, now, cur, now
+	observe := s.Observe
+	s.mu.Unlock()
+	if observe != nil {
+		observe(now, flows) // outside the lock: an exporter may do slow work here
+	}
 	return nil
 }
 
@@ -343,6 +360,7 @@ func Parse(r io.Reader) ([]Flow, error) {
 			fl.Dst = replySrc
 		}
 		fl.BytesOut, fl.BytesIn, fl.Packets = bytes[0], bytes[1], pkts[0]+pkts[1]
+		fl.PacketsOut, fl.PacketsIn = pkts[0], pkts[1]
 		fl.key = f[2] + " " + fl.Src.String() + ":" + strconv.Itoa(fl.SrcPort) + " " + fl.Dst.String() + ":" + strconv.Itoa(fl.DstPort)
 		out = append(out, fl)
 	}

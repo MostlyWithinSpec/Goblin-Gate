@@ -138,6 +138,8 @@ check old-installed sh -c "test '$(version)' = '$OLD'"
 # --- a config with everything the old release could do
 patch dns '{"forwarders":["203.0.113.1"],"dnssec":false,"local_records":{"nas.home.arpa":"192.168.1.20"}}'
 patch system.update_url '"http://203.0.113.80:8000"'
+# a pre-release only reaches a box that follows beta
+case "$NEW" in *~*) patch system.update_channel '"beta"' ;; esac
 patch vlans '[{"name":"iot","parent":"lan","vlan_id":20,"mode":"static","address":"192.168.20.1/24","enabled":true,"allow_access":["ping"]}]'
 patch addresses '[{"name":"nas","type":"host","value":"192.168.1.20"},{"name":"kid-tablet","type":"host","value":"192.168.1.140"},{"name":"lab","type":"subnet","value":"10.50.0.0/16"}]'
 patch address_groups '[{"name":"kids","members":["kid-tablet"]}]'

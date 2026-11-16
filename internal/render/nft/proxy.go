@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/networkgoblinlabs/goblin-gate/internal/config"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/caddy"
 )
 
@@ -16,7 +17,7 @@ import (
 // keeps 443 on LAN addresses. Caddy's ports only take redirected connections.
 // IPv4: the NAT table is ip only.
 func (r *ruleset) reverseProxy() {
-	if !caddy.Active(r.cfg) {
+	if !caddy.ProxyActive(r.cfg) {
 		return
 	}
 	redirect := func(match, what string) {
@@ -29,16 +30,20 @@ func (r *ruleset) reverseProxy() {
 		redirect("iifname "+wan, "")
 		in = append(in, r.wanDevs()...)
 	}
-	if r.cfg.ReverseProxy.LANAccessOn() {
-		lan, own := r.lanSide()
-		if len(lan) > 0 {
-			m := "iifname " + devSet(lan) + " fib daddr type local"
-			if len(own) > 0 {
-				m += " ip daddr != " + addrSet(own)
-			}
-			redirect(m, " from the lan")
-			in = append(in, lan...)
+	lan, own := r.lanSide()
+	if r.cfg.ReverseProxy.LANAccessOn() && len(lan) > 0 {
+		m := "iifname " + devSet(lan) + " fib daddr type local"
+		if len(own) > 0 {
+			m += " ip daddr != " + addrSet(own)
 		}
+		redirect(m, " from the lan")
+		in = append(in, lan...)
+	}
+	// names with internal certificates resolve to InternalProxyAddress (the
+	// box's DNS); it is no address of the box, the redirect makes it one
+	if len(caddy.InternalDomains(r.cfg)) > 0 && len(lan) > 0 {
+		redirect("iifname "+devSet(lan)+" ip daddr "+config.InternalProxyAddress.String(), " (internal certificates)")
+		in = append(in, lan...)
 	}
 	if len(in) == 0 {
 		return
@@ -103,4 +108,18 @@ func addrSet(addrs []netip.Addr) string {
 		s[i] = a.String()
 	}
 	return "{ " + strings.Join(s, ", ") + " }"
+}
+
+// internalCA opens the internal CA's ACME directory (config.ACMEPort) on
+// LAN-side interfaces; Caddy checks the client's address against acme_allow.
+func (r *ruleset) internalCA() {
+	ca := r.cfg.InternalCA
+	if !ca.Enabled || !ca.ACME {
+		return
+	}
+	lan, _ := r.lanSide()
+	if len(lan) == 0 {
+		return
+	}
+	r.input = append(r.input, fmt.Sprintf("iifname %s tcp dport %d accept comment %s", devSet(lan), config.ACMEPort, quote("internal CA: ACME")))
 }

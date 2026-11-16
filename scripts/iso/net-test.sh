@@ -402,6 +402,36 @@ check tp-port-closed sh -c "! $CL timeout 5 bash -c 'echo > /dev/tcp/192.168.1.1
 api GET /api/v1/diag/nics >"$A/diag-nics.json"
 check diag-nics jq -e '[.interfaces[] | select(.name == "lan" and .device != "")] | length == 1' "$A/diag-nics.json"
 
+# --- reverse proxy with the internal CA: the LAN client trusts the root, opens
+# nas.home.arpa (the box's DNS answers 198.18.0.53, which goes to the proxy)
+# and reaches its own web server behind it; the ACME directory answers on
+# the LAN only
+patch internal_ca '{"enabled":true,"acme":true}'
+patch reverse_proxy "{\"enabled\":true,\"hosts\":[{\"name\":\"nas\",\"enabled\":true,\"issuer\":\"internal\",\"domains\":[\"nas.home.arpa\"],\"upstream\":\"http://$CLIENT_IP:80\"}]}"
+api POST /api/v1/commit '{"comment":"internal ca"}' >"$A/commit-ca.json"
+ROOTCA=/tmp/goblin-root.pem
+check ca-root retry 90 sh -c "$CL curl -sk -m 10 -o $ROOTCA -w '%{http_code}' $BOX/api/v1/internal-ca/root.crt | grep -qx 200 && grep -q 'BEGIN CERTIFICATE' $ROOTCA"
+check proxy-internal-dns sh -c "$D +short nas.home.arpa | grep -qx 198.18.0.53"
+check proxy-internal-https retry 90 sh -c "$CL curl -s -m 10 --cacert $ROOTCA --resolve nas.home.arpa:443:198.18.0.53 https://nas.home.arpa/ | grep -q 'hello from lan-client'"
+check acme-directory-lan retry 30 sh -c "$CL curl -s -m 10 --cacert $ROOTCA https://192.168.1.1:9443/acme/local/directory | jq -e '.newNonce and .newOrder'"
+check acme-directory-wan-closed sh -c "! $IN curl -sk -m 5 https://${FW_WAN:-x}:9443/acme/local/directory"
+api GET /api/v1/internal-ca >"$A/internal-ca.json"
+# the daily IPS rule update reloads Suricata in place
+check ips-reload sh -c "$SSH 'systemctl reload goblin-suricata@test.service && sleep 10 && systemctl is-active -q goblin-suricata@test.service'"
+
+# --- AppArmor: Suricata, Unbound, Kea and Caddy run confined (enforce) and
+# nothing they did above was denied
+$SSH 'journalctl -u goblin-caddy --no-pager | tail -n 80' >"$A/caddy.txt" 2>&1
+$SSH 'aa-status 2>&1; journalctl -k --no-pager | grep -E "apparmor=\"(DENIED|ALLOWED)\""' >"$A/apparmor.txt" 2>&1
+confined() { # confined <unit> <profile>: the unit's main process runs under the profile, enforcing
+	$SSH "p=\$(systemctl show -P MainPID $1) && test \"\$p\" -gt 0 && cat /proc/\$p/attr/current && grep -qx '$2 (enforce)' /proc/\$p/attr/current"
+}
+check apparmor-suricata confined goblin-suricata@test.service goblin-suricata
+check apparmor-caddy confined goblin-caddy.service goblin-caddy
+check apparmor-unbound confined unbound.service unbound
+check apparmor-kea confined kea-dhcp4-server.service kea-dhcp4
+check apparmor-no-denials sh -c "$SSH '! journalctl -k --no-pager | grep -E \"apparmor=\\\"(DENIED|ALLOWED)\\\"\"'"
+
 # --- artifacts
 for p in /api/v1/system/status /api/v1/feeds "/api/v1/logs?limit=200" /api/v1/config/running /api/v1/stats/policies; do
 	f=$(echo "$p" | tr '/?=&' '____'); api GET "$p" >"$A/api$f.json" 2>&1

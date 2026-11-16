@@ -80,6 +80,9 @@ func (s *Server) simulatePolicy(w http.ResponseWriter, r *http.Request) {
 	if s.GeoIP != nil && s.GeoIP.Loaded() {
 		rt.Country = s.GeoIP.Lookup
 	}
+	if s.LiveObjects != nil {
+		rt.Live = s.LiveObjects.Contains
+	}
 	res, err := nft.Simulate(cfg, nft.SimFlow{SrcIP: src, DstIP: dst, Protocol: proto,
 		DstPort: uint16(req.DstPort), SrcPort: uint16(req.SrcPort), SrcIntf: req.SrcIntf, At: at}, rt)
 	if err != nil {

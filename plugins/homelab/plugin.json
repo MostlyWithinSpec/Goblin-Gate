@@ -1,0 +1,25 @@
+{
+  "name": "homelab",
+  "version": "0.2.0",
+  "description": "Homelab: keeps live addresses filled with your Proxmox VE VMs and containers and Docker containers, by tag, label or name",
+  "min_goblind": "0.3.0~beta.1",
+  "capabilities": ["objects:write", "devices:read"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "proxmox_url": {"type": "string", "maxLength": 255, "description": "Proxmox VE API, such as https://pve.lan:8006 (empty = no Proxmox)"},
+      "proxmox_token_id": {"type": "string", "maxLength": 128, "description": "API token ID, such as goblin@pve!gate (read-only: VM.Audit, plus VM.GuestAgent.Audit or VM.Monitor for VM addresses)"},
+      "proxmox_token_secret": {"type": "string", "maxLength": 128, "secret": true, "description": "the API token's secret"},
+      "proxmox_fingerprint": {"type": "string", "maxLength": 128, "description": "SHA-256 fingerprint of the Proxmox certificate (for its self-signed one), as the node's Certificates page shows it"},
+      "proxmox_ca": {"type": "string", "maxLength": 16384, "description": "or: the CA certificate (PEM) that signed it; with neither, the system's CAs"},
+      "docker_url": {"type": "string", "maxLength": 255, "description": "Docker API over TLS, such as tcp://docker.lan:2376 (empty = no Docker)"},
+      "docker_ca": {"type": "string", "maxLength": 16384, "description": "the CA certificate (PEM) dockerd's --tlscacert uses"},
+      "docker_cert": {"type": "string", "maxLength": 16384, "description": "a client certificate (PEM) that CA signed"},
+      "docker_key": {"type": "string", "maxLength": 16384, "secret": true, "description": "the client certificate's key (PEM)"},
+      "docker_host_address": {"type": "string", "maxLength": 64, "description": "the Docker host's LAN address, used for containers behind its NAT (empty = from docker_url)"},
+      "name_patterns": {"type": "array", "items": {"type": "string"}, "maxLength": 128, "description": "object=pattern, such as web=web-*: guests whose name matches go into that object, next to the gg-<object> tags and labels"},
+      "networks": {"type": "array", "items": {"type": "string"}, "maxLength": 64, "description": "use only addresses in these networks, such as 192.168.20.0/24 (empty = all but loopback and link-local)"},
+      "interval_seconds": {"type": "integer", "minimum": 15, "maximum": 3600, "default": 60, "description": "how often the guests are read"}
+    }
+  }
+}

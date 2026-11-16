@@ -21,6 +21,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
 	"github.com/networkgoblinlabs/goblin-gate/internal/sentry"
+	"github.com/networkgoblinlabs/goblin-gate/pkg/pluginsdk"
 )
 
 type units struct{}
@@ -78,13 +79,14 @@ func TestWithGoblind(t *testing.T) {
 	sock.Config.ConnContext = api.PluginConnContext(func(net.Conn) (string, bool) { return "sentry", true })
 	sock.Start()
 	t.Cleanup(sock.Close)
-	client := &sentry.Client{HTTP: sock.Client(), Base: sock.URL}
+	client := &sentry.Client{Client: pluginsdk.Client{HTTP: sock.Client(), Base: sock.URL}}
 	ctx := context.Background()
 
-	caps, settings, err := client.Self(ctx)
-	if err != nil || len(caps) != 5 || settings["mode"] != "approve" {
-		t.Fatalf("self: %v %v %v", err, caps, settings)
+	self, err := client.Self(ctx)
+	if err != nil || len(self.Capabilities) != 5 || self.Settings["mode"] != "approve" {
+		t.Fatalf("self: %v %+v", err, self)
 	}
+	settings := self.Settings
 	live, err := client.Config(ctx)
 	if err != nil {
 		t.Fatal(err)

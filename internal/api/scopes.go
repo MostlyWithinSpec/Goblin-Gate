@@ -101,7 +101,7 @@ var sectionScopes = map[string]string{
 	"nat": auth.ScopeWriteFirewall, "profiles": auth.ScopeWriteFirewall,
 	"feeds": auth.ScopeWriteFirewall, "geoip": auth.ScopeWriteFirewall,
 	"upnp": auth.ScopeWriteFirewall, "custom_rules": auth.ScopeWriteFirewall,
-	"crowdsec": auth.ScopeWriteFirewall, "reverse_proxy": auth.ScopeWriteFirewall,
+	"crowdsec": auth.ScopeWriteFirewall, "reverse_proxy": auth.ScopeWriteFirewall, "internal_ca": auth.ScopeWriteFirewall,
 	"ups": auth.ScopeWriteSystem,
 	"ips": auth.ScopeWriteFirewall,
 
@@ -112,7 +112,7 @@ var sectionScopes = map[string]string{
 	"vpn": auth.ScopeWriteNetwork, "ddns": auth.ScopeWriteNetwork,
 
 	"system": auth.ScopeWriteSystem, "notifications": auth.ScopeWriteSystem,
-	"log_export": auth.ScopeWriteSystem,
+	"log_export": auth.ScopeWriteSystem, "flow_export": auth.ScopeWriteSystem,
 
 	"schema_version": scopeAdmin, "admins": scopeAdmin, "plugins": scopeAdmin,
 	"git_backup": scopeAdmin,

@@ -21,6 +21,9 @@ var Routes = map[string]string{
 
 	"GET /api/v1/plugin/policies":      "policies:toggle",
 	"PUT /api/v1/plugin/policies/{id}": "policies:toggle",
+
+	"GET /api/v1/plugin/objects":        "objects:write",
+	"PUT /api/v1/plugin/objects/{name}": "objects:write",
 }
 
 // RouteCapability returns the capability a route needs and whether

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/caddy"
 )
 
 // Path is where the Unbound config is written.
@@ -191,6 +192,13 @@ func (r Renderer) Render(cfg *config.Config) (map[string][]byte, error) {
 	sort.Strings(records)
 	for _, r := range records {
 		b.WriteString(r)
+	}
+	// reverse proxy hosts with internal certificates: their names lead to
+	// the address the box redirects to the proxy (no PTR: it is not a host)
+	internal := caddy.InternalDomains(cfg)
+	sort.Strings(internal)
+	for _, d := range internal {
+		fmt.Fprintf(&b, "  local-data: \"%s A %s\"\n", strings.ToLower(d), config.InternalProxyAddress)
 	}
 
 	// DNS rebinding protection (task 083): upstream answers may not use

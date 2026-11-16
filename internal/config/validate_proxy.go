@@ -47,13 +47,23 @@ func (v *validator) checkReverseProxy() {
 			case !validHostname(d) || !strings.Contains(d, "."):
 				v.add(dp, "invalid domain %q: want a public name like media.example.com", d)
 			case isIPLiteral(d):
-				v.add(dp, "domain %q: Let's Encrypt certificates are for names, not addresses", d)
+				v.add(dp, "domain %q: certificates are for names here, not addresses", d)
 			default:
 				if other, dup := domains[d]; dup {
 					v.add(dp, "domain %q is already used by host %q", d, other)
 				}
 				domains[d] = h.Name
 			}
+		}
+
+		switch h.Issuer {
+		case "", ProxyIssuerLetsEncrypt:
+		case ProxyIssuerInternal:
+			if !v.cfg.InternalCA.Enabled {
+				v.add(p+".issuer", "issuer internal needs the internal CA enabled")
+			}
+		default:
+			v.add(p+".issuer", "issuer %q: letsencrypt or internal", h.Issuer)
 		}
 
 		up, err := ParseProxyUpstream(h.Upstream)

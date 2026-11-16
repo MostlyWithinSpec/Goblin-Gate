@@ -1,0 +1,8 @@
+{"data":[
+ {"id":"qemu/100","type":"qemu","vmid":100,"name":"web-1","node":"pve1","status":"running","tags":"gg-web;prod","maxmem":4294967296,"uptime":86400},
+ {"id":"qemu/101","type":"qemu","vmid":101,"name":"db","node":"pve1","status":"running","tags":"gg-db","maxmem":8589934592,"uptime":3600},
+ {"id":"qemu/102","type":"qemu","vmid":102,"name":"web-2","node":"pve2","status":"stopped","tags":"gg-web","maxmem":4294967296,"uptime":0},
+ {"id":"qemu/9000","type":"qemu","vmid":9000,"name":"debian-template","node":"pve1","status":"stopped","template":1,"tags":"gg-web"},
+ {"id":"lxc/200","type":"lxc","vmid":200,"name":"pihole","node":"pve2","status":"running","tags":"gg-dns","maxmem":536870912,"uptime":7200},
+ {"id":"lxc/201","type":"lxc","vmid":201,"name":"web-cache","node":"pve2","status":"running","maxmem":536870912,"uptime":7200}
+]}

@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,10 @@ type Manager struct {
 	Now    func() time.Time
 	// RunNFT loads an nft script (default nft -f -); --dev sets a no-op.
 	RunNFT func(ctx context.Context, script []byte) error
+	// Live returns a live address object's current members. The manager
+	// refills every runtime set (nft.RuntimeSets), not only the country
+	// ones, because a set can hold both: one refill must write both parts.
+	Live func(object string) []netip.Prefix
 
 	mu        sync.Mutex
 	db        *DB
@@ -77,7 +82,7 @@ type Manager struct {
 	fetching  sync.Mutex // one download at a time
 
 	nftMu sync.Mutex
-	sets  []nft.CountrySet // of the live ruleset
+	sets  []nft.RuntimeSet // of the live ruleset
 }
 
 func (m *Manager) now() time.Time {
@@ -322,16 +327,18 @@ func (m *Manager) check(ctx context.Context, live *config.Config) {
 	}
 }
 
-// Resync refills the country sets. With a config (after every ruleset load,
-// which empties them) it first learns the live sets; with nil it reuses
-// them (a new database).
+// Resync refills the runtime sets (country ranges and live members). With a
+// config (after every ruleset load, which empties them) it first learns the
+// live ruleset's sets; with nil it reuses them (a new database). Without a
+// database only the sets with live members are refilled: the others already
+// hold just their static part.
 func (m *Manager) Resync(live *config.Config) {
 	m.nftMu.Lock()
 	defer m.nftMu.Unlock()
 	if live != nil {
-		sets, err := nft.CountrySets(live)
+		sets, err := nft.RuntimeSets(live)
 		if err != nil {
-			m.logger().Warn("geoip: country sets", "error", err)
+			m.logger().Warn("geoip: runtime sets", "error", err)
 			return
 		}
 		m.sets = sets
@@ -339,17 +346,56 @@ func (m *Manager) Resync(live *config.Config) {
 	m.mu.Lock()
 	db := m.db
 	m.mu.Unlock()
-	if len(m.sets) == 0 || db == nil {
+	todo := m.sets
+	if db == nil {
+		todo = nil
+		for _, s := range m.sets {
+			if len(s.Live) > 0 {
+				todo = append(todo, s)
+			}
+		}
+	}
+	m.refill(todo, db, "runtime sets")
+}
+
+// RefillLive refills the sets that hold any of the live objects (their
+// members changed).
+func (m *Manager) RefillLive(objects ...string) {
+	m.nftMu.Lock()
+	defer m.nftMu.Unlock()
+	var todo []nft.RuntimeSet
+	for _, s := range m.sets {
+		for _, o := range objects {
+			if slices.Contains(s.Live, o) {
+				todo = append(todo, s)
+				break
+			}
+		}
+	}
+	m.mu.Lock()
+	db := m.db
+	m.mu.Unlock()
+	m.refill(todo, db, "live sets")
+}
+
+// refill loads sets with their static part, db's country ranges (when
+// loaded) and the live members. m.nftMu held.
+func (m *Manager) refill(sets []nft.RuntimeSet, db *DB, what string) {
+	if len(sets) == 0 {
 		return
+	}
+	var ranges func(string) []nft.Range
+	if db != nil {
+		ranges = db.Ranges
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	start := m.now()
-	if err := m.runNFT(ctx, nft.CountryBatch(m.sets, db.Ranges)); err != nil {
-		m.logger().Error("geoip: loading country sets failed", "sets", len(m.sets), "error", err)
+	if err := m.runNFT(ctx, nft.RuntimeBatch(sets, ranges, m.Live)); err != nil {
+		m.logger().Error("geoip: loading "+what+" failed", "sets", len(sets), "error", err)
 		return
 	}
-	m.logger().Info("geoip: country sets loaded", "sets", len(m.sets), "took", m.now().Sub(start).Round(time.Millisecond))
+	m.logger().Info("geoip: "+what+" loaded", "sets", len(sets), "took", m.now().Sub(start).Round(time.Millisecond))
 }
 
 func (m *Manager) runNFT(ctx context.Context, script []byte) error {

@@ -43,6 +43,10 @@ for u in unbound.service kea-dhcp4-server.service ulogd2.service nut-server.serv
 	install -d "$ROOT/lib/systemd/system/$u.d"
 	install -m644 "packaging/systemd/$u.d/goblin-hardening.conf" "$ROOT/lib/systemd/system/$u.d/"
 done
+# AppArmor profiles for Suricata and Caddy, and the additions to Debian's Unbound profile
+install -d "$ROOT/etc/apparmor.d" "$ROOT/usr/share/goblin-gate/apparmor"
+install -m644 packaging/apparmor/goblin-gate.suricata packaging/apparmor/goblin-gate.caddy "$ROOT/etc/apparmor.d/"
+install -m644 packaging/apparmor/unbound "$ROOT/usr/share/goblin-gate/apparmor/"
 install -d "$ROOT/usr/lib/sysctl.d"
 install -m644 packaging/sysctl/80-goblin-hardening.conf "$ROOT/usr/lib/sysctl.d/"
 install -d "$ROOT/etc/systemd/networkd.conf.d"

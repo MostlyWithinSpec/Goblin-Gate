@@ -320,6 +320,69 @@ describe('plugin policy switches', () => {
   })
 })
 
+describe('homelab plugin settings', () => {
+  // plugins/homelab (task 140): every kind of setting of its real manifest,
+  // with the array settings one per line in the textarea (task 141 check).
+  const homelab = (): api.PluginStatus => ({
+    name: 'homelab',
+    version: '0.2.0',
+    description: 'Homelab: keeps live addresses filled with your Proxmox VE VMs and containers and Docker containers, by tag, label or name',
+    requested_capabilities: ['objects:write', 'devices:read'],
+    capabilities: ['objects:write', 'devices:read'],
+    enabled: true,
+    secrets_set: ['proxmox_token_secret'],
+    policies: [],
+    state: 'running',
+    settings: {
+      proxmox_url: 'https://pve.lan:8006',
+      name_patterns: ['web=web-*', 'db=db-*'],
+      networks: ['192.168.20.0/24'],
+      interval_seconds: 60,
+    },
+    settings_schema: {
+      type: 'object',
+      properties: {
+        proxmox_url: { type: 'string', maxLength: 255, description: 'Proxmox VE API, such as https://pve.lan:8006 (empty = no Proxmox)' },
+        proxmox_token_id: { type: 'string', maxLength: 128, description: 'API token ID, such as goblin@pve!gate' },
+        proxmox_token_secret: { type: 'string', maxLength: 128, secret: true, description: "the API token's secret" },
+        name_patterns: { type: 'array', items: { type: 'string' }, maxLength: 128, description: 'object=pattern, such as web=web-*' },
+        networks: { type: 'array', items: { type: 'string' }, maxLength: 64, description: 'use only addresses in these networks, such as 192.168.20.0/24' },
+        interval_seconds: { type: 'integer', minimum: 15, maximum: 3600, default: 60, description: 'how often the guests are read' },
+      },
+    },
+  })
+
+  test('the generic drawer renders its schema and saves it back', async () => {
+    vi.mocked(api.getPlugins).mockResolvedValue({ plugins: [homelab()] })
+    renderPage(<Plugins />)
+    fireEvent.click(await screen.findByRole('button', { name: /Settings/ }))
+
+    const url = await screen.findByLabelText(/Proxmox VE API/)
+    expect((url as HTMLInputElement).value).toBe('https://pve.lan:8006')
+    const secret = screen.getByLabelText(/the API token's secret/) as HTMLInputElement
+    expect(secret.type).toBe('password')
+    expect(secret.value).toBe('')
+    const patterns = screen.getByLabelText(/object=pattern/)
+    expect(patterns.tagName).toBe('TEXTAREA')
+    expect((patterns as HTMLTextAreaElement).value).toBe('web=web-*\ndb=db-*')
+    const interval = screen.getByLabelText(/interval_seconds/) as HTMLInputElement
+    expect(interval.type).toBe('number')
+    expect(interval.value).toBe('60')
+
+    fireEvent.change(screen.getByLabelText(/use only addresses/), { target: { value: '192.168.20.0/24\n10.5.0.0/16' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.setPluginSettings).toHaveBeenCalled())
+    expect(api.setPluginSettings).toHaveBeenCalledWith('homelab', {
+      proxmox_url: 'https://pve.lan:8006',
+      proxmox_token_id: '',
+      proxmox_token_secret: '',
+      name_patterns: ['web=web-*', 'db=db-*'],
+      networks: ['192.168.20.0/24', '10.5.0.0/16'],
+      interval_seconds: 60,
+    })
+  })
+})
+
 describe('plugin page view', () => {
   test('shows the page in a sandboxed iframe without same-origin access', async () => {
     const { MemoryRouter, Routes, Route } = await import('react-router-dom')

@@ -2,7 +2,7 @@
 
 Plugins add features without touching the core. Each is a Debian package named
 `goblin-gate-plugin-<name>`, installed with `apt-get install` as root. The official ones:
-[[Goblin Sentry]] and [[Home Assistant]].
+[[Goblin Sentry]], [[Home Assistant]] and [[Homelab]].
 
 ## Safety
 
@@ -25,4 +25,4 @@ and no others, and each switch is a commit you find in **Revisions**.
 ## Writing a plugin
 
 See the developer guide in the repository: `docs/dev/plugins.md`, with a minimal example in
-`examples/plugins/hello`.
+`plugins/hello`.

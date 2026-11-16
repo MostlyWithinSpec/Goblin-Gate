@@ -68,6 +68,8 @@ func (s *Server) PluginRoutes() http.Handler {
 	add("POST /api/v1/plugin/notify", s.pluginNotify)
 	add("GET /api/v1/plugin/policies", s.pluginPolicies)
 	add("PUT /api/v1/plugin/policies/{id}", s.pluginSwitchPolicy)
+	add("GET /api/v1/plugin/objects", s.pluginLiveObjects)
+	add("PUT /api/v1/plugin/objects/{name}", s.pluginSetLiveObject)
 	mux.Handle("/", s.pluginAuth("", "-", nil))
 	return s.middleware(mux)
 }

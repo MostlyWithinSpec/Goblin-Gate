@@ -148,6 +148,7 @@ func prepare(cfg *config.Config) (*ruleset, error) {
 		return nil, err
 	}
 	r.reverseProxy()
+	r.internalCA()
 	if err := r.policies(); err != nil {
 		return nil, err
 	}

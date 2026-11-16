@@ -56,6 +56,13 @@ even though the name resolves to the WAN address. The admin page keeps working o
 (`https://192.168.1.1`). Turn it off if you rather resolve the names to the services directly with
 local DNS records ([[DHCP and DNS]]).
 
+## Names inside the network
+
+A host does not need a public name: with the [[Internal CA]] on, set its **issuer** to **internal** and give
+it a name like `nas.home.lan`. Its certificate comes from the gate's own CA, the gate's DNS points the name
+at the proxy, and only the LAN side may open it (unless you set an allow list). Devices that trust the
+gate's root certificate open it without a warning.
+
 ## How it works
 
 Connections to ports 80 and 443 on a WAN are redirected to the proxy (it listens on 10080 and 10443, which

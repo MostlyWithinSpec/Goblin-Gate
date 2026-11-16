@@ -31,7 +31,8 @@ import {
   Camera,
   Search,
   Wand2,
-  BatteryCharging
+  BatteryCharging,
+  ArrowRightLeft
 } from 'lucide-react'
 import { CommitBar } from './CommitBar'
 import { PageErrorBoundary } from './PageErrorBoundary'
@@ -194,6 +195,7 @@ const Layout: React.FC = () => {
     { name: t('nav.wireguard'), path: '/vpn/wireguard', icon: KeyRound, group: t('nav.group.vpn') },
     { name: t('nav.vpnProviders'), path: '/vpn/providers', icon: Server, group: t('nav.group.vpn') },
     { name: t('nav.logAndReport'), path: '/log', icon: Activity, group: t('nav.group.logAndReport') },
+    { name: t('nav.flowExport'), path: '/log/flow-export', icon: ArrowRightLeft, group: t('nav.group.logAndReport') },
     { name: t('nav.liveEvents'), path: '/events', icon: Rss, group: t('nav.group.logAndReport') },
     { name: t('nav.system'), path: '/system', icon: Settings, group: t('nav.group.system') },
     { name: t('nav.revisions'), path: '/system/revisions', icon: History, group: t('nav.group.system') },

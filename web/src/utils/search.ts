@@ -49,6 +49,7 @@ const PAGES: { name: string; path: string; words?: string }[] = [
   { name: 'Packet capture', path: '/log/capture', words: 'pcap tcpdump' },
   { name: 'Live events', path: '/events', words: 'stream sse commits logins' },
   { name: 'Log export', path: '/log/export', words: 'syslog loki' },
+  { name: 'Flow export', path: '/log/flow-export', words: 'netflow ipfix v9 collector ntopng elastic goflow2 nfdump records packets' },
   { name: 'System', path: '/system', words: 'admins tokens backup import' },
   { name: 'Revisions', path: '/system/revisions', words: 'history rollback' },
   { name: 'Notifications', path: '/system/notifications', words: 'alerts email' },

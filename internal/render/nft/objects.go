@@ -29,12 +29,33 @@ type addrObj struct {
 	// countries (ISO codes) whose ranges the GeoIP syncer adds to the sets
 	// at runtime (see CountrySets); the spans stay as the static part
 	countries []string
+	// live are the live objects (by name) whose members their plugin sets at
+	// runtime (see RuntimeSets), added to the sets like countries
+	live []string
 }
 
 // has4 and has6 report whether the object can match that family; fqdn
-// members may resolve to either, and countries have both.
-func (o *addrObj) has4() bool { return len(o.spans) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 }
-func (o *addrObj) has6() bool { return len(o.spans6) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 }
+// members may resolve to either, countries and live objects have both.
+func (o *addrObj) has4() bool {
+	return len(o.spans) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 || len(o.live) > 0
+}
+func (o *addrObj) has6() bool {
+	return len(o.spans6) > 0 || len(o.fqdns) > 0 || len(o.countries) > 0 || len(o.live) > 0
+}
+
+// addRuntime merges mo's runtime members (countries, live objects) into o.
+func (o *addrObj) addRuntime(mo *addrObj) {
+	for _, c := range mo.countries {
+		if !slices.Contains(o.countries, c) {
+			o.countries = append(o.countries, c)
+		}
+	}
+	for _, l := range mo.live {
+		if !slices.Contains(o.live, l) {
+			o.live = append(o.live, l)
+		}
+	}
+}
 
 // declare names and declares the object's sets: the IPv4 set unless the
 // object is IPv6-only (an empty object keeps an empty IPv4 set, as before
@@ -48,20 +69,20 @@ func (o *objects) declare(obj *addrObj, prefix, name, comment string) {
 		obj.set6 = o.names.get(strings.Replace(prefix, "addr", "addr6", 1), name)
 		o.sets = append(o.sets, addrSetDecl6(obj.set6, obj.spans6, comment))
 	}
-	o.noteCountries(obj)
+	o.noteRuntime(obj)
 }
 
-// noteCountries records the object's sets for the GeoIP syncer when it has
-// country members (call after its set names are known).
-func (o *objects) noteCountries(obj *addrObj) {
-	if len(obj.countries) == 0 {
+// noteRuntime records the object's sets for the runtime refill when it has
+// country or live members (call after its set names are known).
+func (o *objects) noteRuntime(obj *addrObj) {
+	if len(obj.countries) == 0 && len(obj.live) == 0 {
 		return
 	}
 	if obj.set != "" {
-		o.countrySets = append(o.countrySets, CountrySet{Name: obj.set, Countries: obj.countries, spans: obj.spans})
+		o.runtimeSets = append(o.runtimeSets, RuntimeSet{Name: obj.set, Countries: obj.countries, Live: obj.live, spans: obj.spans})
 	}
 	if obj.set6 != "" {
-		o.countrySets = append(o.countrySets, CountrySet{Name: obj.set6, IPv6: true, Countries: obj.countries, spans6: obj.spans6})
+		o.runtimeSets = append(o.runtimeSets, RuntimeSet{Name: obj.set6, IPv6: true, Countries: obj.countries, Live: obj.live, spans6: obj.spans6})
 	}
 }
 
@@ -79,8 +100,9 @@ type objects struct {
 	svcs  map[string]*svcObj
 	sets  []setDecl
 	names *namer
-	// countrySets are the sets the GeoIP syncer fills (CountrySets)
-	countrySets []CountrySet
+	// runtimeSets are the sets refilled at runtime with country ranges and
+	// live members (RuntimeSets)
+	runtimeSets []RuntimeSet
 }
 
 // isAll reports whether a reference means "match everything".
@@ -141,6 +163,9 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 		} else if a.Type == "country" {
 			obj.countries = config.CountryCodes(a.Value)
 			comment = "country " + strings.Join(obj.countries, " ") + " (filled at runtime)"
+		} else if a.Type == "live" {
+			obj.live = []string{a.Name}
+			comment = "live, kept up to date by plugin " + a.Value
 		} else {
 			v4, v6, err := addrValue(a.Type, a.Value)
 			if err != nil {
@@ -185,11 +210,7 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 			obj.spans = append(obj.spans, mo.spans...)
 			obj.spans6 = append(obj.spans6, mo.spans6...)
 			obj.fqdns = append(obj.fqdns, mo.fqdns...)
-			for _, c := range mo.countries {
-				if !slices.Contains(obj.countries, c) {
-					obj.countries = append(obj.countries, c)
-				}
-			}
+			obj.addRuntime(mo)
 		}
 		obj.spans = mergeSpans(obj.spans)
 		obj.spans6 = mergeSpans6(obj.spans6)
@@ -204,6 +225,9 @@ func (o *objects) resolveAddrs(cfg *config.Config) error {
 		comment := "group"
 		if len(obj.fqdns) > 0 {
 			comment += "; fqdn members resolved at runtime: " + strings.Join(obj.fqdns, " ")
+		}
+		if len(obj.live) > 0 {
+			comment += "; live members of " + strings.Join(obj.live, " ")
 		}
 		if len(obj.countries) > 0 {
 			comment += "; countries filled at runtime: " + strings.Join(obj.countries, " ")

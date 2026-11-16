@@ -62,7 +62,7 @@ nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware
 | 🔔 **It tells you things** | Email, webhooks, Discord, ntfy or Telegram when a WAN goes down, an update is ready, and more. A live event stream for scripts and Home Assistant. |
 | 🔋 **Power cuts** | UPS support (USB, or a UPS your NAS already watches): an alert when the power goes, and a clean shutdown before the battery runs out. |
 | 🔄 **Updates that undo themselves** | Signed packages in stable and beta channels. If an update doesn't come back healthy within 5 minutes, the box quietly reinstalls the previous version. Debian security fixes install nightly on their own. |
-| 🔒 **Hardened by default** | Two-factor login, a list of your active sessions, anti-spoofing on every interface, and the IPS, DNS and DHCP services each locked in their own sandbox with only the rights they need. |
+| 🔒 **Hardened by default** | Two-factor login, a list of your active sessions, anti-spoofing on every interface, and the IPS, DNS, DHCP and reverse proxy services each locked in their own sandbox and AppArmor profile with only the rights they need. |
 | 🧳 **Moving in** | Import a pfSense or OPNsense XML backup. A report lists every item as converted, approximated or skipped, and nothing goes live until you commit. |
 | 🖥️ **Three ways in, one config** | A web UI (light and dark), a REST API for everything, and a CLI. They all edit the same config, so whatever you can click, you can script. |
 | 💿 **Installs anywhere** | An offline installer ISO for bare metal (BIOS or UEFI, Secure Boot works), VMware ESXi, Proxmox and VirtualBox. A console menu handles the basics. |
@@ -168,7 +168,7 @@ Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/
 - **Now:** 0.2.0 stable, and the 0.3.0 betas on the beta channel. Fixes go to stable; new features land in the beta channel first.
 - **New in 0.2.0:** a reverse proxy with Let's Encrypt, Home Assistant integration, a built-in throughput test, a translatable web UI,
   an OpenAPI description of the API.
-- **Coming in the 0.3.0 betas:** a plugin SDK, Proxmox and Docker awareness, an internal certificate authority for the LAN,
+- **In the 0.3.0 betas:** a plugin SDK, Proxmox and Docker awareness, an internal certificate authority for the LAN,
   NetFlow and IPFIX export, tighter AppArmor confinement. Still to come: measured benchmarks.
 - **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
 

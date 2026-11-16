@@ -31,9 +31,10 @@ type SimFlow struct {
 // SimRuntime answers what only the running box knows. Nil funcs = nothing
 // is blocked / no feed lists the address.
 type SimRuntime struct {
-	Blocked func(a netip.Addr) bool              // temporary block
-	InFeed  func(feed string, a netip.Addr) bool // IP threat feed membership
-	Country func(a netip.Addr) string            // ISO code from the GeoIP database; "" = unknown
+	Blocked func(a netip.Addr) bool                // temporary block
+	InFeed  func(feed string, a netip.Addr) bool   // IP threat feed membership
+	Country func(a netip.Addr) string              // ISO code from the GeoIP database; "" = unknown
+	Live    func(object string, a netip.Addr) bool // current member of a live address object
 }
 
 // SimStep is one policy on the way, in order.
@@ -182,12 +183,13 @@ type sim struct {
 	setLabel map[string]string   // set -> what it is, for reasons
 	feedOf   map[string]string   // feed set -> feed name
 	country  map[string][]string // country set -> its countries
+	live     map[string][]string // set with live members -> the live objects
 	notes    map[string]bool
 }
 
 func newSim(r *ruleset, rt SimRuntime) *sim {
 	s := &sim{r: r, rt: rt, devs: r.devs, names: map[string]string{}, wanNames: map[string]bool{},
-		sets: map[string]setDecl{}, setLabel: map[string]string{}, feedOf: map[string]string{}, country: map[string][]string{}, notes: map[string]bool{}}
+		sets: map[string]setDecl{}, setLabel: map[string]string{}, feedOf: map[string]string{}, country: map[string][]string{}, live: map[string][]string{}, notes: map[string]bool{}}
 	for n, d := range r.devs {
 		s.names[d] = n
 	}
@@ -216,8 +218,13 @@ func newSim(r *ruleset, rt SimRuntime) *sim {
 	for feed, set := range r.feedSet {
 		s.feedOf[set] = feed
 	}
-	for _, cs := range r.objs.countrySets {
-		s.country[cs.Name] = cs.Countries
+	for _, cs := range r.objs.runtimeSets {
+		if len(cs.Countries) > 0 {
+			s.country[cs.Name] = cs.Countries
+		}
+		if len(cs.Live) > 0 {
+			s.live[cs.Name] = cs.Live
+		}
 	}
 	return s
 }
@@ -923,6 +930,17 @@ func (s *sim) addrIn(ref string, a netip.Addr) (bool, string, error) {
 		for _, e := range d.elements {
 			if elemContains(e, a) {
 				return true, s.label(set), nil
+			}
+		}
+		if objs, ok := s.live[set]; ok {
+			if s.rt.Live == nil {
+				s.note("Live objects are kept by their plugins at runtime; treated as not matching here")
+			} else {
+				for _, name := range objs {
+					if s.rt.Live(name, a) {
+						return true, s.label(set), nil
+					}
+				}
 			}
 		}
 		if codes, ok := s.country[set]; ok {

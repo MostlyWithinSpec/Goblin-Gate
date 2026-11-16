@@ -284,3 +284,21 @@ func TestRebindProtection(t *testing.T) {
 		t.Errorf("forwarded domain must be private:\n%s", s)
 	}
 }
+
+func TestInternalProxyNames(t *testing.T) {
+	cfg := config.Default()
+	cfg.AllowNoAdmin = true
+	cfg.InternalCA.Enabled = true
+	cfg.ReverseProxy = config.ReverseProxy{Enabled: true, Hosts: []config.ProxyHost{
+		{Name: "nas", Enabled: true, Issuer: "internal", Domains: []string{"nas.home.lan"}, Upstream: "http://192.168.1.20"},
+		{Name: "pub", Enabled: true, Domains: []string{"media.example.com"}, Upstream: "http://192.168.1.21"},
+	}}
+	files, err := Renderer{}.Render(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(files[Path])
+	if !strings.Contains(s, `local-data: "nas.home.lan A 198.18.0.53"`) || strings.Contains(s, "media.example.com") {
+		t.Errorf("internal names:\n%s", s)
+	}
+}

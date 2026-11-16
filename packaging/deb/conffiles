@@ -1,2 +1,4 @@
 /etc/goblingate/goblind.json
 /etc/update-motd.d/05-goblin-gate
+/etc/apparmor.d/goblin-gate.suricata
+/etc/apparmor.d/goblin-gate.caddy

@@ -361,11 +361,7 @@ func (r *ruleset) addrMatch(dir string, refs []string, polSet string) (addrRef, 
 			u.spans = append(u.spans, o.spans...)
 			u.spans6 = append(u.spans6, o.spans6...)
 			u.fqdns = append(u.fqdns, o.fqdns...)
-			for _, c := range o.countries {
-				if !slices.Contains(u.countries, c) {
-					u.countries = append(u.countries, c)
-				}
-			}
+			u.addRuntime(o)
 		}
 		comment := "union of " + strings.Join(refs, " ")
 		set, set6 = "", ""
@@ -378,7 +374,7 @@ func (r *ruleset) addrMatch(dir string, refs []string, polSet string) (addrRef, 
 			r.sets = append(r.sets, addrSetDecl6(set6, u.spans6, comment))
 		}
 		u.set, u.set6 = set, set6
-		r.objs.noteCountries(u)
+		r.objs.noteRuntime(u)
 	}
 	var a addrRef
 	if set != "" {

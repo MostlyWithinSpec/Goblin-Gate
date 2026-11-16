@@ -207,6 +207,9 @@ func (h *Host) check(ctx context.Context, changes []change) error {
 			}
 		}
 		tmp := path.Join(h.stateDir(), "check", groups[c.group].name+"-"+path.Base(c.path))
+		if d := groups[c.group].checkDir; d != "" {
+			tmp = path.Join(d, ".goblin-check-"+path.Base(c.path))
+		}
 		cmd := chk(h.native(tmp))
 		if cmd == nil {
 			continue // this file of the group needs no check

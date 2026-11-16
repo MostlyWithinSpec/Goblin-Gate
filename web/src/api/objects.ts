@@ -66,7 +66,9 @@ export interface VLAN {
 
 export interface Address {
   name: string
-  type: 'subnet' | 'host' | 'range' | 'fqdn' | 'country'
+  type: 'subnet' | 'host' | 'range' | 'fqdn' | 'country' | 'live'
+  // For type "live" the value is the name of the plugin that keeps the
+  // object's members up to date; the members themselves are not in the config.
   value: string
   comment?: string
 }
@@ -278,9 +280,14 @@ export interface Candidate {
   custom_rules?: CustomRule[]
   crowdsec?: CrowdSecSettings
   ups?: UPSSettings
+  flow_export?: FlowExportSettings
+  // Enabled plugins (config.Plugin): the capabilities the admin approved, so a
+  // live address can check its plugin really has objects:write.
+  plugins?: { name: string; enabled?: boolean; capabilities?: string[] }[]
   // box-wide IPS settings; etpro_code is a secret ("" for callers that may not see it)
   ips?: { etpro_code?: string }
   reverse_proxy?: ReverseProxy
+  internal_ca?: InternalCASettings
 }
 
 // Reverse proxy (task 133/134): publishes LAN web services on public names
@@ -306,6 +313,51 @@ export interface ProxyHost {
   // plain addresses/CIDRs. Empty = everyone.
   allow?: string[]
   description?: string
+  // issuer is where the certificate comes from: "" or "letsencrypt" (public
+  // names), or "internal": the LAN CA, for names inside the network such as
+  // nas.home.lan. "internal" needs internal_ca.enabled.
+  issuer?: string
+}
+
+// Internal CA (task 142/143): a private certificate authority for the LAN,
+// run inside the reverse proxy's service. Types mirror
+// internal/config/internalca.go and internal/api/internalca_handlers.go.
+export interface InternalCASettings {
+  enabled: boolean
+  // name is what devices show when they trust the root (default "Goblin Gate
+  // Local CA").
+  name?: string
+  // acme serves the ACME directory on the box's LAN-side addresses, port 9443.
+  acme?: boolean
+  // acme_allow limits who may use the directory: address objects or CIDRs.
+  // Empty = the LAN-side networks. Only valid with acme on.
+  acme_allow?: string[]
+  // lifetime_hours: how long the proxy's internal certificates are valid
+  // (1-120, default 48). ACME clients get 12 hours.
+  lifetime_hours?: number
+}
+
+// InternalCAStatus is GET /api/v1/internal-ca: the CA as the running config has
+// it. ready says whether the root certificate exists yet; it is false right
+// after the first commit with the CA on, until the proxy has started.
+export interface InternalCAStatus {
+  enabled: boolean
+  acme: boolean
+  ready: boolean
+  root?: RootCertificate
+  // acme_directories are the directory URLs for ACME clients on the LAN.
+  acme_directories: string[]
+  lifetime_hours: number
+  // internal_hosts are the published names with internal certificates.
+  internal_hosts: string[]
+}
+
+export interface RootCertificate {
+  subject: string
+  // sha256 is the fingerprint as the OS trust dialogs show it (AB:CD:...).
+  sha256: string
+  not_before: string
+  not_after: string
 }
 
 // The live status of the proxy: GET /api/v1/reverse-proxy. It describes the
@@ -410,6 +462,31 @@ export const updateDDNSNow = (name: string) =>
 // getProxyStatus reports the reverse proxy as the running config has it
 // published: the service state and each domain's certificate or latest error.
 export const getProxyStatus = () => apiClient<ProxyStatus>('/api/v1/reverse-proxy')
+
+// getInternalCAStatus reports the internal CA as the running config has it:
+// whether it is on, whether its root exists yet, the root's fingerprint and
+// expiry, and the ACME directory URLs for the LAN.
+export const getInternalCAStatus = () => apiClient<InternalCAStatus>('/api/v1/internal-ca')
+
+// internalCARootURL is the open (no login) download for the root certificate:
+// PEM by default, DER with format=der — the type phones and Windows offer to
+// install. Both 404 while the CA is off or has no root yet.
+export const internalCARootURL = (format?: 'der') =>
+  `/api/v1/internal-ca/root.crt${format ? `?format=${format}` : ''}`
+
+// Live address objects (task 139/141): the members a plugin keeps filled in an
+// address of type "live". They describe the running config, so a live address
+// saved but not committed yet has no entry here, and a new one has no members
+// (and no updated) until its plugin fills it.
+export interface LiveObject {
+  name: string
+  plugin: string
+  members: string[]
+  updated?: string
+}
+
+export const getLiveObjects = () =>
+  apiClient<{ objects: LiveObject[] }>('/api/v1/live-objects').then((r) => r.objects ?? [])
 
 // Log export (task 096/097): forward firewall logs to a remote syslog server
 // or a Loki instance. Types mirror internal/config/logexport.go by JSON name.
@@ -632,3 +709,32 @@ export interface IPSRulesStatus {
 }
 
 export const getIPSRules = () => apiClient<IPSRulesStatus>('/api/v1/ips/rules')
+
+// Flow export (task 144/145): send sampled connections to a NetFlow v9 / IPFIX
+// collector over UDP. The types mirror internal/config/flowexport.go and
+// internal/flowexport.Status, field by field by JSON name.
+export interface FlowExportSettings {
+  enabled: boolean
+  collector?: string // UDP collector as "host:port", e.g. 10.0.0.5:2055
+  protocol?: 'ipfix' | 'netflow9' // "" = ipfix
+  active_timeout_seconds?: number // 10-600; 0 = 60
+}
+
+// FlowExportStatus is what GET /api/v1/flow-export reports about the running
+// exporter. It describes the committed config, so a save no commit has applied
+// yet shows here as enabled false (or an endpoint that is not there at all).
+export interface FlowExportStatus {
+  enabled: boolean
+  collector?: string
+  protocol?: string
+  running: boolean
+  packets_sent: number
+  records_sent: number
+  // records_dropped counts records thrown away while the collector could not be reached
+  records_dropped?: number
+  last_error?: string
+  last_sent?: string
+  open_flows: number
+}
+
+export const getFlowExportStatus = () => apiClient<FlowExportStatus>('/api/v1/flow-export')

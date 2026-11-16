@@ -44,6 +44,11 @@ type ProxyHost struct {
 	// CIDRs. Empty = everyone.
 	Allow       []string `json:"allow,omitempty"`
 	Description string   `json:"description,omitempty"`
+	// Issuer is where the certificate comes from: "" or "letsencrypt"
+	// (public names pointing at the WAN), or "internal": the internal CA,
+	// for names inside the network such as nas.home.lan; the box's DNS
+	// answers those names with InternalProxyAddress.
+	Issuer string `json:"issuer,omitempty"`
 }
 
 // MaxProxyHosts is the maximum number of published services.

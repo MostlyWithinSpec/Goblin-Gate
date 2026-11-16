@@ -36,7 +36,7 @@ apt-get update -qq >/dev/null
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nftables iproute2 caddy curl >/dev/null 2>&1
 GOBIN=/usr/local/bin go install github.com/letsencrypt/pebble/v2/cmd/pebble@PEBBLE_VERSION 2>&1 | tail -3
 echo "$(caddy version | cut -d' ' -f1); pebble PEBBLE_VERSION; $(nft --version)"
-cd /w && GOBLIN_PROXY_E2E=1 ./proxy.test -test.run '^TestProxyE2E$' -test.v 2>&1 | grep -v "^=== RUN"
+cd /w && GOBLIN_PROXY_E2E=1 ./proxy.test -test.run '^(TestProxyE2E|TestInternalCAE2E)$' -test.v 2>&1 | grep -v "^=== RUN"
 '@ -replace 'PEBBLE_VERSION', $Pebble
     [IO.File]::WriteAllText((Join-Path $work 'run.sh'), ($script -replace "`r", ''), (New-Object System.Text.UTF8Encoding $false))
     $ErrorActionPreference = 'Continue'

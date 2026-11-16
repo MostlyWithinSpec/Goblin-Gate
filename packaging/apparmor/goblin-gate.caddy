@@ -1,0 +1,48 @@
+# Goblin Gate: AppArmor profile for Caddy (goblin-caddy.service), the
+# reverse proxy and internal CA. It faces the internet on 80 and 443, so it
+# may read its configuration and the CA certificates, keep its certificates,
+# keys and ACME account in its state directory, and open network sockets.
+# Nothing else: no programs, no other files.
+#
+# The state directory is /var/lib/goblin-caddy, which systemd's DynamicUser
+# keeps in /var/lib/private/goblin-caddy; AppArmor sees that real path.
+abi <abi/3.0>,
+include <tunables/global>
+
+profile goblin-caddy /usr/bin/caddy flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/ssl_certs>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  network unix stream,
+  network unix dgram,
+
+  # systemd stops it
+  signal (receive) peer=unconfined,
+
+  /usr/bin/caddy mr,
+
+  # the config, copied in by the unit
+  /run/goblin-caddy/ r,
+  /run/goblin-caddy/caddy.json r,
+
+  # certificates, keys, the ACME account, the internal CA and the locks
+  # around them
+  /var/lib/{,private/}goblin-caddy/ rw,
+  /var/lib/{,private/}goblin-caddy/** rwkl,
+
+  /etc/mime.types r,
+  /etc/machine-id r,
+  /usr/share/zoneinfo/** r,
+  @{PROC}/sys/net/core/somaxconn r,
+  @{sys}/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  @{sys}/fs/cgroup/** r,
+  owner @{PROC}/@{pid}/** r,
+
+  include if exists <local/goblin-gate.caddy>
+}

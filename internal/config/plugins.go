@@ -26,7 +26,7 @@ type Plugin struct {
 }
 
 // PluginCapabilities are the capabilities a plugin can ask for.
-var PluginCapabilities = []string{"events:read", "stats:read", "config:read", "notify:send", "blocks:read", "blocks:write", "devices:read", "policies:toggle"}
+var PluginCapabilities = []string{"events:read", "stats:read", "config:read", "notify:send", "blocks:read", "blocks:write", "devices:read", "policies:toggle", "objects:write"}
 
 // MaxPluginPolicies is how many policies one plugin may switch.
 const MaxPluginPolicies = 32

@@ -1,0 +1,6 @@
+[
+ {"Name":"bridge","Id":"aaa111","Scope":"local","Driver":"bridge"},
+ {"Name":"host","Id":"bbb222","Scope":"local","Driver":"host"},
+ {"Name":"none","Id":"ccc333","Scope":"local","Driver":"null"},
+ {"Name":"lan20","Id":"ddd444","Scope":"local","Driver":"macvlan","Options":{"parent":"eth0.20"}}
+]

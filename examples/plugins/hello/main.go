@@ -1,4 +1,7 @@
-// Command hello is the example Goblin Gate plugin (docs/dev/plugins.md).
+// Command hello is the fixture of the plugin framework's systemd test
+// (scripts/linux-plugin-test.ps1). To write a plugin, start from
+// plugins/hello instead, which is built on pkg/pluginsdk.
+//
 // Every interval it asks goblind who it is, reads the latest events and tries to read the config,
 // logging what goblind allowed. With notify:send it sends one greeting on
 // start. Standard library only.

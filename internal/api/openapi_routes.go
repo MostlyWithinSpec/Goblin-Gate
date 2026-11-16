@@ -11,6 +11,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/diag"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/flowexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
@@ -96,27 +97,33 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/v1/system/backup": {Tag: "System", Summary: "Download a backup", Desc: "A zip with the running configuration and its history. It contains password hashes and secrets.", Content: "application/zip"},
 	"POST /api/v1/system/restore": {Tag: "System", Summary: "Load a backup as the candidate", Desc: "The zip as the body (application/zip) or as the form field `backup`.",
 		Upload: "application/zip", Resp: obj{{"status", str}, {"hostname", str}, {"message", str}}},
-	"POST /api/v1/system/reboot":              {Tag: "System", Summary: "Restart the box", Resp: status, Status: 202},
-	"GET /api/v1/system/updates":              {Tag: "System", Summary: "Installed and available versions", Query: []queryParam{{Name: "refresh", Desc: "1 = check now instead of using the last check (slow)"}}, Resp: ret((*updates.Manager).Check)},
-	"POST /api/v1/system/updates/apply":       {Tag: "System", Summary: "Start an update", Desc: "goblind restarts during the update; poll GET /api/v1/system/updates until last.state is no longer running.", Body: typ[updateApplyRequest](), Resp: status, Status: 202},
-	"GET /api/v1/admins":                      {Tag: "Admins", Summary: "Admin accounts", Resp: obj{{"admins", typ[[]adminInfo]()}}},
-	"POST /api/v1/admins":                     {Tag: "Admins", Summary: "Add an admin", Body: typ[adminRequest](), Resp: obj{{"admin", typ[adminInfo]()}}, Status: 201},
-	"PATCH /api/v1/admins/{name}":             {Tag: "Admins", Summary: "Change an admin's role or password", Desc: "A new password signs that admin out everywhere.", Body: typ[adminUpdateRequest](), Resp: status},
-	"DELETE /api/v1/admins/{name}":            {Tag: "Admins", Summary: "Delete an admin", Resp: status},
-	"POST /api/v1/notifications/test":         {Tag: "System", Summary: "Send a test notification", Body: typ[notifyTestRequest](), Resp: status},
-	"GET /api/v1/checks":                      {Tag: "Checks", Summary: "Goblin Checks: the network audit", Resp: ret(checks.Run)},
-	"POST /api/v1/checks/dismiss":             {Tag: "Checks", Summary: "Dismiss a finding", Body: typ[dismissRequest](), Resp: status},
-	"DELETE /api/v1/checks/dismiss/{key}":     {Tag: "Checks", Summary: "Show a dismissed finding again", Resp: status},
+	"POST /api/v1/system/reboot":          {Tag: "System", Summary: "Restart the box", Resp: status, Status: 202},
+	"GET /api/v1/system/updates":          {Tag: "System", Summary: "Installed and available versions", Query: []queryParam{{Name: "refresh", Desc: "1 = check now instead of using the last check (slow)"}}, Resp: ret((*updates.Manager).Check)},
+	"POST /api/v1/system/updates/apply":   {Tag: "System", Summary: "Start an update", Desc: "goblind restarts during the update; poll GET /api/v1/system/updates until last.state is no longer running.", Body: typ[updateApplyRequest](), Resp: status, Status: 202},
+	"GET /api/v1/admins":                  {Tag: "Admins", Summary: "Admin accounts", Resp: obj{{"admins", typ[[]adminInfo]()}}},
+	"POST /api/v1/admins":                 {Tag: "Admins", Summary: "Add an admin", Body: typ[adminRequest](), Resp: obj{{"admin", typ[adminInfo]()}}, Status: 201},
+	"PATCH /api/v1/admins/{name}":         {Tag: "Admins", Summary: "Change an admin's role or password", Desc: "A new password signs that admin out everywhere.", Body: typ[adminUpdateRequest](), Resp: status},
+	"DELETE /api/v1/admins/{name}":        {Tag: "Admins", Summary: "Delete an admin", Resp: status},
+	"POST /api/v1/notifications/test":     {Tag: "System", Summary: "Send a test notification", Body: typ[notifyTestRequest](), Resp: status},
+	"GET /api/v1/checks":                  {Tag: "Checks", Summary: "Goblin Checks: the network audit", Resp: ret(checks.Run)},
+	"POST /api/v1/checks/dismiss":         {Tag: "Checks", Summary: "Dismiss a finding", Body: typ[dismissRequest](), Resp: status},
+	"DELETE /api/v1/checks/dismiss/{key}": {Tag: "Checks", Summary: "Show a dismissed finding again", Resp: status},
+	"GET /api/v1/internal-ca":             {Tag: "Network", Summary: "Internal CA state", Desc: "Whether the internal CA runs, its root certificate (subject, SHA-256 fingerprint, validity) once made, the ACME directory URLs for the LAN and the reverse proxy names with internal certificates.", Resp: typ[InternalCAStatus]()},
+	"GET /api/v1/internal-ca/root.crt": {Tag: "Network", Open: true, Summary: "Internal CA root certificate", Desc: "PEM, or DER with format=der (the type phones offer to install). No login: a root certificate is public. 404 while the CA is off or has no root yet.",
+		Query: []queryParam{{Name: "format", Desc: "pem (default) or der"}}, Content: "application/x-pem-file"},
 	"GET /api/v1/reverse-proxy":               {Tag: "Network", Summary: "Reverse proxy state and certificates", Desc: "Whether the reverse proxy (Caddy) runs, and for each published domain its certificate and the latest error getting one.", Resp: ret((*reverseproxy.Reader).Status)},
 	"GET /api/v1/ups":                         {Tag: "System", Summary: "UPS state", Resp: ret((*ups.Manager).Status)},
 	"GET /api/v1/git-backup":                  {Tag: "System", Summary: "Configuration history in git: state and deploy key", Resp: ret((*gitbackup.Manager).Status)},
 	"POST /api/v1/git-backup/push":            {Tag: "System", Summary: "Push the configuration history now", Resp: ret((*gitbackup.Manager).Status)},
 	"POST /api/v1/git-backup/forget-host-key": {Tag: "System", Summary: "Forget the git server's pinned host key", Resp: ret((*gitbackup.Manager).Status)},
 	"GET /api/v1/log-export":                  {Tag: "Logs", Summary: "Log export destinations and their state", Resp: obj{{"entries", ret((*logexport.Exporter).Status)}}},
-	"GET /api/v1/ui/dashboards":               {Tag: "UI", Summary: "The caller's dashboards", Desc: "A JSON document the web UI owns.", Resp: anyObject{}},
-	"PUT /api/v1/ui/dashboards":               {Tag: "UI", Summary: "Store the caller's dashboards", Body: anyObject{}, Resp: status},
-	"GET /api/v1/ui/prefs":                    {Tag: "UI", Summary: "The caller's UI preferences", Resp: obj{{"language", str}}},
-	"PUT /api/v1/ui/prefs":                    {Tag: "UI", Summary: "Store the caller's UI preferences", Body: obj{{"language", str}}, Resp: status},
+	"GET /api/v1/flow-export": {Tag: "Logs", Summary: "NetFlow v9 / IPFIX export state",
+		Desc: "The sampled connections (see /api/v1/flows) go to the collector as NetFlow v9 or IPFIX over UDP. Records are sampled every 3 s, so a connection shorter than one sample may be missing.",
+		Resp: ret((*flowexport.Exporter).Status)},
+	"GET /api/v1/ui/dashboards": {Tag: "UI", Summary: "The caller's dashboards", Desc: "A JSON document the web UI owns.", Resp: anyObject{}},
+	"PUT /api/v1/ui/dashboards": {Tag: "UI", Summary: "Store the caller's dashboards", Body: anyObject{}, Resp: status},
+	"GET /api/v1/ui/prefs":      {Tag: "UI", Summary: "The caller's UI preferences", Resp: obj{{"language", str}}},
+	"PUT /api/v1/ui/prefs":      {Tag: "UI", Summary: "Store the caller's UI preferences", Body: obj{{"language", str}}, Resp: status},
 
 	// --- authentication
 	"POST /api/v1/auth/logout":        {Tag: "Auth", Summary: "Log out (ends the session)", Resp: status},
@@ -215,10 +222,13 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/v1/stats/custom-rules": {Tag: "Logs", Summary: "Hits per custom nftables rule", Resp: obj{{"rules", typ[[]CustomHit]()}}},
 
 	// --- plugins
-	"GET /api/v1/plugins":                  {Tag: "Plugins", Summary: "Installed plugins", Resp: obj{{"plugins", ret((*plugins.Manager).List)}}},
-	"POST /api/v1/plugins/{name}/enable":   {Tag: "Plugins", Summary: "Enable a plugin (in the candidate)", Body: typ[pluginEnableRequest](), Resp: candidateSaved},
-	"POST /api/v1/plugins/{name}/disable":  {Tag: "Plugins", Summary: "Disable a plugin (in the candidate)", Resp: candidateSaved},
-	"PUT /api/v1/plugins/{name}/settings":  {Tag: "Plugins", Summary: "Change a plugin's settings (in the candidate)", Body: typ[pluginSettingsRequest](), Resp: candidateSaved},
+	"GET /api/v1/plugins":                 {Tag: "Plugins", Summary: "Installed plugins", Resp: obj{{"plugins", ret((*plugins.Manager).List)}}},
+	"POST /api/v1/plugins/{name}/enable":  {Tag: "Plugins", Summary: "Enable a plugin (in the candidate)", Body: typ[pluginEnableRequest](), Resp: candidateSaved},
+	"POST /api/v1/plugins/{name}/disable": {Tag: "Plugins", Summary: "Disable a plugin (in the candidate)", Resp: candidateSaved},
+	"PUT /api/v1/plugins/{name}/settings": {Tag: "Plugins", Summary: "Change a plugin's settings (in the candidate)", Body: typ[pluginSettingsRequest](), Resp: candidateSaved},
+	"GET /api/v1/live-objects": {Tag: "Plugins", Summary: "Live address objects and their current members",
+		Desc: "Address objects of type live are filled at runtime by the plugin named in their value (capability objects:write).",
+		Resp: obj{{"objects", typ[[]LiveObjectView]()}}},
 	"PUT /api/v1/plugins/{name}/policies":  {Tag: "Plugins", Summary: "Set the policies a plugin may switch (in the candidate)", Desc: "Needs the capability policies:toggle approved; the plugin can switch only these policies on and off.", Body: typ[pluginPoliciesRequest](), Resp: candidateSaved},
 	"/api/v1/plugins/{name}/api/{path...}": {Tag: "Plugins", Summary: "A plugin's own API", Desc: "Passed to the plugin; JSON answers only. Read-only admins may use GET only.", Body: anyJSON{}, Resp: anyJSON{}},
 }

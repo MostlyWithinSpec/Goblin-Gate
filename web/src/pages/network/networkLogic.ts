@@ -2,7 +2,7 @@
 // internal/config/validate_policy.go and validate_net.go; the server stays
 // authoritative.
 import type { DHCPServer, DNSSettings, PortForward } from '../../api/network'
-import type { Candidate, Gateway, GatewayGroup, IPv6, Route, SQM, WireGuardClient } from '../../api/objects'
+import type { Address, Candidate, Gateway, GatewayGroup, IPv6, Route, SQM, WireGuardClient } from '../../api/objects'
 
 export type Errors = Record<string, string>
 
@@ -177,6 +177,35 @@ export function cleanDHCP(s: DHCPServer): DHCPServer {
 }
 
 // Address, service and interface forms (validate_objects.go, validate_net.go).
+
+// PLUGIN_NAME mirrors config.ValidPluginName: a plugin name also becomes part
+// of a systemd unit name, so only lower-case letters, digits and dashes.
+const PLUGIN_NAME = /^[a-z][a-z0-9-]{0,31}$/
+
+export interface PluginEntry {
+  name: string
+  capabilities?: string[]
+}
+
+// validateLiveAddress mirrors config.checkLiveAddress: the value names the
+// plugin that keeps the object filled, and that plugin must have objects:write
+// approved (its entry in the candidate's plugins list). others is the saved
+// address list, so the 32-objects-per-plugin limit can be counted.
+export function validateLiveAddress(a: Address, others: Address[], plugins: PluginEntry[]): Errors {
+  const e: Errors = {}
+  const plugin = a.value.trim()
+  if (!PLUGIN_NAME.test(plugin)) {
+    e.value = 'Select the plugin that keeps this address up to date'
+    return e
+  }
+  if (!plugins.some((p) => p.name === plugin && (p.capabilities ?? []).includes('objects:write'))) {
+    e.value = `Plugin ${plugin} does not have objects:write approved: enable it with that capability first`
+    return e
+  }
+  const kept = others.filter((o) => o.name !== a.name && o.type === 'live' && o.value === plugin).length
+  if (kept >= 32) e.value = `Plugin ${plugin} keeps 32 live objects, at most 32`
+  return e
+}
 
 export function validateAddress(a: { type: string; value: string }): Errors {
   const v = a.value.trim()

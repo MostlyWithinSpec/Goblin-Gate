@@ -1,0 +1,81 @@
+# Goblin Gate: AppArmor profile for Suricata (goblin-suricata@.service).
+# Suricata parses every packet that crosses the box, so a bug in it must not
+# reach the rest of the system: it reads its configuration and rules, writes
+# its logs and runtime files, and talks NFQUEUE. Nothing else.
+#
+# The unit's privileged steps (`goblind ips-rules`, the reload signal) run
+# outside this profile. suricata-update also runs `suricata --build-info`
+# under it, which needs no more than the binary itself.
+abi <abi/3.0>,
+include <tunables/global>
+
+profile goblin-suricata /usr/bin/suricata flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+
+  # opens the queues as root, then drops to the suricata user keeping
+  # CAP_NET_ADMIN (verdicts) and CAP_SYS_NICE
+  capability net_admin,
+  capability net_raw,
+  capability sys_nice,
+  capability ipc_lock,
+  capability setuid,
+  capability setgid,
+  capability setpcap,
+  capability chown,
+  capability dac_override,
+  capability dac_read_search,
+
+  network netlink raw,
+  network unix stream,
+  network unix dgram,
+  network inet dgram,
+  network inet6 dgram,
+  network packet raw,
+
+  # systemd stops it, goblind's reload sends USR2
+  signal (receive) peer=unconfined,
+  signal (send, receive) peer=goblin-suricata,
+
+  /usr/bin/suricata mr,
+
+  # configuration rendered by goblind, the stock classification and reference files
+  /etc/suricata/ r,
+  /etc/suricata/** r,
+  /usr/share/suricata/** r,
+  # libmagic (file type detection)
+  /etc/magic r,
+  /usr/share/misc/magic.mgc r,
+  /usr/lib/file/magic.mgc r,
+
+  # rules: the per-profile builds and suricata-update's output
+  /var/lib/suricata/ r,
+  /var/lib/suricata/** r,
+
+  # logs (eve.json, goblin-<profile>.log, stats)
+  /var/log/suricata/ r,
+  /var/log/suricata/** rwk,
+
+  # pid file
+  /run/suricata-goblin-*/ r,
+  /run/suricata-goblin-*/** rwk,
+
+  # CPU and NIC layout, its own limits
+  @{sys}/devices/system/cpu/** r,
+  @{sys}/devices/system/node/ r,
+  @{sys}/devices/system/node/** r,
+  @{sys}/class/net/ r,
+  @{sys}/devices/**/net/** r,
+  @{sys}/bus/pci/devices/ r,
+  @{sys}/kernel/mm/transparent_hugepage/** r,
+  owner @{PROC}/@{pid}/** r,
+  @{PROC}/sys/kernel/** r,
+  @{PROC}/sys/net/core/** r,
+  @{PROC}/sys/vm/** r,
+  @{PROC}/cpuinfo r,
+  @{PROC}/meminfo r,
+  @{PROC}/stat r,
+  /dev/shm/** rwk,
+
+  include if exists <local/goblin-gate.suricata>
+}

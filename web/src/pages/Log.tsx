@@ -21,6 +21,7 @@ export default function Log() {
           <Link to="/log/capture" className={tab(false)}>{t('log.tab.capture')}</Link>
           <Link to="/log/live" className={tab(false)}>{t('log.tab.live')}</Link>
           <Link to="/log/export" className={tab(false)}>{t('log.tab.export')}</Link>
+          <Link to="/log/flow-export" className={tab(false)}>{t('log.tab.flow')}</Link>
         </div>
       </div>
       {charts ? <ChartBuilder /> : <LogViewer />}

@@ -18,6 +18,9 @@ type group struct {
 	// check validates a candidate file before anything is written; nil = no check.
 	// The argument is the path of a temporary copy of the new content.
 	check func(tmp string) []string
+	// checkDir is where the checked copy goes, for a checker whose AppArmor
+	// profile reads only its own directory; "" = StateDir/check.
+	checkDir string
 	// checkCopy turns a file into what check sees; nil = the file as is.
 	checkCopy func(data []byte) ([]byte, error)
 	// checkStage selects new files of the group that the check of its other
@@ -106,6 +109,8 @@ var groups = []group{
 		name:   "kea",
 		prefix: "/etc/kea/",
 		check:  func(tmp string) []string { return []string{"kea-dhcp4", "-t", tmp} },
+		// Debian's AppArmor profile lets kea-dhcp4 read /etc/kea only
+		checkDir: "/etc/kea/",
 		// kea-dhcp4 -t fails on interfaces that do not exist yet (a new VLAN
 		// only appears after networkd's activation), so check a copy without them.
 		checkCopy: keaWithoutInterfaces,

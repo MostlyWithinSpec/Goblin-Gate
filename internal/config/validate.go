@@ -62,6 +62,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkSchedules()
 	v.checkUPnP()
 	v.checkReverseProxy()
+	v.checkInternalCA()
 	v.checkRouting()
 	v.checkPortForwards()
 	v.checkDHCP()
@@ -83,6 +84,7 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkUPS()
 	v.checkIPSSettings()
 	v.checkLogExport()
+	v.checkFlowExport()
 	return v.errs
 }
 

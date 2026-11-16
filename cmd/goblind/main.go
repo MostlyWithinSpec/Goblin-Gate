@@ -38,11 +38,13 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/dhcpdns"
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
+	"github.com/networkgoblinlabs/goblin-gate/internal/flowexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
 	"github.com/networkgoblinlabs/goblin-gate/internal/ips"
+	"github.com/networkgoblinlabs/goblin-gate/internal/liveobjects"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
@@ -320,6 +322,14 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if err := geoMgr.Load(); err != nil {
 		logger.Warn("geoip: stored database unreadable, it will be downloaded again", "error", err)
 	}
+	// Live address objects (task 139): plugins with objects:write keep their
+	// members; the GeoIP manager refills every runtime set, so a set that
+	// holds countries and live members gets both in one load.
+	liveStore := &liveobjects.Store{Path: filepath.Join(dataDir, "live-objects.json")}
+	if err := liveStore.Load(); err != nil {
+		logger.Warn("live objects: state unreadable, objects start empty", "error", err)
+	}
+	geoMgr.Live = liveStore.Members
 	// custom nftables rules (task 100) are checked with nft -c, blamed on
 	// the rule nft complains about (not in --dev: no nft there)
 	checkCustom := func(ctx context.Context, cfg *config.Config) []config.ValidationError {
@@ -434,6 +444,13 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if !o.dev && runtime.GOOS == "linux" {
 		flowSampler = &flows.Sampler{Logger: logger}
 	}
+	// flow export (task 144): the sampler's observer turns each sample into
+	// NetFlow v9 / IPFIX records for a UDP collector. Configure runs with the
+	// running config below and again on every commit.
+	flowExporter := &flowexport.Exporter{Logger: logger}
+	if flowSampler != nil {
+		flowSampler.Observe = flowExporter.Observe
+	}
 	// the rule updater (started below) fetches ET Pro instead of ET Open
 	// while the running config has a code; a commit that changes it updates now
 	ipsUpd := &ips.Updater{Paths: ips.DefaultPaths, Logger: logger, ETProCode: func() string {
@@ -464,10 +481,14 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		wf.Resync(live)
 		dnsSync.Resync(live)
 		feedSync.Resync(live)
+		if dropped := liveStore.Prune(liveobjects.Owned(live)); len(dropped) > 0 {
+			logger.Info("live objects: members dropped (object removed or given to another plugin)", "objects", dropped)
+		}
 		geoMgr.Resync(live)
 		dhcpNames.Resync(ctx) // a commit restarts Unbound, which drops runtime names
 		if flowSampler != nil {
 			flowSampler.SetLocalPrefixes(render.InternalPrefixes(live))
+			flowExporter.Configure(live.FlowExport)
 		}
 	}
 	go dhcpNames.Run(ctx)
@@ -507,6 +528,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 
 	apiServer := api.NewServer(store, engine)
 	apiServer.GeoIP = geoMgr
+	apiServer.LiveObjects = liveStore
+	apiServer.RefillLive = geoMgr.RefillLive
 	apiServer.CheckCustom = checkCustom
 	apiServer.CrowdSec = csMgr
 	apiServer.Dismissed = &checks.Dismissals{Path: filepath.Join(dataDir, "checks", "dismissed.json")}
@@ -591,6 +614,11 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		apiServer.Flows = flowSampler
 		flowSampler.Names = deviceNames(devStore)
 		go flowSampler.Run(ctx)
+		if cfg, err := store.Running(); err == nil {
+			flowExporter.Configure(cfg.FlowExport)
+		}
+		apiServer.FlowExport = flowExporter
+		go flowExporter.Run(ctx)
 	}
 	gwMon.SetChanged(func(st gateways.Status) {
 		kind, title := "wan_up", "Gateway "+st.Name+" is up again"

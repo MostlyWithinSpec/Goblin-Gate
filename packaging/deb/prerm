@@ -3,4 +3,12 @@ set -e
 if [ "$1" = remove ] && [ -d /run/systemd/system ]; then
 	systemctl stop goblind.service || true
 fi
+# The Unbound profile's local override includes a file from this package:
+# take the include out before the file goes, and reload the profile.
+if [ "$1" = remove ] && [ -f /etc/apparmor.d/local/usr.sbin.unbound ]; then
+	sed -i '\|^include "/usr/share/goblin-gate/apparmor/unbound"$|d' /etc/apparmor.d/local/usr.sbin.unbound || true
+	if command -v apparmor_parser >/dev/null 2>&1 && aa-enabled -q 2>/dev/null && [ -f /etc/apparmor.d/usr.sbin.unbound ]; then
+		apparmor_parser -r -T -W /etc/apparmor.d/usr.sbin.unbound || true
+	fi
+fi
 exit 0

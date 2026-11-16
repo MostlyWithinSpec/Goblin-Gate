@@ -54,6 +54,28 @@ If you committed with a confirmation window, wait: it rolls back on its own. Oth
 menu option 4 (shell), then `goblin -c "rollback <revision>"` with the last good revision (System →
 Revisions lists them; `goblin -c "history"` on the shell).
 
+## A service fails after I changed files by hand
+
+The IPS (Suricata), DNS (Unbound), DHCP (Kea) and reverse proxy (Caddy) run under AppArmor: each may only
+read and write the files Goblin Gate gives it. If you point one of them at a file somewhere else from the
+shell (a custom rule file, a certificate), it is refused, and the kernel log says so:
+
+```sh
+journalctl -k | grep 'apparmor="DENIED"'
+```
+
+The line names the program (`profile=`) and the file (`name=`). To allow it, add a rule to the local
+override for that profile, then reload it:
+
+| Service | Local override | Reload |
+|---|---|---|
+| Suricata | `/etc/apparmor.d/local/goblin-gate.suricata` | `apparmor_parser -r /etc/apparmor.d/goblin-gate.suricata` |
+| Caddy | `/etc/apparmor.d/local/goblin-gate.caddy` | `apparmor_parser -r /etc/apparmor.d/goblin-gate.caddy` |
+| Unbound | `/etc/apparmor.d/local/usr.sbin.unbound` | `apparmor_parser -r /etc/apparmor.d/usr.sbin.unbound` |
+
+A rule is one line, such as `/srv/rules/my.rules r,` (read) or `/srv/out/** rw,` (read and write). Updates
+keep the local overrides.
+
 ## Diagnostics
 
 System → Diagnostics runs checks from the box itself (admins only):

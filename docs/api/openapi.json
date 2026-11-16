@@ -87,6 +87,73 @@
         ],
         "type": "object"
       },
+      "api.InternalCAStatus": {
+        "properties": {
+          "acme": {
+            "type": "boolean"
+          },
+          "acme_directories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "internal_hosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifetime_hours": {
+            "type": "integer"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "root": {
+            "$ref": "#/components/schemas/api.RootCertificate"
+          }
+        },
+        "required": [
+          "acme",
+          "acme_directories",
+          "enabled",
+          "internal_hosts",
+          "lifetime_hours",
+          "ready"
+        ],
+        "type": "object"
+      },
+      "api.LiveObjectView": {
+        "properties": {
+          "members": {
+            "items": {
+              "format": "cidr",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "updated": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "members",
+          "name",
+          "plugin"
+        ],
+        "type": "object"
+      },
       "api.NICView": {
         "properties": {
           "device": {
@@ -154,6 +221,31 @@
           "rx_queues",
           "speed_mbps",
           "tx_queues"
+        ],
+        "type": "object"
+      },
+      "api.RootCertificate": {
+        "properties": {
+          "not_after": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "not_before": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "not_after",
+          "not_before",
+          "sha256",
+          "subject"
         ],
         "type": "object"
       },
@@ -1429,6 +1521,9 @@
             },
             "type": "array"
           },
+          "flow_export": {
+            "$ref": "#/components/schemas/config.FlowExport"
+          },
           "gateway_groups": {
             "items": {
               "$ref": "#/components/schemas/config.GatewayGroup"
@@ -1452,6 +1547,9 @@
               "$ref": "#/components/schemas/config.Interface"
             },
             "type": "array"
+          },
+          "internal_ca": {
+            "$ref": "#/components/schemas/config.InternalCA"
           },
           "ips": {
             "$ref": "#/components/schemas/config.IPSSettings"
@@ -1817,6 +1915,26 @@
         ],
         "type": "object"
       },
+      "config.FlowExport": {
+        "properties": {
+          "active_timeout_seconds": {
+            "type": "integer"
+          },
+          "collector": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "protocol": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
       "config.Gateway": {
         "properties": {
           "address": {
@@ -2056,6 +2174,32 @@
           "mode",
           "name",
           "role"
+        ],
+        "type": "object"
+      },
+      "config.InternalCA": {
+        "properties": {
+          "acme": {
+            "type": "boolean"
+          },
+          "acme_allow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lifetime_hours": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
         ],
         "type": "object"
       },
@@ -2448,6 +2592,9 @@
           },
           "insecure_skip_verify": {
             "type": "boolean"
+          },
+          "issuer": {
+            "type": "string"
           },
           "name": {
             "type": "string"
@@ -3366,6 +3513,50 @@
           "name",
           "type",
           "url"
+        ],
+        "type": "object"
+      },
+      "flowexport.Status": {
+        "properties": {
+          "collector": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "last_error": {
+            "type": "string"
+          },
+          "last_sent": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "open_flows": {
+            "type": "integer"
+          },
+          "packets_sent": {
+            "type": "integer"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "records_dropped": {
+            "type": "integer"
+          },
+          "records_sent": {
+            "type": "integer"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "open_flows",
+          "packets_sent",
+          "records_dropped",
+          "records_sent",
+          "running"
         ],
         "type": "object"
       },
@@ -7732,6 +7923,49 @@
         "x-goblin-scope": "actions"
       }
     },
+    "/api/v1/flow-export": {
+      "get": {
+        "description": "The sampled connections (see /api/v1/flows) go to the collector as NetFlow v9 or IPFIX over UDP. Records are sampled every 3 s, so a connection shorter than one sample may be missing.",
+        "operationId": "getFlowExport",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/flowexport.Status"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "NetFlow v9 / IPFIX export state",
+        "tags": [
+          "Logs"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
     "/api/v1/flows": {
       "get": {
         "operationId": "getFlows",
@@ -8243,6 +8477,102 @@
         "x-goblin-scope": "admin"
       }
     },
+    "/api/v1/internal-ca": {
+      "get": {
+        "description": "Whether the internal CA runs, its root certificate (subject, SHA-256 fingerprint, validity) once made, the ACME directory URLs for the LAN and the reverse proxy names with internal certificates.",
+        "operationId": "getInternalCa",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.InternalCAStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Internal CA state",
+        "tags": [
+          "Network"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/internal-ca/root.crt": {
+      "get": {
+        "description": "PEM, or DER with format=der (the type phones offer to install). No login: a root certificate is public. 404 while the CA is off or has no root yet.",
+        "operationId": "getInternalCaRootCrt",
+        "parameters": [
+          {
+            "description": "pem (default) or der",
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-pem-file": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [],
+        "summary": "Internal CA root certificate",
+        "tags": [
+          "Network"
+        ]
+      }
+    },
     "/api/v1/ips/rules": {
       "get": {
         "operationId": "getIpsRules",
@@ -8281,6 +8611,57 @@
         "summary": "IPS rule downloads",
         "tags": [
           "Security"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/live-objects": {
+      "get": {
+        "description": "Address objects of type live are filled at runtime by the plugin named in their value (capability objects:write).",
+        "operationId": "getLiveObjects",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "objects": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.LiveObjectView"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Live address objects and their current members",
+        "tags": [
+          "Plugins"
         ],
         "x-goblin-scope": "read"
       }
