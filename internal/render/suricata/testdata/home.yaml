@@ -36,6 +36,13 @@ vars:
 nfq:
   mode: accept
   fail-open: yes
+# Only rules drop traffic. Suricata 7's inline default (exception-policy auto
+# = drop-flow) kills a whole connection when Suricata itself hits a problem:
+# a stream gap (a lost packet, or one fail-open let through), a parser error
+# after it, a memcap, a flow picked up mid-stream after a restart. Long and
+# parallel downloads then stall and fail. Like fail-open, this keeps the
+# network up over inspection.
+exception-policy: ignore
 host-mode: router
 sensor-name: "goblin-home"
 
