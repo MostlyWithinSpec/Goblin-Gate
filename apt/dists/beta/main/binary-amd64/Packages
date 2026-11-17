@@ -34,6 +34,23 @@ Description: Home Assistant integration for Goblin Gate
 
 Package: goblin-gate-plugin-homeassistant
 Architecture: amd64
+Version: 0.3.0~beta.1.1
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Depends: goblin-gate (>= 0.3.0~beta.1.1)
+Filename: pool/beta/goblin-gate-plugin-homeassistant_0.3.0.beta.1.1_amd64.deb
+Size: 2205192
+MD5sum: c1b2405bef833718db42744dec1f6f39
+SHA1: 59b2d4562c79a5f8caebe63e38ee9f75934decbe
+SHA256: e473cf9fb837d5fc28cb2040c941c1e20029d91832c3112a6b6b829bfc4fa274
+SHA512: 5ea3ad34284c7051412d3492680de871f4816380880ca214ab0a55d8ee234ce90fd5aeeef1f6b143e6807b0725e1338a627560f9f8b3fd466cfc05edaa47c191
+Description: Home Assistant integration for Goblin Gate
+ Publishes WAN, gateway and box sensors, presence of chosen devices and
+ switches for chosen policies to Home Assistant over MQTT discovery.
+
+Package: goblin-gate-plugin-homeassistant
+Architecture: amd64
 Version: 0.3.0~beta.1
 Priority: optional
 Section: net
@@ -48,6 +65,23 @@ SHA512: d1a36320d9e869e75e64f0c54850948ff3d84f4edc1a4addfdecda75817419f2c1b5636d
 Description: Home Assistant integration for Goblin Gate
  Publishes WAN, gateway and box sensors, presence of chosen devices and
  switches for chosen policies to Home Assistant over MQTT discovery.
+
+Package: goblin-gate-plugin-homelab
+Architecture: amd64
+Version: 0.3.0~beta.1.1
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Depends: goblin-gate (>= 0.3.0~beta.1.1)
+Filename: pool/beta/goblin-gate-plugin-homelab_0.3.0.beta.1.1_amd64.deb
+Size: 2250188
+MD5sum: 0f492a7e011dfe6947e6beea80129742
+SHA1: fb264304692b26d1b36b736bab437e4b8fb3ed88
+SHA256: bc7d53eda1bf04e0209b7a58d9ceecd0982fc8518f3f1b09c389f5f8a2a36fdb
+SHA512: d9e277a5a6306b91adba414c12a9a9fbe6aad90921f69406b6a86d40dde712ce807e3f9f73b2ff704cd3307f5968b49379c584896005d55e5e03b74d1a098dff
+Description: Homelab plugin for Goblin Gate
+ Keeps live address objects filled with the addresses of Proxmox VE
+ guests and Docker containers, chosen by tag, label or name.
 
 Package: goblin-gate-plugin-homelab
 Architecture: amd64
@@ -283,6 +317,23 @@ MD5sum: d402c03e1e9e81f10cb4c348059d165f
 SHA1: da640639283d13b0af00464d194a54a1aa54bba3
 SHA256: ed692046e8e674362e9392ea66479a41ccf1bdf6c5cb48ca2dc3b50da6bffc6b
 SHA512: 195d58739119610b16308d76779ba7e321d9159012586db5d512bf938e57e9be09a1e079d6e9caa599a07547f645a5e9fd10a967eb2deab1ab10cbcefe7b0d1a
+Description: Goblin Sentry for Goblin Gate
+ Turns IPS alerts into incidents and answers them with temporary blocks,
+ notifications and an approval queue.
+
+Package: goblin-gate-plugin-sentry
+Architecture: amd64
+Version: 0.3.0~beta.1.1
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Depends: goblin-gate (>= 0.3.0~beta.1.1)
+Filename: pool/beta/goblin-gate-plugin-sentry_0.3.0.beta.1.1_amd64.deb
+Size: 2472408
+MD5sum: e5316bf71cac1342a4e9c8cb64bb4b13
+SHA1: f61ed44d971d7cb7875cb4d62888a752fd376638
+SHA256: 4804dc898e4e4725292e2b3f6930a235d158eb5d439bddcccdcbf4e8547dff79
+SHA512: a325ead91deb2aee275e8697abe902f66b0d308d04199290ea3e000609e2269b19e0a06ac25d8b2faa8dada918dc1c1975d09c1703cdc5342734aae74894f8a6
 Description: Goblin Sentry for Goblin Gate
  Turns IPS alerts into incidents and answers them with temporary blocks,
  notifications and an approval queue.
@@ -650,6 +701,28 @@ MD5sum: 968d97b86a8031db4ac4b20f849514b6
 SHA1: 998c78b671a63ea0e667d262d344c3e8f94ae779
 SHA256: 8cf4381836fb208f928b801f77cabd2e8bd96cfb91750825d33d564da3e9107e
 SHA512: deb81a1f913b0ff4585e679f2dae42b771b8b0289f03226ae526d7c69bec7b57b3cd13fea5b22b13ffa04e4f93df4202778ca881bc1d3bcb50df9ccb3bed3788
+Description: Goblin Gate firewall
+ A home and small-office firewall and router: nftables policies, DHCP
+ (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
+ filter, application control, WireGuard and Tailscale, managed through
+ a web UI, a FortiOS-style CLI and a console menu.
+
+Package: goblin-gate
+Architecture: amd64
+Version: 0.3.0~beta.1.1
+Priority: optional
+Section: net
+Maintainer: Network Goblin Labs <goblin@localhost>
+Installed-Size: 34328
+Depends: systemd, systemd-sysv, systemd-timesyncd, dbus, libnss-systemd, udev, iproute2, nftables, kea-dhcp4-server, unbound, dns-root-data, ulogd2, ulogd2-json, wireguard-tools, ca-certificates, apparmor, iputils-ping, tcpdump, traceroute, ethtool, unattended-upgrades, git
+Recommends: suricata (>= 7), suricata-update, tailscale, miniupnpd-nftables, nut-client, nut-server, iperf3, caddy
+Conflicts: ifupdown2, network-manager, systemd-resolved
+Filename: pool/beta/goblin-gate_0.3.0.beta.1.1_amd64.deb
+Size: 9052824
+MD5sum: be5e76f57ec2622117db71ac59a4d2dd
+SHA1: a0cc526e9a87b87108d48a28cf7d1abb76c8b591
+SHA256: ff56e4eae76e8c3ab2becc335837fcc78c7be15871bcd1f810b49284f3b87ed4
+SHA512: 8b81b9fe56fbbc5d3f8cfe5143840d187d605c459a2f8adcb18d7862488e74a90b9fc8ee86007c2710e9a5a6fa0fb1171ee3e6e29dd4641a337c827ba6ef9340
 Description: Goblin Gate firewall
  A home and small-office firewall and router: nftables policies, DHCP
  (Kea), DNS with filtering (Unbound), threat feeds, Suricata IPS, a web
