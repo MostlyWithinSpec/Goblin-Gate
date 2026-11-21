@@ -1,0 +1,59 @@
+[Unit]
+Description=Goblin Gate RADIUS (FreeRADIUS)
+Documentation=https://www.freeradius.org/documentation/
+# goblind writes the configuration while RADIUS is on; FreeRADIUS asks
+# goblind (127.0.0.1:18122) for every decision.
+After=network-online.target nftables.service goblind.service
+Wants=network-online.target
+ConditionPathExists=/etc/goblingate/radius/radiusd.conf
+ConditionPathExists=/usr/sbin/freeradius
+
+[Service]
+Type=simple
+User=freerad
+Group=freerad
+# /etc/goblingate is root's: root ("+") copies the configuration (secrets,
+# the server key) into the runtime directory, readable by freerad only.
+RuntimeDirectory=goblin-radius
+RuntimeDirectoryMode=0700
+ExecStartPre=+/bin/sh -c 'find /run/goblin-radius -mindepth 1 -delete && cp -R /etc/goblingate/radius/. /run/goblin-radius/ && chown -R freerad:freerad /run/goblin-radius && chmod -R u=rwX,go= /run/goblin-radius'
+ExecStartPre=/usr/sbin/freeradius -C -d /run/goblin-radius -n radiusd
+ExecStart=/usr/sbin/freeradius -f -l stdout -d /run/goblin-radius -n radiusd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+
+# high ports only: no capabilities at all
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+LogsDirectory=freeradius
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+# FreeRADIUS sets its (unchanged) user ids at start; without capabilities
+# that can give it nothing
+SystemCallFilter=@setuid
+UMask=0077
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

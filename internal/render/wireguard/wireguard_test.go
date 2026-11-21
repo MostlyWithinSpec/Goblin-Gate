@@ -91,3 +91,25 @@ func TestClientGolden(t *testing.T) {
 		}
 	}
 }
+
+// TestSitesGolden (task 155): one device per directly connected site, the
+// sites reached through it routed into it, nothing for a disabled site.
+func TestSitesGolden(t *testing.T) {
+	files, err := Renderer{}.Render(rendertest.Sites())
+	if err != nil || len(files) != 2 {
+		t.Fatalf("%v %v", len(files), err)
+	}
+	for p, got := range files {
+		golden := filepath.Join("testdata", "site-"+filepath.Base(p))
+		if *update {
+			os.WriteFile(golden, got, 0o644)
+		}
+		want, err := os.ReadFile(golden)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != strings.ReplaceAll(string(want), "\r\n", "\n") {
+			t.Errorf("%s:\n%s", p, got)
+		}
+	}
+}

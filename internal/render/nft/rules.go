@@ -713,3 +713,30 @@ func (r *ruleset) wireguard() {
 		}
 	}
 }
+
+// sites opens each site tunnel's port on WAN and lets the other gates ping
+// this one (the reachability check) plus the sites' allow_access (task 155).
+// Traffic between a site and the local networks is decided by policies on
+// the site's zone (its name).
+func (r *ruleset) sites() {
+	wan := r.wanMatch()
+	adminPort := r.cfg.System.AdminPort
+	if adminPort == 0 {
+		adminPort = DefaultPort
+	}
+	for _, s := range r.cfg.DirectSites() {
+		if wan != "" {
+			r.input = append(r.input, fmt.Sprintf("iifname %s udp dport %d accept comment %s", wan, s.ListenPort, quote("site "+s.Name)))
+		}
+		in := "iifname " + quote(s.Name)
+		r.input = append(r.input, fmt.Sprintf("%s icmp type echo-request accept comment %s", in, quote("site "+s.Name+": ping")))
+		for _, a := range r.cfg.VPN.Sites.AllowAccess {
+			switch a {
+			case "https":
+				r.input = append(r.input, fmt.Sprintf("%s tcp dport %d accept comment %s", in, adminPort, quote("site "+s.Name+": https admin")))
+			case "ssh":
+				r.input = append(r.input, fmt.Sprintf("%s tcp dport %d accept comment %s", in, sshPort, quote("site "+s.Name+": ssh admin")))
+			}
+		}
+	}
+}

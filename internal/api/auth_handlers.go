@@ -37,6 +37,7 @@ type Authenticator struct {
 	dummyOnce sync.Once
 	dummy     string
 	totp      totpState
+	sso       ssoState
 }
 
 // NewAuthenticator returns an Authenticator with fresh sessions and limiter.
@@ -88,16 +89,58 @@ func clientAddr(r *http.Request) string {
 // currentRole returns the role of an admin with a password in the running
 // config, or "" if there is no such user any more.
 func (s *Server) currentRole(user string) string {
+	role, _ := s.currentAccess(user)
+	return role
+}
+
+// currentAccess returns the user's role in the running config and, for a
+// custom role, its scopes (read first); "" when the user can't log in. A
+// role the config doesn't define (it can't pass validation) counts as
+// readonly.
+func (s *Server) currentAccess(user string) (string, []string) {
 	cfg, err := s.Store.Running()
 	if err != nil {
-		return ""
+		return "", nil
 	}
 	for _, a := range cfg.Admins {
 		if a.Username == user && a.PasswordHash != "" {
-			return a.Role
+			if auth.BuiltinRole(a.Role) {
+				return a.Role, nil
+			}
+			if sc, ok := cfg.RoleScopes(a.Role); ok {
+				return a.Role, sc
+			}
+			return a.Role, []string{auth.ScopeRead}
 		}
 	}
-	return ""
+	return "", nil
+}
+
+// sessionAccess is currentAccess for a session: an SSO session keeps the role
+// it got at sign-in, as long as SSO is still on and the role still exists.
+func (s *Server) sessionAccess(id auth.Identity) (string, []string) {
+	if id.Via != "sso" {
+		return s.currentAccess(id.User)
+	}
+	cfg, err := s.Store.Running()
+	if err != nil || !cfg.SSO.Enabled || !cfg.HasRole(id.Role) {
+		return "", nil
+	}
+	if auth.BuiltinRole(id.Role) {
+		return id.Role, nil
+	}
+	sc, _ := cfg.RoleScopes(id.Role)
+	return id.Role, sc
+}
+
+// selfService are the routes a logged-in user may use on their own account
+// whatever their role: log out, change the password, set up two-factor login.
+var selfService = map[string]bool{
+	"POST /api/v1/auth/logout":      true,
+	"POST /api/v1/auth/password":    true,
+	"POST /api/v1/auth/2fa/setup":   true,
+	"POST /api/v1/auth/2fa/enable":  true,
+	"POST /api/v1/auth/2fa/disable": true,
 }
 
 func safeMethod(m string) bool {
@@ -127,19 +170,19 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "unauthorized", "invalid API token", nil)
 				return
 			}
-			role := s.currentRole(ti.User)
+			role, roleScopes := s.currentAccess(ti.User)
 			if role == "" {
 				writeError(w, http.StatusUnauthorized, "unauthorized", "the token's user no longer exists", nil)
 				return
 			}
 			if ti.Role == "readonly" {
-				role = "readonly" // a token never has more rights than it was made with
+				role, roleScopes = "readonly", nil // a token never has more rights than it was made with
 			}
 			if ip, err := netip.ParseAddr(clientAddr(r)); err != nil || !ti.AllowsAddr(ip) {
 				writeError(w, http.StatusForbidden, "forbidden", "this token may not be used from this address", nil)
 				return
 			}
-			id = auth.Identity{User: ti.User, Role: role, Method: "token", Token: ti.ID, Scopes: ti.Scopes}
+			id = auth.Identity{User: ti.User, Role: role, RoleScopes: roleScopes, Method: "token", Token: ti.ID, Scopes: ti.Scopes}
 		default:
 			c, err := r.Cookie(SessionCookie)
 			var ok bool
@@ -150,26 +193,35 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "unauthorized", "log in first", nil)
 				return
 			}
-			role := s.currentRole(id.User)
+			role, roleScopes := s.sessionAccess(id)
 			if role == "" {
+				if id.Via == "sso" {
+					a.Sessions.Delete(id)
+					writeError(w, http.StatusUnauthorized, "unauthorized", "single sign-on is off or your role is gone; sign in again", nil)
+					return
+				}
 				a.Sessions.DeleteUser(id.User)
 				writeError(w, http.StatusUnauthorized, "unauthorized", "the user no longer exists", nil)
 				return
 			}
-			id.Role = role
+			id.Role, id.RoleScopes = role, roleScopes
 			if !safeMethod(r.Method) && !id.CheckCSRF(r.Header.Get(CSRFHeader)) {
 				writeError(w, http.StatusForbidden, "csrf_failed", "missing or wrong "+CSRFHeader+" header", nil)
 				return
 			}
 		}
-		if id.Scopes != nil {
-			// a scoped token (task 102): the route decides
+		if id.Limited() {
+			// a scoped token (task 102) or a custom role: the route decides
 			sc := routeScope(r.Method, r.Pattern)
-			if !allowedScope(id, sc) {
-				writeError(w, http.StatusForbidden, "forbidden", "this token lacks the scope for this request", map[string]string{"needs": sc})
+			if !allowedScope(id, sc) && !(id.Method == "session" && selfService[r.Pattern]) {
+				msg := "this token lacks the scope for this request"
+				if id.Scopes == nil {
+					msg = "your role does not allow this"
+				}
+				writeError(w, http.StatusForbidden, "forbidden", msg, map[string]string{"needs": sc})
 				return
 			}
-			if !safeMethod(r.Method) {
+			if id.Method == "token" && !safeMethod(r.Method) {
 				s.audit(r, "token_used", id.User, map[string]any{"token": id.Token, "scope": sc, "method": r.Method, "path": r.URL.Path})
 			}
 		} else if !safeMethod(r.Method) && !id.CanWrite() && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/auth/password" &&
@@ -307,14 +359,18 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	if cfg, err := s.Store.Running(); err == nil {
 		totp = adminTOTP(cfg, id.User) != ""
 	}
-	writeJSON(w, http.StatusOK, meResponse{id, totp})
+	writeJSON(w, http.StatusOK, meResponse{id, totp, id.Effective(), id.CanWrite()})
 }
 
-// meResponse is who is asking: the identity plus whether two-factor login
-// is on for them.
+// meResponse is who is asking: the identity, whether two-factor login is on
+// for them, the scopes they hold (what the web may offer) and whether they
+// are a full admin (accounts, plugins, updates and the other admin-only
+// routes).
 type meResponse struct {
 	auth.Identity
-	TOTPEnabled bool `json:"totp_enabled"`
+	TOTPEnabled bool     `json:"totp_enabled"`
+	Permissions []string `json:"permissions"`
+	FullAdmin   bool     `json:"full_admin"`
 }
 
 func (s *Server) requireAdmin(w http.ResponseWriter, r *http.Request) (auth.Identity, bool) {
@@ -432,6 +488,9 @@ func (s *Server) listSessions(w http.ResponseWriter, r *http.Request) {
 			"id": si.ID, "user": si.User, "role": si.Role, "addr": si.Addr,
 			"user_agent": si.UserAgent, "created": si.Created, "last_seen": si.LastSeen,
 			"current": si.ID == caller,
+		}
+		if si.Via != "" {
+			m["via"] = si.Via // "sso": the web shows a badge for it
 		}
 		out = append(out, m)
 	}

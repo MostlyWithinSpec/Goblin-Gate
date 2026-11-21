@@ -95,6 +95,9 @@ func Protected(cfg *config.Config, ip netip.Addr, c Check) string {
 	for _, wc := range cfg.VPN.WireGuardClients {
 		is(wc.Address.Addr(), "an address of the box")
 	}
+	if cfg.VPN.Sites.Enabled && cfg.VPN.Sites.Address.IsValid() {
+		is(cfg.VPN.Sites.Address, "an address of the box")
+	}
 	for _, a := range cfg.DNS.Forwarders {
 		is(a, "a DNS server the box uses")
 	}

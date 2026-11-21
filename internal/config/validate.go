@@ -67,6 +67,9 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkPortForwards()
 	v.checkDHCP()
 	v.checkFeedsAndAdmins()
+	v.roles()
+	v.checkSSO()
+	v.checkDynamicRouting()
 	v.checkDNSFilters()
 	v.checkIPSProfiles()
 	v.checkWebFilters()
@@ -85,6 +88,8 @@ func Validate(cfg *Config) []ValidationError {
 	v.checkIPSSettings()
 	v.checkLogExport()
 	v.checkFlowExport()
+	v.checkCaptivePortals()
+	v.checkRADIUS()
 	return v.errs
 }
 
@@ -194,8 +199,8 @@ func (v *validator) checkFeedsAndAdmins() {
 		}
 	}
 	for i, a := range v.cfg.Admins {
-		if !oneOf(a.Role, "admin", "readonly") {
-			v.add(fmt.Sprintf("admins[%d].role", i), "unknown role %q: want admin or readonly", a.Role)
+		if !v.cfg.HasRole(a.Role) {
+			v.add(fmt.Sprintf("admins[%d].role", i), "unknown role %q: want admin, readonly or a role under roles", a.Role)
 		}
 		if a.TOTPSecret != "" {
 			if b, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(a.TOTPSecret); err != nil || len(b) != 20 {
@@ -430,6 +435,13 @@ func (v *validator) checkWireGuard() {
 			}
 		}
 	}
+	for _, w := range v.cfg.VPN.WireGuardClients {
+		taken[w.Name] = true
+	}
+	if v.cfg.VPN.Tailscale.Enabled {
+		taken[TailscaleInterface] = true
+	}
+	v.checkSites(taken, ports)
 }
 
 func (v *validator) checkAppCtrl() {

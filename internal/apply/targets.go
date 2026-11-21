@@ -236,6 +236,38 @@ var groups = []group{
 		},
 	},
 	{
+		// Dynamic routing (FRR): runs while BGP or OSPF is on. frr.conf holds
+		// BGP passwords, so it is readable by group frr only. vtysh checks it
+		// before anything is written. A config change is applied by
+		// frr-reload.py (sessions stay up); a change of the daemons file
+		// stops FRR first, so the activation starts it with the new daemons.
+		name:      "frr",
+		prefix:    "/etc/frr/",
+		mode:      0o640,
+		fileGroup: "frr",
+		check: func(tmp string) []string {
+			if !strings.HasSuffix(tmp, ".conf") {
+				return nil
+			}
+			// without FRR the commit fails here, before anything changed:
+			// say what to install instead of "vtysh: not found"
+			return []string{"sh", "-c", `command -v vtysh >/dev/null || { echo "BGP and OSPF need FRR: apt-get install frr frr-pythontools" >&2; exit 1; }; exec vtysh --dryrun --inputfile "$1"`, "sh", tmp}
+		},
+		prepare: func(file string, old, new []byte) []string {
+			if path.Base(file) != "daemons" || old == nil || new == nil {
+				return nil
+			}
+			return ifUnit(frrUnit, "stop")
+		},
+		activate: func(files []string) [][]string {
+			if len(files) == 0 {
+				return [][]string{ifUnit(frrUnit, "disable --now")}
+			}
+			return [][]string{{"systemctl", "enable", frrUnit}, {"sh", "-c",
+				"if systemctl is-active -q " + frrUnit + " && [ -x /usr/lib/frr/frr-reload.py ]; then systemctl reload " + frrUnit + "; else systemctl restart " + frrUnit + "; fi"}}
+		},
+	},
+	{
 		// Reverse proxy (Caddy): runs while its config exists. After the nft
 		// group, which redirects WAN ports 80 and 443 to it.
 		name:   "caddy",
@@ -271,6 +303,28 @@ var groups = []group{
 			default: // remote NUT server: upsmon only
 				return [][]string{ifUnit(nutServer, "disable --now"), {"systemctl", "enable", nutMonitor}, {"systemctl", "restart", nutMonitor}}
 			}
+		},
+	},
+	{
+		// RADIUS (FreeRADIUS): runs while RADIUS is on. The files hold the
+		// clients' shared secrets, the hook password and the server key:
+		// root only; goblin-radius.service copies them for the freerad user.
+		// Debian's own freeradius.service stays masked (it would take the
+		// same ports with the stock configuration).
+		name:   "radius",
+		prefix: "/etc/goblingate/radius/",
+		mode:   0o600,
+		check: func(tmp string) []string {
+			if !strings.HasSuffix(tmp, ".conf") {
+				return nil
+			}
+			return []string{"sh", "-c", `[ -x /usr/sbin/freeradius ] && [ -e /usr/lib/freeradius/rlm_rest.so ] || { echo "RADIUS needs FreeRADIUS: apt-get install freeradius freeradius-rest" >&2; exit 1; }`}
+		},
+		activate: func(files []string) [][]string {
+			if len(files) == 0 {
+				return [][]string{ifUnit(radiusUnit, "disable --now")}
+			}
+			return [][]string{{"systemctl", "mask", "--now", "freeradius.service"}, {"systemctl", "enable", radiusUnit}, {"systemctl", "restart", radiusUnit}}
 		},
 	},
 	{
@@ -310,8 +364,13 @@ const (
 // upnpUnit runs miniupnpd (internal/render/upnp.Unit).
 const upnpUnit = "goblin-miniupnpd.service"
 
+const frrUnit = "frr.service"
+
 // caddyUnit runs the reverse proxy (internal/render/caddy.Unit).
 const caddyUnit = "goblin-caddy.service"
+
+// radiusUnit runs FreeRADIUS (internal/render/radius.Unit).
+const radiusUnit = "goblin-radius.service"
 
 // ifUnit runs `systemctl <verb> <unit>` only when the unit is installed, so a
 // box without it (no sshd, a different time daemon) can still commit.

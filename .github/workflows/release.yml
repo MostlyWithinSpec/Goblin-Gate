@@ -55,7 +55,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" -w /src -e VERSION="${{ steps.v.outputs.version }}" \
             -e GOFLAGS=-buildvcs=false golang:1.26-bookworm \
-            bash -c "bash scripts/build-deb.sh && bash plugins/sentry/build-deb.sh dist && bash plugins/homeassistant/build-deb.sh dist && bash plugins/homelab/build-deb.sh dist"
+            bash -c "bash scripts/build-deb.sh && bash plugins/sentry/build-deb.sh dist && bash plugins/homeassistant/build-deb.sh dist && bash plugins/homelab/build-deb.sh dist && bash plugins/unifi/build-deb.sh dist"
           ls -l dist
 
       - name: installer ISO
@@ -105,6 +105,38 @@ jobs:
           git add -A
           git commit -q -m "apt: ${{ steps.v.outputs.version }} -> $CHANNEL"
           git push origin gh-pages
+
+  terraform-provider:
+    # The Terraform / OpenTofu provider as release assets, named the way the
+    # registries expect: one zip per platform, SHA256SUMS and the manifest.
+    if: github.repository == 'MostlyWithinSpec/Goblin-Gate' && github.ref_type == 'tag'
+    needs: build # the release exists by then
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: terraform-provider-goblingate/go.mod
+          cache-dependency-path: terraform-provider-goblingate/go.sum
+      - name: build
+        working-directory: terraform-provider-goblingate
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          N=terraform-provider-goblingate
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            exe="${N}_v${V}"; [ "$os" = windows ] && exe="$exe.exe"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags "-s -w -X main.version=$V" -o "build/$exe" .
+            (cd build && zip -q "../dist/${N}_${V}_${os}_${arch}.zip" "$exe" && rm "$exe")
+          done
+          cp terraform-registry-manifest.json "dist/${N}_${V}_manifest.json"
+          (cd dist && sha256sum *.zip "${N}_${V}_manifest.json" > "${N}_${V}_SHA256SUMS")
+          ls -l dist
+      - name: upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" --clobber terraform-provider-goblingate/dist/*
 
   demo-image:
     # The demo as a container anyone can run on their own computer:

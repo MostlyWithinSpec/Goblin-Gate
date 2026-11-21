@@ -24,6 +24,9 @@ var Routes = map[string]string{
 
 	"GET /api/v1/plugin/objects":        "objects:write",
 	"PUT /api/v1/plugin/objects/{name}": "objects:write",
+
+	"GET /api/v1/plugin/devices/annotations": "devices:annotate",
+	"PUT /api/v1/plugin/devices/annotations": "devices:annotate",
 }
 
 // RouteCapability returns the capability a route needs and whether

@@ -8,6 +8,8 @@ type VPN struct {
 	WireGuard []WireGuard `json:"wireguard,omitempty"`
 	// WireGuardClients are tunnels to VPN providers used as gateways (task 049).
 	WireGuardClients []WireGuardClient `json:"wireguard_clients,omitempty"`
+	// Sites is the site-to-site VPN between gates (task 155).
+	Sites Sites `json:"sites,omitzero"`
 }
 
 // WireGuardKeyDir holds the WireGuard servers' private keys (one

@@ -200,6 +200,28 @@ describe('Admins tab', () => {
     await waitFor(() => expect(sys.deleteSession).toHaveBeenCalledWith('ffeeddccbbaa9988'))
   })
 
+  test('an SSO session is marked as coming through sso in the sessions list', async () => {
+    vi.mocked(sys.getSessionList).mockResolvedValue([
+      { id: 'a1b2c3d4e5f60718', user: 'alice', role: 'admin', via: 'sso', addr: '10.0.0.9', user_agent: 'Chrome/120.0', created: new Date().toISOString(), last_seen: new Date().toISOString(), current: true },
+      { id: 'ffeeddccbbaa9988', user: 'root', role: 'admin', addr: '10.0.0.1', user_agent: 'Firefox/121.0', created: new Date().toISOString(), last_seen: new Date().toISOString() },
+    ])
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Active sessions')
+    const row = await screen.findByRole('row', { name: /alice/ })
+    expect(within(row).getByText('via sso')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /root/ })).not.toHaveTextContent('via sso')
+  })
+
+  test('an SSO session has no two-factor card: the provider handles it', async () => {
+    vi.mocked(auth.getMe).mockResolvedValue({ user: 'alice', role: 'admin', method: 'session', via: 'sso' })
+    wrap(<System />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admins' }))
+    await screen.findByText('Two-factor authentication')
+    expect(screen.getByText('You signed in with single sign-on: two-factor login belongs to your identity provider.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Set up/ })).toBeNull()
+  })
+
   test('sign out is skipped when confirm is declined', async () => {
     vi.mocked(sys.getSessionList).mockResolvedValue([
       { id: 'ffeeddccbbaa9988', user: 'alice', role: 'readonly', addr: '10.0.0.42', user_agent: 'Firefox/121.0', created: new Date().toISOString(), last_seen: new Date().toISOString() },

@@ -40,6 +40,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flowexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
+	"github.com/networkgoblinlabs/goblin-gate/internal/frr"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
@@ -50,8 +51,10 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
+	"github.com/networkgoblinlabs/goblin-gate/internal/radius"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render"
 	caddyrender "github.com/networkgoblinlabs/goblin-gate/internal/render/caddy"
+	frrrender "github.com/networkgoblinlabs/goblin-gate/internal/render/frr"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/kea"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/netif"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
@@ -64,6 +67,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/unbound"
 	upnprender "github.com/networkgoblinlabs/goblin-gate/internal/render/upnp"
 	wgrender "github.com/networkgoblinlabs/goblin-gate/internal/render/wireguard"
+	"github.com/networkgoblinlabs/goblin-gate/internal/sites"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/throughput"
@@ -291,8 +295,10 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		dnsSync.Update(name)
 	}
 
-	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, caddyrender.Renderer{}, sqmrender.Renderer{}, nicrender.Renderer{},
-		nutrender.Renderer{Secret: nutSecret(filepath.Join(dataDir, "nut", "monitor.secret"))}}
+	radiusState := newRadiusState(dataDir)
+	radiusR, radiusToken := radiusRenderer(dataDir, radiusState)
+	renderers := []commit.Renderer{netif.Renderer{}, nft.Renderer{}, kea.Renderer{}, unbound.Renderer{Feeds: feedMgr}, suricata.Renderer{}, tsrender.Renderer{}, wgrender.Renderer{}, sysrender.Renderer{}, upnprender.Renderer{}, caddyrender.Renderer{}, sqmrender.Renderer{}, nicrender.Renderer{}, frrrender.Renderer{},
+		nutrender.Renderer{Secret: nutSecret(filepath.Join(dataDir, "nut", "monitor.secret"))}, radiusR}
 	engine := commit.New(store, renderers, applier)
 	engine.Logger = logger
 	// Web filter (task 033): goblind answers the DNS of web-filtered
@@ -326,6 +332,10 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	// members; the GeoIP manager refills every runtime set, so a set that
 	// holds countries and live members gets both in one load.
 	liveStore := &liveobjects.Store{Path: filepath.Join(dataDir, "live-objects.json")}
+	annStore := &devices.AnnotationStore{Path: filepath.Join(dataDir, "device-annotations.json")}
+	if err := annStore.Load(); err != nil {
+		logger.Warn("device annotations: starting empty", "error", err)
+	}
 	if err := liveStore.Load(); err != nil {
 		logger.Warn("live objects: state unreadable, objects start empty", "error", err)
 	}
@@ -402,6 +412,19 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	if o.dev {
 		blockMgr.Run = func(context.Context, []byte) error { return nil }
 	}
+	// captive portal: let-in guests are nft set elements, put back after
+	// every ruleset load like the temporary blocks
+	// RADIUS: FreeRADIUS asks the hook; the device inventory is set below
+	radiusMgr := &radius.Manager{
+		Logger: logger,
+		Config: func() *config.Config {
+			c, _ := workerConfig()
+			return c
+		},
+		State:    radiusState,
+		Annotate: radiusAnnotate(annStore, logger),
+	}
+	portalMgr := newPortal(filepath.Join(dataDir, "portal", "state.json"), workerConfig, o.dev, logger)
 	// throughput test server (task 119): its port is open on one interface
 	// through an nft set, refilled after every ruleset load
 	var tpMgr *throughput.Manager
@@ -466,6 +489,8 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 			ipsUpd.Kick()
 		}
 		blockMgr.Resync(ctx)
+		portalMgr.Resync(live)
+		radiusMgr.Prune()
 		csMgr.Resync(ctx)
 		if tpMgr != nil {
 			tpMgr.Resync()
@@ -483,6 +508,9 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 		feedSync.Resync(live)
 		if dropped := liveStore.Prune(liveobjects.Owned(live)); len(dropped) > 0 {
 			logger.Info("live objects: members dropped (object removed or given to another plugin)", "objects", dropped)
+		}
+		if dropped := annStore.Prune(api.AnnotatingPlugins(live)); len(dropped) > 0 {
+			logger.Info("device annotations dropped (plugin disabled or devices:annotate withdrawn)", "plugins", dropped)
 		}
 		geoMgr.Resync(live)
 		dhcpNames.Resync(ctx) // a commit restarts Unbound, which drops runtime names
@@ -512,6 +540,7 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 			return rev
 		},
 	}
+	radiusMgr.Devices = devStore
 	if !o.dev {
 		go devStore.Run(ctx)
 	}
@@ -529,6 +558,10 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	apiServer := api.NewServer(store, engine)
 	apiServer.GeoIP = geoMgr
 	apiServer.LiveObjects = liveStore
+	apiServer.Annotations = annStore
+	if !o.dev {
+		apiServer.FRR = frr.VTYSH
+	}
 	apiServer.RefillLive = geoMgr.RefillLive
 	apiServer.CheckCustom = checkCustom
 	apiServer.CrowdSec = csMgr
@@ -770,9 +803,16 @@ func serve(ctx context.Context, o options, ready chan<- string) error {
 	apiServer.UI = &api.UIStore{Dir: filepath.Join(dataDir, "ui")}
 	apiServer.WebFilter = wf
 	apiServer.WireGuardKeyDir = wgKeyDir
+	apiServer.SiteInvites = &sites.Invites{Path: filepath.Join(dataDir, "sites", "invitations.json")}
+	apiServer.Portal = portalMgr
+	apiServer.Radius = radiusMgr
+	apiServer.RadiusState = radiusState
+	startRadius(ctx, radiusMgr, radiusToken, logger)
+	startPortal(ctx, portalMgr, workerConfig, o.dev, logger)
 	if !o.dev {
 		apiServer.Tailscale = &tailscale.Client{}
 		apiServer.WireGuardStats = api.WireGuardStats
+		apiServer.SitePing = api.PingSite
 	}
 	if err := startWebFilter(ctx, wf, o.dev, filepath.Join(dataDir, "webfilter"), store, logger); err != nil {
 		return err

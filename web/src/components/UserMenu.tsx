@@ -97,7 +97,9 @@ export default function UserMenu() {
     setTimeout(poll, 5000)
   }
 
-  const canRestart = me?.role === 'admin'
+  // POST /api/v1/system/reboot is for full admins: a custom role or a scoped
+  // token is refused, so the item stays hidden for them.
+  const canRestart = me?.full_admin !== false
   const canSignOut = me?.method === 'session'
 
   return (
@@ -112,11 +114,16 @@ export default function UserMenu() {
       >
         <User size={16} />
         <span>{me?.user ?? '…'}</span>
-        {me?.role === 'readonly' && <span className="text-xs text-gray-500">{t('menu.readOnly')}</span>}
+        {me && me.full_admin === false && <span className="text-xs text-gray-500">{t('menu.limitedRole', { role: me.role })}</span>}
         <ChevronDown size={14} />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 z-50 mt-1 w-56 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+          {me?.via === 'sso' && (
+            <p className="border-b border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              {t('menu.signedInViaSSO')}
+            </p>
+          )}
           {langs.length > 1 && (
             <label className="block border-b border-gray-200 px-3 py-2.5 dark:border-gray-700">
               <span className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{t('menu.language')}</span>

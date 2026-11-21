@@ -7,7 +7,6 @@ import (
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/api"
 	"github.com/networkgoblinlabs/goblin-gate/internal/blocks"
-	"github.com/networkgoblinlabs/goblin-gate/internal/devices"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
@@ -55,7 +54,7 @@ func TestTypesMatchGoblind(t *testing.T) {
 		{Gateway{}, gateways.Status{}},
 		{GatewayReport{}, gateways.Report{}},
 		{Block{}, blockAnswer{}},
-		{Device{}, devices.Device{}},
+		{Device{}, api.DeviceView{}},
 		{Policy{}, api.PluginPolicy{}},
 		{LiveObject{}, api.LiveObjectView{}},
 	}

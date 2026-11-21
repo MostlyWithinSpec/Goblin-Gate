@@ -54,6 +54,10 @@ func NetworkFrom(cfg *config.Config) *Network {
 	if cfg.VPN.Tailscale.Enabled {
 		n.internal = append(n.internal, namedPrefix{"tailscale", netip.MustParsePrefix("100.64.0.0/10")})
 	}
+	// the other sites' networks are ours too (site-to-site VPN)
+	for p, zone := range cfg.RemoteSiteNetworks() {
+		n.internal = append(n.internal, namedPrefix{zone, p})
+	}
 	for _, d := range cfg.DHCP {
 		for _, l := range d.StaticLeases {
 			if l.Hostname != "" {

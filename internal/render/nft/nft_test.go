@@ -122,6 +122,10 @@ func fullConfig() *config.Config {
 		{Name: "game", InIntf: "wan1", ExtPort: "27000-27010", Protocol: "udp", ToAddr: "192.168.1.20"},
 	}
 	cfg.UPnP = config.UPnP{Enabled: true, Interfaces: []string{"lan"}}
+	cfg.Routing.BGP = config.BGP{Enabled: true, AS: 65001, Neighbors: []config.BGPNeighbor{
+		{Address: netip.MustParseAddr("192.0.2.1"), RemoteAS: 64512, Enabled: true},
+		{Address: netip.MustParseAddr("2001:db8::1"), RemoteAS: 64512, Enabled: true}}}
+	cfg.Routing.OSPF = config.OSPF{Enabled: true, Areas: []config.OSPFArea{{ID: "0", Interfaces: []config.OSPFInterface{{Name: "lan"}}}}}
 	return cfg
 }
 

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/networkgoblinlabs/goblin-gate/pkg/pluginsdk"
 )
 
 // fakeServer answers GET paths (with query) from testdata files; a value
@@ -155,11 +157,11 @@ func TestProxmoxErrors(t *testing.T) {
 	// the self-signed certificate, pinned by fingerprint
 	block, _ := pem.Decode([]byte(pki.ServerCert))
 	sum := sha256.Sum256(block.Bytes)
-	if _, err := NewProxmox(settings(map[string]any{"proxmox_fingerprint": colonHex(sum[:])})).Guests(ctx); err != nil {
+	if _, err := NewProxmox(settings(map[string]any{"proxmox_fingerprint": pluginsdk.ColonHex(sum[:])})).Guests(ctx); err != nil {
 		t.Errorf("pinned: %v", err)
 	}
 	sum[0] ^= 1
-	if _, err := NewProxmox(settings(map[string]any{"proxmox_fingerprint": colonHex(sum[:])})).Guests(ctx); err == nil || !strings.Contains(err.Error(), "fingerprint") {
+	if _, err := NewProxmox(settings(map[string]any{"proxmox_fingerprint": pluginsdk.ColonHex(sum[:])})).Guests(ctx); err == nil || !strings.Contains(err.Error(), "fingerprint") {
 		t.Errorf("wrong pin: %v", err)
 	}
 	// neither: the system's CAs do not know it

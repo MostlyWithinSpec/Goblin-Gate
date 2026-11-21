@@ -10,15 +10,16 @@ import (
 
 // Capabilities a plugin may ask for in its manifest.
 const (
-	CapEventsRead     = "events:read"
-	CapStatsRead      = "stats:read"
-	CapConfigRead     = "config:read"
-	CapNotifySend     = "notify:send"
-	CapBlocksRead     = "blocks:read"
-	CapBlocksWrite    = "blocks:write"
-	CapDevicesRead    = "devices:read"
-	CapPoliciesToggle = "policies:toggle"
-	CapObjectsWrite   = "objects:write"
+	CapEventsRead      = "events:read"
+	CapStatsRead       = "stats:read"
+	CapConfigRead      = "config:read"
+	CapNotifySend      = "notify:send"
+	CapBlocksRead      = "blocks:read"
+	CapBlocksWrite     = "blocks:write"
+	CapDevicesRead     = "devices:read"
+	CapPoliciesToggle  = "policies:toggle"
+	CapObjectsWrite    = "objects:write"
+	CapDevicesAnnotate = "devices:annotate"
 )
 
 // --- plugin/self (every plugin)
@@ -331,6 +332,8 @@ type Device struct {
 	LastSeen   time.Time `json:"last_seen"`
 	Name       string    `json:"name,omitempty"` // the admin's label
 	Randomized bool      `json:"randomized,omitempty"`
+	// Annotations are the fields plugins attached, by plugin name.
+	Annotations map[string]map[string]string `json:"annotations,omitempty"`
 }
 
 // Devices reads the device inventory (devices:read).
@@ -414,4 +417,34 @@ func (c *Client) SetLiveObject(ctx context.Context, name string, members []strin
 	var out LiveChange
 	err := c.Do(ctx, "PUT", "/api/v1/plugin/objects/"+url.PathEscape(name), map[string][]string{"members": members}, &out)
 	return out, err
+}
+
+// --- devices:annotate
+
+// DeviceAnnotations returns the fields this plugin attached to devices, by
+// MAC (12 lowercase hex digits) (devices:annotate).
+func (c *Client) DeviceAnnotations(ctx context.Context) (map[string]map[string]string, error) {
+	var out struct {
+		Devices map[string]map[string]string `json:"devices"`
+	}
+	err := c.Do(ctx, "GET", "/api/v1/plugin/devices/annotations", nil, &out)
+	return out.Devices, err
+}
+
+// SetDeviceAnnotations replaces this plugin's device annotations as a whole
+// (devices:annotate): by MAC, at most 4096 devices, each with at most 8
+// fields named like port or ssid_name (lowercase letters, digits and _, at
+// most 24) and values of at most 64 printable characters. The admin sees
+// them next to the device, read-only; nothing matches on them. An empty map
+// clears them. goblind answers 429 after 360 changes in an hour; sending the
+// same set again is free.
+func (c *Client) SetDeviceAnnotations(ctx context.Context, devices map[string]map[string]string) (changed bool, err error) {
+	if devices == nil {
+		devices = map[string]map[string]string{}
+	}
+	var out struct {
+		Changed bool `json:"changed"`
+	}
+	err = c.Do(ctx, "PUT", "/api/v1/plugin/devices/annotations", map[string]any{"devices": devices}, &out)
+	return out.Changed, err
 }

@@ -1,0 +1,20 @@
+{
+  "name": "unifi",
+  "version": "0.1.0",
+  "description": "UniFi: fills live addresses with the clients of UniFi networks and Wi-Fi networks, and shows which switch port or access point each device is on. Read-only: it never changes the controller.",
+  "min_goblind": "0.3.0~beta.2",
+  "capabilities": ["objects:write", "devices:annotate"],
+  "settings_schema": {
+    "type": "object",
+    "properties": {
+      "url": {"type": "string", "maxLength": 255, "description": "the UniFi console, such as https://192.168.1.2 (Cloud Key, Dream Machine) or https://unifi.lan:8443 (self-hosted Network application)"},
+      "api_key": {"type": "string", "maxLength": 128, "secret": true, "description": "a local API key: UniFi Network on the console, Settings → Control Plane → Integrations (keys from unifi.ui.com don't work locally)"},
+      "fingerprint": {"type": "string", "maxLength": 128, "description": "SHA-256 fingerprint of the console's certificate (for its self-signed one), such as AB:CD:..."},
+      "ca": {"type": "string", "maxLength": 16384, "description": "or: the CA certificate (PEM) that signed it; with neither, the system's CAs"},
+      "site": {"type": "string", "maxLength": 64, "description": "the site's short name, as in the console's address bar (default: default)"},
+      "network_objects": {"type": "array", "items": {"type": "string"}, "maxLength": 64, "description": "object=network, such as iot=IoT: the clients on that UniFi network go into that object"},
+      "ssid_objects": {"type": "array", "items": {"type": "string"}, "maxLength": 64, "description": "object=SSID, such as guests=Home Guest: the clients on that Wi-Fi network go into that object"},
+      "interval_seconds": {"type": "integer", "minimum": 15, "maximum": 3600, "default": 60, "description": "how often the clients are read"}
+    }
+  }
+}

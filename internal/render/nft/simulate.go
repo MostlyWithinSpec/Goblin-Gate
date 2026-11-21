@@ -286,8 +286,23 @@ func (s *sim) internal(a netip.Addr) bool {
 	return false
 }
 
+// siteZone is the zone of the remote site whose networks hold a (the most
+// specific one), "" when none (task 155).
+func (s *sim) siteZone(a netip.Addr) string {
+	best, bits := "", -1
+	for p, zone := range s.r.cfg.RemoteSiteNetworks() {
+		if p.Contains(a) && p.Bits() > bits {
+			best, bits = zone, p.Bits()
+		}
+	}
+	return best
+}
+
 // boxAddr reports whether a is one of the box's own (static) addresses.
 func (s *sim) boxAddr(a netip.Addr) bool {
+	if sa := s.r.cfg.VPN.Sites.Address; s.r.cfg.VPN.Sites.Enabled && sa.IsValid() && sa == a {
+		return true
+	}
 	for _, n := range s.ifaceNets() {
 		if n.pfx.Addr() == a {
 			return true
@@ -314,6 +329,9 @@ func (s *sim) sourceIntf(f SimFlow) (string, string, error) {
 		if n.pfx.Masked().Contains(f.SrcIP) && n.pfx.Bits() > bits {
 			best, bits = n.name, n.pfx.Bits()
 		}
+	}
+	if best == "" {
+		best = s.siteZone(f.SrcIP)
 	}
 	if best != "" {
 		return best, "", nil
@@ -365,6 +383,9 @@ func (s *sim) egress(dst netip.Addr) (string, string) {
 		if n.pfx.Masked().Contains(dst) && n.pfx.Bits() > bits {
 			best, bits = n.name, n.pfx.Bits()
 		}
+	}
+	if best == "" {
+		best = s.siteZone(dst)
 	}
 	if best != "" {
 		return best, ""
@@ -450,6 +471,11 @@ func (s *sim) allowAccess(name string) []string {
 	for _, w := range s.r.cfg.VPN.WireGuard {
 		if w.Name == name {
 			return w.AllowAccess
+		}
+	}
+	for _, st := range s.r.cfg.DirectSites() {
+		if st.Name == name {
+			return append([]string{"ping"}, s.r.cfg.VPN.Sites.AllowAccess...)
 		}
 	}
 	return nil

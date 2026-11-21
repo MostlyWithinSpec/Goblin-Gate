@@ -45,7 +45,7 @@ printf 'nameserver 127.0.0.1\n' > /etc/resolv.conf 2>/dev/null || true
 # still come from the CD. goblind comments out the installer's cdrom: line
 # when it writes the APT sources (apply group "apt").
 
-# AppArmor: Goblin Gate's profiles for Suricata and Caddy, and its additions to
+# AppArmor: Goblin Gate's profiles for Suricata, Caddy and FRR, and its additions to
 # Debian's Unbound profile (through the profile's local override). They are
 # loaded now, so the daemons restarted below start confined.
 AA_UNBOUND=/etc/apparmor.d/local/usr.sbin.unbound
@@ -54,7 +54,7 @@ mkdir -p /etc/apparmor.d/local
 [ -f "$AA_UNBOUND" ] || : > "$AA_UNBOUND"
 grep -qxF "$AA_LINE" "$AA_UNBOUND" || printf '%s\n' "$AA_LINE" >> "$AA_UNBOUND"
 if command -v apparmor_parser >/dev/null 2>&1 && aa-enabled -q 2>/dev/null; then
-	for p in goblin-gate.suricata goblin-gate.caddy usr.sbin.unbound; do
+	for p in goblin-gate.suricata goblin-gate.caddy goblin-gate.frr goblin-gate.freeradius usr.sbin.unbound; do
 		[ -f "/etc/apparmor.d/$p" ] && apparmor_parser -r -T -W "/etc/apparmor.d/$p" || true
 	done
 fi
@@ -75,6 +75,11 @@ systemctl mask iperf3.service >/dev/null 2>&1 || true
 # a default page on port 80. Masked before caddy is installed, too.
 systemctl stop caddy.service caddy-api.service >/dev/null 2>&1 || true
 systemctl mask caddy.service caddy-api.service >/dev/null 2>&1 || true
+# FreeRADIUS runs as goblin-radius.service with goblind's configuration; the
+# stock service would take the same ports
+systemctl mask freeradius.service >/dev/null 2>&1 || true
+# installed in the same apt run, it may have started before this script ran
+if [ -d /run/systemd/system ]; then systemctl stop freeradius.service >/dev/null 2>&1 || true; fi
 for u in systemd-networkd.service nftables.service ulogd2.service unbound.service kea-dhcp4-server.service goblind.service goblin-sqm.service goblin-nic.service; do
 	systemctl enable "$u" >/dev/null 2>&1 || true
 done

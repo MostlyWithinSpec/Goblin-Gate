@@ -110,6 +110,7 @@ type ruleset struct {
 	owner       map[int]uint32      // index in forward -> id of the policy it belongs to
 	custom      map[string][]string // custom rules by "hook/position" (custom.go)
 	natCounters []counterDecl       // counters in table ip goblin_nat (custom rules)
+	portalR     *portalRules        // captive portals (portal.go; not simulated)
 }
 
 type counterDecl struct{ name, comment string }
@@ -142,13 +143,17 @@ func prepare(cfg *config.Config) (*ruleset, error) {
 	r.antiSpoof()
 	r.customRules()
 	r.wireguard()
+	r.sites()
+	r.portal()
 	r.upnpInput()
+	r.dynamicRouting()
 	r.inputRules()
 	if err := r.portForwards(); err != nil {
 		return nil, err
 	}
 	r.reverseProxy()
 	r.internalCA()
+	r.radius()
 	if err := r.policies(); err != nil {
 		return nil, err
 	}

@@ -14,6 +14,11 @@ through your home), **accept routes** (use other nodes' subnets). Tailnet traffi
 gets a config and a **QR code** to scan with the WireGuard app. Remember a policy from the WireGuard
 interface to what peers may reach. The server's private key is created on the box and stays there.
 
+## Site-to-site (between Goblin Gates)
+
+To join two Goblin Gates into one network, use **VPN → Sites**: pair them with an invitation code, no
+keys to type. See [Site-to-Site VPN](Site-to-Site-VPN).
+
 ## VPN providers (route traffic through a commercial VPN)
 
 **VPN → VPN Providers.** Add a WireGuard config from your provider (Mullvad, Proton, PIA's WireGuard, ...).

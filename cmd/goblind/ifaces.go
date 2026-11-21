@@ -101,6 +101,10 @@ func interfaceNets(cfg *config.Config, live func(dev string) []netip.Prefix) ifa
 			add(config.TailscaleInterface, &p)
 		}
 	}
+	// remote sites: their networks arrive on the zone of their tunnel
+	for p, zone := range cfg.RemoteSiteNetworks() {
+		add(zone, &p)
+	}
 	sort.SliceStable(out.nets, func(i, j int) bool { return out.nets[i].net.Bits() > out.nets[j].net.Bits() })
 	return out
 }

@@ -12,10 +12,13 @@ const tabs: [string, string][] = [
   ['upnp', t('network.upnp')],
   ['reverse-proxy', t('network.reverseProxy')],
   ['dhcp', t('network.dhcp')],
+  ['captive-portal', t('network.captivePortal')],
+  ['radius', t('network.radius')],
   ['dns', t('network.dns')],
   ['gateways', t('network.gateways')],
   ['gateway-groups', t('network.gatewayGroups')],
   ['static-routes', t('network.staticRoutes')],
+  ['routing', t('network.routing')],
   ['devices', t('network.devices')],
   ['dynamic-dns', t('network.dynamicDns')],
 ]

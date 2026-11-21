@@ -43,10 +43,13 @@ import PortForwards from './pages/network/PortForwards'
 import UPnP from './pages/network/UPnP'
 import ReverseProxy from './pages/network/ReverseProxy'
 import DHCP from './pages/network/DHCP'
+import CaptivePortal from './pages/network/CaptivePortal'
+import Radius from './pages/network/Radius'
 import DNS from './pages/network/DNS'
 import Gateways from './pages/network/Gateways'
 import GatewayGroups from './pages/network/GatewayGroups'
 import StaticRoutes from './pages/network/StaticRoutes'
+import Routing from './pages/network/Routing'
 import Devices from './pages/network/Devices'
 import DynamicDNS from './pages/network/DynamicDNS'
 import ThreatFeeds from './pages/security/ThreatFeeds'
@@ -58,6 +61,7 @@ import CrowdSec from './pages/security/CrowdSec'
 import Tailscale from './pages/Tailscale'
 import VpnWireGuard from './pages/VpnWireGuard'
 import VpnProviders from './pages/VpnProviders'
+import VpnSites from './pages/VpnSites'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Create a client
@@ -88,10 +92,13 @@ function App() {
                 <Route path="upnp" element={<UPnP />} />
                 <Route path="reverse-proxy" element={<ReverseProxy />} />
                 <Route path="dhcp" element={<DHCP />} />
+                <Route path="captive-portal" element={<CaptivePortal />} />
+                <Route path="radius" element={<Radius />} />
                 <Route path="dns" element={<DNS />} />
                 <Route path="gateways" element={<Gateways />} />
                 <Route path="gateway-groups" element={<GatewayGroups />} />
                 <Route path="static-routes" element={<StaticRoutes />} />
+                <Route path="routing" element={<Routing />} />
                 <Route path="devices" element={<Devices />} />
                 <Route path="dynamic-dns" element={<DynamicDNS />} />
               </Route>
@@ -109,6 +116,7 @@ function App() {
               <Route path="/vpn/tailscale" element={<Tailscale />} />
               <Route path="/vpn/wireguard" element={<VpnWireGuard />} />
               <Route path="/vpn/providers" element={<VpnProviders />} />
+              <Route path="/vpn/sites" element={<VpnSites />} />
               <Route path="/log" element={<Log />} />
               <Route path="/log/capture" element={<PacketCapture />} />
               <Route path="/log/live" element={<Live />} />

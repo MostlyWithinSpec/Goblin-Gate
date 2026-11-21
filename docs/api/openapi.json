@@ -41,6 +41,78 @@
         ],
         "type": "object"
       },
+      "api.DeviceVLANResult": {
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/devices.Device"
+          },
+          "disconnect": {
+            "$ref": "#/components/schemas/radius.DisconnectOutcome"
+          },
+          "disconnect_error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device"
+        ],
+        "type": "object"
+      },
+      "api.DeviceView": {
+        "properties": {
+          "annotations": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "ips": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "randomized": {
+            "type": "boolean"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "vlan": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_seen",
+          "ips",
+          "last_seen",
+          "mac"
+        ],
+        "type": "object"
+      },
       "api.ErrorBody": {
         "properties": {
           "error": {
@@ -224,6 +296,77 @@
         ],
         "type": "object"
       },
+      "api.PortalClient": {
+        "properties": {
+          "batch": {
+            "type": "string"
+          },
+          "expires": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "seconds_left": {
+            "type": "integer"
+          },
+          "started": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "voucher": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expires",
+          "interface",
+          "ip",
+          "mac",
+          "method",
+          "seconds_left",
+          "started"
+        ],
+        "type": "object"
+      },
+      "api.RadiusLog": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/radius.Event"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "type": "object"
+      },
+      "api.RadiusSessions": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/radius.Session"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
       "api.RootCertificate": {
         "properties": {
           "not_after": {
@@ -246,6 +389,49 @@
           "not_before",
           "sha256",
           "subject"
+        ],
+        "type": "object"
+      },
+      "api.RoutingStatus": {
+        "properties": {
+          "bgp": {
+            "items": {
+              "$ref": "#/components/schemas/frr.Neighbor"
+            },
+            "type": "array"
+          },
+          "bgp_enabled": {
+            "type": "boolean"
+          },
+          "ospf": {
+            "items": {
+              "$ref": "#/components/schemas/frr.OSPFNeighbor"
+            },
+            "type": "array"
+          },
+          "ospf_enabled": {
+            "type": "boolean"
+          },
+          "router_id": {
+            "type": "string"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/frr.Route"
+            },
+            "type": "array"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bgp",
+          "bgp_enabled",
+          "ospf",
+          "ospf_enabled",
+          "routes",
+          "running"
         ],
         "type": "object"
       },
@@ -360,6 +546,111 @@
         ],
         "type": "object"
       },
+      "api.SiteOffer": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "expires": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "networks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/api.SiteProblem"
+            },
+            "type": "array"
+          },
+          "public_key": {
+            "type": "string"
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "networks",
+          "problems",
+          "public_key",
+          "site"
+        ],
+        "type": "object"
+      },
+      "api.SiteProblem": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
+      "api.SiteStatus": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "handshake_age": {
+            "type": "integer"
+          },
+          "latest_handshake": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "rtt_ms": {
+            "type": "number"
+          },
+          "rx_bytes": {
+            "type": "integer"
+          },
+          "tx_bytes": {
+            "type": "integer"
+          },
+          "via": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "enabled",
+          "handshake_age",
+          "latest_handshake",
+          "name",
+          "rx_bytes",
+          "tx_bytes"
+        ],
+        "type": "object"
+      },
       "api.TailscalePeer": {
         "properties": {
           "dns_name": {
@@ -403,6 +694,83 @@
           "ips",
           "name",
           "online"
+        ],
+        "type": "object"
+      },
+      "api.VoucherBatch": {
+        "properties": {
+          "codes": {
+            "items": {
+              "$ref": "#/components/schemas/api.VoucherCode"
+            },
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "uses": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "codes",
+          "counts",
+          "created",
+          "id",
+          "minutes",
+          "uses"
+        ],
+        "type": "object"
+      },
+      "api.VoucherCode": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "first_used": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "used": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "state",
+          "used"
         ],
         "type": "object"
       },
@@ -606,6 +974,22 @@
         ],
         "type": "object"
       },
+      "api.certRequest": {
+        "properties": {
+          "days": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "api.certRevokeRequest": {
+        "properties": {
+          "serial": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "api.commitRequest": {
         "properties": {
           "comment": {
@@ -659,6 +1043,17 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "api.deviceVLANRequest": {
+        "properties": {
+          "vlan": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vlan"
         ],
         "type": "object"
       },
@@ -733,8 +1128,17 @@
       },
       "api.meResponse": {
         "properties": {
+          "full_admin": {
+            "type": "boolean"
+          },
           "method": {
             "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "role": {
             "type": "string"
@@ -753,10 +1157,15 @@
           },
           "user": {
             "type": "string"
+          },
+          "via": {
+            "type": "string"
           }
         },
         "required": [
+          "full_admin",
           "method",
+          "permissions",
           "role",
           "totp_enabled",
           "user"
@@ -865,6 +1274,17 @@
         ],
         "type": "object"
       },
+      "api.ppskRequest": {
+        "properties": {
+          "psk": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "psk"
+        ],
+        "type": "object"
+      },
       "api.privateKeyRequest": {
         "properties": {
           "private_key": {
@@ -873,6 +1293,94 @@
         },
         "required": [
           "private_key"
+        ],
+        "type": "object"
+      },
+      "api.roleInfo": {
+        "properties": {
+          "builtin": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "users": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "builtin",
+          "description",
+          "name",
+          "scopes",
+          "users"
+        ],
+        "type": "object"
+      },
+      "api.roleRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "description",
+          "name",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "api.roleUpdateRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "description",
+          "scopes"
+        ],
+        "type": "object"
+      },
+      "api.scopeInfo": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "id"
         ],
         "type": "object"
       },
@@ -912,6 +1420,63 @@
           "src_intf",
           "src_ip",
           "src_port"
+        ],
+        "type": "object"
+      },
+      "api.siteInviteRequest": {
+        "properties": {
+          "site": {
+            "type": "string"
+          },
+          "ttl_minutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "site"
+        ],
+        "type": "object"
+      },
+      "api.siteInviteView": {
+        "properties": {
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created",
+          "expires",
+          "id",
+          "port",
+          "site"
+        ],
+        "type": "object"
+      },
+      "api.siteJoinRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
         ],
         "type": "object"
       },
@@ -1060,6 +1625,41 @@
           "include_os",
           "version"
         ],
+        "type": "object"
+      },
+      "api.voucherRequest": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "uses": {
+            "type": "integer"
+          },
+          "valid_days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "minutes"
+        ],
+        "type": "object"
+      },
+      "api.voucherRevokeRequest": {
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "api.wgPeerRequest": {
@@ -1451,6 +2051,120 @@
         ],
         "type": "object"
       },
+      "config.BGP": {
+        "properties": {
+          "announce": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "as": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "neighbors": {
+            "items": {
+              "$ref": "#/components/schemas/config.BGPNeighbor"
+            },
+            "type": "array"
+          },
+          "redistribute_connected": {
+            "type": "boolean"
+          },
+          "redistribute_static": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "as",
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "config.BGPNeighbor": {
+        "properties": {
+          "address": {
+            "format": "ip",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "export": {
+            "items": {
+              "$ref": "#/components/schemas/config.PrefixRule"
+            },
+            "type": "array"
+          },
+          "import": {
+            "items": {
+              "$ref": "#/components/schemas/config.PrefixRule"
+            },
+            "type": "array"
+          },
+          "multihop": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "remote_as": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "enabled",
+          "remote_as"
+        ],
+        "type": "object"
+      },
+      "config.CaptivePortal": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "idle_minutes": {
+            "type": "integer"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "logo": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "rate_limit_mbps": {
+            "type": "integer"
+          },
+          "session_minutes": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "interface",
+          "mode"
+        ],
+        "type": "object"
+      },
       "config.Change": {
         "properties": {
           "new": {},
@@ -1485,6 +2199,12 @@
           "admins": {
             "items": {
               "$ref": "#/components/schemas/config.Admin"
+            },
+            "type": "array"
+          },
+          "captive_portals": {
+            "items": {
+              "$ref": "#/components/schemas/config.CaptivePortal"
             },
             "type": "array"
           },
@@ -1581,14 +2301,26 @@
           "profiles": {
             "$ref": "#/components/schemas/config.Profiles"
           },
+          "radius": {
+            "$ref": "#/components/schemas/config.RADIUS"
+          },
           "reverse_proxy": {
             "$ref": "#/components/schemas/config.ReverseProxy"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/config.Role"
+            },
+            "type": "array"
           },
           "routes": {
             "items": {
               "$ref": "#/components/schemas/config.Route"
             },
             "type": "array"
+          },
+          "routing": {
+            "$ref": "#/components/schemas/config.DynamicRouting"
           },
           "schedules": {
             "items": {
@@ -1610,6 +2342,9 @@
               "$ref": "#/components/schemas/config.Service"
             },
             "type": "array"
+          },
+          "sso": {
+            "$ref": "#/components/schemas/config.SSO"
           },
           "system": {
             "$ref": "#/components/schemas/config.System"
@@ -1878,6 +2613,21 @@
           "domain",
           "servers"
         ],
+        "type": "object"
+      },
+      "config.DynamicRouting": {
+        "properties": {
+          "bgp": {
+            "$ref": "#/components/schemas/config.BGP"
+          },
+          "ospf": {
+            "$ref": "#/components/schemas/config.OSPF"
+          },
+          "router_id": {
+            "format": "ip",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "config.Feed": {
@@ -2361,6 +3111,64 @@
         ],
         "type": "object"
       },
+      "config.OSPF": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/config.OSPFArea"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "redistribute_connected": {
+            "type": "boolean"
+          },
+          "redistribute_static": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "config.OSPFArea": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "interfaces": {
+            "items": {
+              "$ref": "#/components/schemas/config.OSPFInterface"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "interfaces"
+        ],
+        "type": "object"
+      },
+      "config.OSPFInterface": {
+        "properties": {
+          "cost": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "passive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "config.Offloads": {
         "properties": {
           "gro": {
@@ -2541,6 +3349,25 @@
         ],
         "type": "object"
       },
+      "config.PrefixRule": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "max_length": {
+            "type": "integer"
+          },
+          "prefix": {
+            "format": "cidr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "prefix"
+        ],
+        "type": "object"
+      },
       "config.Profiles": {
         "properties": {
           "appctrl": {
@@ -2632,6 +3459,106 @@
         ],
         "type": "object"
       },
+      "config.RADIUS": {
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/config.RADIUSClient"
+            },
+            "type": "array"
+          },
+          "dot1x": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/config.RADIUSGroup"
+            },
+            "type": "array"
+          },
+          "mab": {
+            "type": "boolean"
+          },
+          "quarantine_vlan": {
+            "type": "string"
+          },
+          "unknown": {
+            "type": "string"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/config.RADIUSUser"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "config.RADIUSClient": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "coa_port": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "name"
+        ],
+        "type": "object"
+      },
+      "config.RADIUSGroup": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "vlan": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "config.RADIUSUser": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "group": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "name"
+        ],
+        "type": "object"
+      },
       "config.ReverseProxy": {
         "properties": {
           "email": {
@@ -2677,6 +3604,27 @@
           "revision",
           "time",
           "user"
+        ],
+        "type": "object"
+      },
+      "config.Role": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
         ],
         "type": "object"
       },
@@ -2728,6 +3676,71 @@
         "required": [
           "key",
           "name"
+        ],
+        "type": "object"
+      },
+      "config.SSO": {
+        "properties": {
+          "ca_certificate": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "client_secret": {
+            "type": "string"
+          },
+          "default_role": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "groups_claim": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "redirect_url": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/config.SSORoleMap"
+            },
+            "type": "array"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "username_claim": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "config.SSORoleMap": {
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "role"
         ],
         "type": "object"
       },
@@ -2809,6 +3822,89 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "config.Site": {
+        "properties": {
+          "address": {
+            "format": "ip",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "keepalive": {
+            "type": "integer"
+          },
+          "listen_port": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "networks": {
+            "items": {
+              "format": "cidr",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "public_key": {
+            "type": "string"
+          },
+          "via": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "name"
+        ],
+        "type": "object"
+      },
+      "config.Sites": {
+        "properties": {
+          "address": {
+            "format": "ip",
+            "type": "string"
+          },
+          "allow_access": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "announce": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "networks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "remotes": {
+            "items": {
+              "$ref": "#/components/schemas/config.Site"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
         ],
         "type": "object"
       },
@@ -3066,6 +4162,9 @@
       },
       "config.VPN": {
         "properties": {
+          "sites": {
+            "$ref": "#/components/schemas/config.Sites"
+          },
           "tailscale": {
             "$ref": "#/components/schemas/config.Tailscale"
           },
@@ -3341,6 +4440,9 @@
             "type": "boolean"
           },
           "vendor": {
+            "type": "string"
+          },
+          "vlan": {
             "type": "string"
           }
         },
@@ -3654,6 +4756,116 @@
           "rate_in_bps",
           "rate_out_bps",
           "src"
+        ],
+        "type": "object"
+      },
+      "frr.Neighbor": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "prefixes_received": {
+            "type": "integer"
+          },
+          "prefixes_sent": {
+            "type": "integer"
+          },
+          "remote_as": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "up": {
+            "type": "boolean"
+          },
+          "uptime_seconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address",
+          "family",
+          "prefixes_received",
+          "prefixes_sent",
+          "remote_as",
+          "state",
+          "up",
+          "uptime_seconds"
+        ],
+        "type": "object"
+      },
+      "frr.OSPFNeighbor": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "full": {
+            "type": "boolean"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "router_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "full",
+          "interface",
+          "router_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "frr.Route": {
+        "properties": {
+          "distance": {
+            "type": "integer"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "interface": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "integer"
+          },
+          "next_hops": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "distance",
+          "installed",
+          "metric",
+          "next_hops",
+          "prefix",
+          "protocol",
+          "selected"
         ],
         "type": "object"
       },
@@ -4412,6 +5624,214 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "radius.ClientCert": {
+        "properties": {
+          "ca": {
+            "type": "string"
+          },
+          "ca_sha256": {
+            "type": "string"
+          },
+          "certificate": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "not_after": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serial": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ca",
+          "ca_sha256",
+          "certificate",
+          "key",
+          "not_after",
+          "serial",
+          "user"
+        ],
+        "type": "object"
+      },
+      "radius.DisconnectOutcome": {
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "error_cause": {
+            "type": "integer"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "nas": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client",
+          "mac",
+          "nas",
+          "result"
+        ],
+        "type": "object"
+      },
+      "radius.Event": {
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "nas": {
+            "type": "string"
+          },
+          "port": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "vlan": {
+            "type": "string"
+          },
+          "vlan_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "method",
+          "result",
+          "time"
+        ],
+        "type": "object"
+      },
+      "radius.IssuedCert": {
+        "properties": {
+          "issued": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "not_after": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revoked": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serial": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "issued",
+          "not_after",
+          "serial",
+          "user"
+        ],
+        "type": "object"
+      },
+      "radius.PPSKEntry": {
+        "properties": {
+          "mac": {
+            "type": "string"
+          },
+          "psk": {
+            "type": "string"
+          },
+          "set": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mac",
+          "psk",
+          "set"
+        ],
+        "type": "object"
+      },
+      "radius.Session": {
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "nas": {
+            "type": "string"
+          },
+          "nas_identifier": {
+            "type": "string"
+          },
+          "port": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "ssid": {
+            "type": "string"
+          },
+          "started": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          },
+          "vlan": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mac",
+          "method",
+          "nas",
+          "started",
+          "updated"
+        ],
         "type": "object"
       },
       "reverseproxy.Certificate": {
@@ -5669,6 +7089,9 @@
                           },
                           "user_agent": {
                             "type": "string"
+                          },
+                          "via": {
+                            "type": "string"
                           }
                         },
                         "type": "object"
@@ -5754,6 +7177,129 @@
           "Auth"
         ],
         "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/auth/sso": {
+      "get": {
+        "description": "For the login page: name is the text of the sign-in button.",
+        "operationId": "getAuthSso",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [],
+        "summary": "Whether single sign-on is on",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/callback": {
+      "get": {
+        "description": "Register this URL at the provider. Sets the session cookies and goes on to the web UI, or to /login?sso_error=\u003ccode\u003e (disabled, state, provider, exchange, token, refused, no_username, local_user, no_role, too_many_attempts, busy).",
+        "operationId": "getAuthSsoCallback",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [],
+        "summary": "Where the identity provider sends the browser back",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/login": {
+      "get": {
+        "description": "A browser navigation, not an API call: answers 303 to the identity provider, or to /login?sso_error=\u003ccode\u003e.",
+        "operationId": "getAuthSsoLogin",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "security": [],
+        "summary": "Start a single sign-on",
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/v1/auth/tokens": {
@@ -7105,9 +8651,16 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "annotations_updated": {
+                      "additionalProperties": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
                     "devices": {
                       "items": {
-                        "$ref": "#/components/schemas/devices.Device"
+                        "$ref": "#/components/schemas/api.DeviceView"
                       },
                       "type": "array"
                     }
@@ -7251,6 +8804,70 @@
           "Network"
         ],
         "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/devices/{mac}/vlan": {
+      "put": {
+        "description": "A VLAN name of the running configuration (\"\" = none of its own). Takes effect at once, no commit: a device with a session is disconnected and rejoins in the new VLAN. A MAC not yet in the inventory is added.",
+        "operationId": "putDevicesMacVlan",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "mac",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.deviceVLANRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.DeviceVLANResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Move a device to a VLAN",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
       }
     },
     "/api/v1/devices/{mac}/wake": {
@@ -9609,6 +11226,897 @@
         "x-goblin-scope": "read"
       }
     },
+    "/api/v1/portal/clients": {
+      "get": {
+        "operationId": "getPortalClients",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clients": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.PortalClient"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Guests let in by the captive portal",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/portal/clients/{mac}": {
+      "delete": {
+        "description": "Ends the session: the client sees the portal again.",
+        "operationId": "deletePortalClientsMac",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "mac",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Remove a guest",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/portal/preview/{interface}": {
+      "get": {
+        "description": "HTML as a guest sees it before being let in, for a frame in the admin UI.",
+        "operationId": "getPortalPreviewInterface",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "interface",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "The candidate's portal page of an interface",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/portal/vouchers": {
+      "get": {
+        "operationId": "getPortalVouchers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "batches": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.VoucherBatch"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Voucher batches with each code's state",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "read"
+      },
+      "post": {
+        "operationId": "postPortalVouchers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.voucherRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.VoucherBatch"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Make a batch of voucher codes",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/portal/vouchers/{id}": {
+      "delete": {
+        "description": "Guests let in with its codes stay until their time is up.",
+        "operationId": "deletePortalVouchersId",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Delete a batch",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/portal/vouchers/{id}/revoke": {
+      "post": {
+        "description": "Guests let in with a revoked code are removed.",
+        "operationId": "postPortalVouchersIdRevoke",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.voucherRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Revoke a batch or one code",
+        "tags": [
+          "Captive portal"
+        ],
+        "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/radius/certificates": {
+      "get": {
+        "description": "Query user: only that user's.",
+        "operationId": "getRadiusCertificates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "certificates": {
+                      "items": {
+                        "$ref": "#/components/schemas/radius.IssuedCert"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Client certificates issued for EAP-TLS",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/radius/log": {
+      "get": {
+        "description": "Kept in memory (the last 1000). Query limit: 1-1000, default 200.",
+        "operationId": "getRadiusLog",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.RadiusLog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Recent authentications, newest first",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/radius/ppsk": {
+      "get": {
+        "description": "Needs write:network: the passwords are in the answer.",
+        "operationId": "getRadiusPpsk",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "devices": {
+                      "items": {
+                        "$ref": "#/components/schemas/radius.PPSKEntry"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Per-device Wi-Fi passwords (PPSK)",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
+      }
+    },
+    "/api/v1/radius/ppsk/{mac}": {
+      "delete": {
+        "operationId": "deleteRadiusPpskMac",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "mac",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Remove a device's own Wi-Fi password",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
+      },
+      "put": {
+        "description": "8-63 printable characters, sent as Tunnel-Password to access points that support it.",
+        "operationId": "putRadiusPpskMac",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "mac",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.ppskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Set a device's own Wi-Fi password",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
+      }
+    },
+    "/api/v1/radius/sessions": {
+      "get": {
+        "description": "From post-auth and accounting; a session without accounting expires after a day.",
+        "operationId": "getRadiusSessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.RadiusSessions"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Devices let in, with their switch or access point and port",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
+    "/api/v1/radius/sessions/{mac}/disconnect": {
+      "post": {
+        "description": "The switch or access point ends the session; the device reconnects and authenticates again.",
+        "operationId": "postRadiusSessionsMacDisconnect",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "mac",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/radius.DisconnectOutcome"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Disconnect a device (RFC 5176)",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "actions"
+      }
+    },
+    "/api/v1/radius/users/{name}/certificate": {
+      "post": {
+        "description": "From the internal CA's root, common name = the user. The private key is only in this answer.",
+        "operationId": "postRadiusUsersNameCertificate",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.certRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/radius.ClientCert"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Issue an EAP-TLS client certificate",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
+      }
+    },
+    "/api/v1/radius/users/{name}/certificates/revoke": {
+      "post": {
+        "description": "One (serial) or all; devices using them are refused at their next login.",
+        "operationId": "postRadiusUsersNameCertificatesRevoke",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.certRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "revoked": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Revoke a user's certificates",
+        "tags": [
+          "RADIUS"
+        ],
+        "x-goblin-scope": "write:network"
+      }
+    },
     "/api/v1/reverse-proxy": {
       "get": {
         "description": "Whether the reverse proxy (Caddy) runs, and for each published domain its certificate and the latest error getting one.",
@@ -9761,6 +12269,287 @@
           "Config"
         ],
         "x-goblin-scope": "commit"
+      }
+    },
+    "/api/v1/roles": {
+      "get": {
+        "description": "The built-in roles admin and readonly, the custom roles with their users, and every scope a role can grant.",
+        "operationId": "getRoles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "roles": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.roleInfo"
+                      },
+                      "type": "array"
+                    },
+                    "scopes": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.scopeInfo"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Roles and scopes",
+        "tags": [
+          "Admins"
+        ],
+        "x-goblin-scope": "read"
+      },
+      "post": {
+        "description": "Read is always included. Takes effect at once (no commit).",
+        "operationId": "postRoles",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.roleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "role": {
+                      "$ref": "#/components/schemas/config.Role"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Add a custom role",
+        "tags": [
+          "Admins"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/roles/{name}": {
+      "delete": {
+        "description": "Refused while a user has it.",
+        "operationId": "deleteRolesName",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Delete a custom role",
+        "tags": [
+          "Admins"
+        ],
+        "x-goblin-scope": "admin"
+      },
+      "patch": {
+        "description": "Its users get the new scopes with their next request.",
+        "operationId": "patchRolesName",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.roleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Change a custom role",
+        "tags": [
+          "Admins"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/routing/status": {
+      "get": {
+        "operationId": "getRoutingStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.RoutingStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "BGP sessions, OSPF neighbours and the routes they learned",
+        "tags": [
+          "Network"
+        ],
+        "x-goblin-scope": "read"
       }
     },
     "/api/v1/setup": {
@@ -11537,6 +14326,416 @@
         "x-goblin-scope": "read"
       }
     },
+    "/api/v1/vpn/sites/accept": {
+      "post": {
+        "operationId": "postVpnSitesAccept",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.siteJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "site": {
+                      "$ref": "#/components/schemas/config.Site"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Accept a reply code to one of this gate's invitations",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/vpn/sites/invitations": {
+      "get": {
+        "operationId": "getVpnSitesInvitations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "invitations": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.siteInviteView"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Open site invitations",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "read"
+      },
+      "post": {
+        "description": "Answers a one-time invitation code to paste on the other gate (Join a site). Turns sites on and picks this gate's tunnel address in the candidate when needed.",
+        "operationId": "postVpnSitesInvitations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.siteInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "integer"
+                    },
+                    "site": {
+                      "type": "string"
+                    },
+                    "sites_enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Invite another gate as a site",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/vpn/sites/invitations/{id}": {
+      "delete": {
+        "operationId": "deleteVpnSitesInvitationsId",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Cancel a site invitation",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/vpn/sites/join": {
+      "post": {
+        "description": "Adds the inviting gate to the candidate (commit to activate) and answers the reply code to paste on it.",
+        "operationId": "postVpnSitesJoin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.siteJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "reply": {
+                      "type": "string"
+                    },
+                    "site": {
+                      "$ref": "#/components/schemas/config.Site"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Join a site with its invitation code",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/vpn/sites/join/check": {
+      "post": {
+        "description": "Changes nothing; problems lists what stops the join.",
+        "operationId": "postVpnSitesJoinCheck",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/api.siteJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/api.SiteOffer"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Show what an invitation code brings",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "admin"
+      }
+    },
+    "/api/v1/vpn/sites/status": {
+      "get": {
+        "description": "The running config's sites; reachable comes from a ping to each remote gate's tunnel address.",
+        "operationId": "getVpnSitesStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "sites": {
+                      "items": {
+                        "$ref": "#/components/schemas/api.SiteStatus"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "4XX": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The request was refused: see error.code"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "An error"
+          }
+        },
+        "summary": "Site-to-site tunnels: handshake, transfer, reachability",
+        "tags": [
+          "VPN"
+        ],
+        "x-goblin-scope": "read"
+      }
+    },
     "/api/v1/vpn/tailscale/login": {
       "post": {
         "description": "With auth_key, logs in with it (the key is not stored). Without, answers auth_url to open in a browser.",
@@ -12220,6 +15419,10 @@
       "name": "Auth"
     },
     {
+      "description": "Guest network welcome page: let-in guests and voucher codes.",
+      "name": "Captive portal"
+    },
+    {
       "description": "Goblin Checks, the network audit.",
       "name": "Checks"
     },
@@ -12252,6 +15455,10 @@
       "name": "Policy"
     },
     {
+      "description": "Switches and access points asking who may connect: authentication log, sessions, device VLANs, per-device Wi-Fi passwords and EAP-TLS certificates.",
+      "name": "RADIUS"
+    },
+    {
       "description": "Threat feeds, GeoIP, CrowdSec, IPS, web filter, application control and temporary blocks.",
       "name": "Security"
     },
@@ -12272,7 +15479,7 @@
       "name": "UI"
     },
     {
-      "description": "Tailscale and WireGuard.",
+      "description": "Tailscale, WireGuard and site-to-site tunnels.",
       "name": "VPN"
     }
   ]

@@ -24,17 +24,24 @@ out for". If something here does not match what you see, please open an issue.
 | Publish a web service on its own HTTPS name | [Reverse Proxy](Reverse-Proxy) |
 | Trusted HTTPS for names inside your network (nas.home.lan) | [[Internal CA]] |
 | Give out addresses, name devices, local DNS | [[DHCP and DNS]] |
+| A welcome page with terms, a password or vouchers for guest Wi-Fi | [[Captive Portal]] |
+| Switches and access points: MAC authentication, 802.1X and a VLAN per device | [RADIUS and Dynamic VLANs](RADIUS-and-Dynamic-VLANs) |
 | Block ads, malware and phishing | [[Threat Feeds and DNS Filter]] |
 | Detect and stop attacks | [[IPS]] and [[Goblin Sentry]] |
 | Filter websites or apps for a network | [[Web Filter and App Control]] |
 | Reach home from outside | [[VPN]] |
+| Join two houses or an office into one network | [Site-to-Site VPN](Site-to-Site-VPN) |
 | Use two internet connections | [[Multi-WAN and Routing]] |
+| Exchange routes with other routers (OSPF, BGP) | [Dynamic Routing: BGP and OSPF](Dynamic-Routing) |
 | Update, back up, restore | [[Updates and Backups]] |
 | Log in over SSH, use the API or CLI | [Remote Access: SSH, API and CLI](Remote-Access-SSH-API-CLI) |
+| Set up the gate from Terraform, OpenTofu, curl or Ansible | [[Automation]] |
+| Log in with Authentik, Keycloak or another identity provider | [Single Sign-On](Single-Sign-On) |
 | See devices, test a rule, capture packets, take snapshots | [Tools: Devices, Simulator, Capture](Tools-Devices-Simulator-Capture) |
 | Graph the box in Grafana | [Prometheus and Grafana](Prometheus-and-Grafana) |
 | See the box in Home Assistant, switch guest Wi-Fi from there | [[Home Assistant]] |
 | Firewall rules that follow your Proxmox VMs and Docker containers | [[Homelab]] |
+| See which switch port or access point each device is on; rules that follow your UniFi networks | [[UniFi]] |
 | Move from pfSense | [[Migrating from pfSense]] |
 | Something does not work | [[Troubleshooting]] |
 

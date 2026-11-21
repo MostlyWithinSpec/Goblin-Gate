@@ -53,6 +53,8 @@ func (r *ruleset) write() []byte {
 		p(0, "")
 	}
 
+	r.writePortalSets(p)
+
 	// interfaces with a throughput test server (ThroughputSet), filled by
 	// goblind while a test runs
 	p(1, "set %s {", ThroughputSet)
@@ -135,6 +137,9 @@ func (r *ruleset) write() []byte {
 		p(2, "jump %s", crowdSecChain)
 	}
 	p(2, "jump threat_feeds_input")
+	for _, l := range r.portalLines("in") {
+		p(2, "%s", l)
+	}
 	p(2, "iifname @%s meta l4proto { tcp, udp } th dport %d accept", ThroughputSet, ThroughputPort)
 	for _, l := range r.input {
 		p(2, "%s", l)
@@ -149,6 +154,9 @@ func (r *ruleset) write() []byte {
 	p(2, "type filter hook forward priority filter; policy drop;")
 	p(2, "jump %s", blockChain)
 	for _, l := range r.ipsQueue {
+		p(2, "%s", l)
+	}
+	for _, l := range r.portalLines("top") {
 		p(2, "%s", l)
 	}
 	p(2, "ct state established,related accept")
@@ -209,6 +217,7 @@ func (r *ruleset) write() []byte {
 		}
 		p(1, "}")
 	}
+	r.writePortalNAT(p)
 	p(0, "}")
 	p(0, "")
 

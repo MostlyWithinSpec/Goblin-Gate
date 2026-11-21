@@ -36,6 +36,14 @@ describe('UserMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  test('an SSO session is told it signed in with single sign-on', async () => {
+    vi.mocked(auth.getMe).mockResolvedValue({ user: 'alice', role: 'admin', method: 'session', via: 'sso' })
+    show()
+    await openMenu()
+    expect(screen.getByText('Signed in with single sign-on')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Log out/ })).toBeInTheDocument()
+  })
+
   test('restart asks first; Cancel does nothing', async () => {
     show()
     await openMenu()
@@ -57,7 +65,8 @@ describe('UserMenu', () => {
   })
 
   test('read-only users get no restart', async () => {
-    vi.mocked(auth.getMe).mockResolvedValue({ user: 'viewer', role: 'readonly', method: 'session' })
+    // Task 150: reboot is a full-admin route, so it follows full_admin.
+    vi.mocked(auth.getMe).mockResolvedValue({ user: 'viewer', role: 'readonly', method: 'session', permissions: ['read'], full_admin: false })
     show()
     await waitFor(() => expect(screen.getByText('viewer')).toBeInTheDocument())
     await openMenu()

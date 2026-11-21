@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/networkgoblinlabs/goblin-gate/internal/config"
+	"github.com/networkgoblinlabs/goblin-gate/internal/render/rendertest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -144,5 +145,20 @@ func TestRenderErrors(t *testing.T) {
 		if _, err := (Renderer{}).Render(cfg); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+// A portal network tells clients where the captive portal API is (RFC 8910).
+func TestPortalOption(t *testing.T) {
+	b, err := build(rendertest.Portal())
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact := strings.Join(strings.Fields(string(b)), "")
+	if !strings.Contains(compact, `"name":"v4-captive-portal","data":"http://192.168.30.1:8880/captive-portal/api"`) {
+		t.Errorf("no captive portal option:\n%s", b)
+	}
+	if strings.Count(string(b), "v4-captive-portal") != 1 {
+		t.Error("the option on a network without a portal")
 	}
 }

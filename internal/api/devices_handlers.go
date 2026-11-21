@@ -18,8 +18,10 @@ func (s *Server) devicesUnavailable(w http.ResponseWriter) {
 	writeError(w, http.StatusServiceUnavailable, "devices_unavailable", "the device inventory is not available on this system", nil)
 }
 
-// GET /api/v1/devices → {devices: [Device]} sorted by last_seen, newest
-// first; optional ?interface=lan filters.
+// GET /api/v1/devices → {devices: [Device], annotations_updated: {plugin:
+// time}} sorted by last_seen, newest first; optional ?interface=lan filters.
+// Each device carries annotations: {plugin: {field: value}} when plugins
+// attached any (devices:annotate).
 func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 	if s.Devices == nil {
 		s.devicesUnavailable(w)
@@ -39,7 +41,30 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 		}
 		devs = filtered
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"devices": devs})
+	out := make([]DeviceView, len(devs))
+	var keep func(string) bool
+	if s.Annotations != nil {
+		cfg, _ := s.Store.Running()
+		keep = AnnotatingPlugins(cfg)
+	}
+	for i, d := range devs {
+		out[i].Device = d
+		if keep != nil {
+			out[i].Annotations = s.Annotations.For(d.MAC, keep)
+		}
+	}
+	resp := map[string]any{"devices": out}
+	if keep != nil {
+		resp["annotations_updated"] = s.Annotations.Updated(keep)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DeviceView is a device with the fields plugins attached to it, by plugin
+// (devices:annotate): read-only, for display.
+type DeviceView struct {
+	devices.Device
+	Annotations map[string]devices.Fields `json:"annotations,omitempty"`
 }
 
 type deviceNameRequest struct {

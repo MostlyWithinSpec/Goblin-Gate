@@ -1,7 +1,44 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { login } from '../api/auth'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { LogIn } from 'lucide-react'
+import { getSSOStatus, login } from '../api/auth'
 import { t } from '../i18n'
+
+// ssoLoginPath is where the sign-in button takes the browser: the gate starts
+// the flow and redirects on to the provider.
+export const ssoLoginPath = '/api/v1/auth/sso/login'
+
+// ssoErrorText turns the code the gate sends the browser back with
+// (/login?sso_error=<code>) into a message. An unknown code says so plainly:
+// the provider or the gate changed, not the user.
+const ssoErrorText = (code: string): string => {
+  switch (code) {
+    case 'disabled':
+      return t('login.ssoDisabled')
+    case 'state':
+      return t('login.ssoState')
+    case 'provider':
+      return t('login.ssoProvider')
+    case 'exchange':
+      return t('login.ssoExchange')
+    case 'token':
+      return t('login.ssoToken')
+    case 'refused':
+      return t('login.ssoRefused')
+    case 'no_username':
+      return t('login.ssoNoUsername')
+    case 'local_user':
+      return t('login.ssoLocalUser')
+    case 'no_role':
+      return t('login.ssoNoRole')
+    case 'too_many_attempts':
+      return t('login.ssoTooMany')
+    case 'busy':
+      return t('login.ssoBusy')
+    default:
+      return t('login.ssoUnknown', { code })
+  }
+}
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('admin')
@@ -10,13 +47,31 @@ const Login: React.FC = () => {
   const [totpStep, setTotpStep] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [sso, setSso] = useState<{ enabled: boolean; name: string }>({ enabled: false, name: '' })
   const codeRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const [params] = useSearchParams()
+  const ssoError = params.get('sso_error')
+
+  useEffect(() => {
+    getSSOStatus().then(setSso).catch(() => setSso({ enabled: false, name: '' }))
+  }, [])
 
   useEffect(() => {
     if (totpStep) codeRef.current?.focus()
   }, [totpStep])
+
+  // The provider sends a failed sign-in back to /login?sso_error=<code>.
+  useEffect(() => {
+    if (ssoError) setError(ssoErrorText(ssoError))
+  }, [ssoError])
+
+  // The provider page needs a real navigation, not fetch: the browser must
+  // follow the redirect to the identity provider and come back with cookies.
+  const startSSO = () => {
+    window.location.href = ssoLoginPath
+  }
 
   const finish = () => {
     const from = (location.state as { from?: string } | null)?.from
@@ -176,6 +231,23 @@ const Login: React.FC = () => {
               {t('login.back')}
             </button>
           </form>
+        )}
+
+        {sso.enabled && !totpStep && (
+          <div className="mt-6">
+            <div className="flex items-center gap-3 text-xs uppercase text-gray-400">
+              <span className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+              {t('login.or')}
+              <span className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            </div>
+            <button
+              type="button"
+              onClick={startSSO}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 py-2 px-4 font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 min-h-[40px]"
+            >
+              <LogIn size={16} /> {t('login.signInWith', { name: sso.name })}
+            </button>
+          </div>
         )}
 
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">

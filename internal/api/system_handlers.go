@@ -286,7 +286,7 @@ func (s *Server) createAdmin(w http.ResponseWriter, r *http.Request) {
 	if req.Role == "" {
 		req.Role = "admin"
 	}
-	if msg := checkAdminFields(req.Username, req.Role); msg != "" {
+	if msg := s.checkAdminFields(req.Username, req.Role); msg != "" {
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed", msg, nil)
 		return
 	}
@@ -328,7 +328,7 @@ func (s *Server) updateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Role != nil {
-		if msg := checkAdminFields(name, *req.Role); msg != "" {
+		if msg := s.checkAdminFields(name, *req.Role); msg != "" {
 			writeError(w, http.StatusUnprocessableEntity, "validation_failed", msg, nil)
 			return
 		}
@@ -413,12 +413,13 @@ func lastAdminCheck(admins []config.Admin) error {
 	return errConflict("at least one admin with the admin role and a password must remain")
 }
 
-func checkAdminFields(name, role string) string {
+func (s *Server) checkAdminFields(name, role string) string {
 	if !config.ValidName(name) {
 		return "username must be 1-63 letters, digits, \".\", \"_\" or \"-\""
 	}
-	if role != "admin" && role != "readonly" {
-		return "role must be admin or readonly"
+	cfg, err := s.Store.Running()
+	if err != nil || !cfg.HasRole(role) {
+		return "role must be admin, readonly or a custom role"
 	}
 	return ""
 }
@@ -455,13 +456,18 @@ func (s *Server) adminError(w http.ResponseWriter, err error) bool {
 // plane (nothing to render), like a password change. The running config gets
 // a new revision and the candidate the same change, so a later commit keeps it.
 func (s *Server) updateAdmins(r *http.Request, comment string, change func(*[]config.Admin) error) error {
+	return s.updateAccess(r, comment, func(cfg *config.Config) error { return change(&cfg.Admins) })
+}
+
+// updateAccess changes admins or roles right away (see updateAdmins).
+func (s *Server) updateAccess(r *http.Request, comment string, change func(*config.Config) error) error {
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 	running, err := s.Store.Running()
 	if err != nil {
 		return err
 	}
-	if err := change(&running.Admins); err != nil {
+	if err := change(running); err != nil {
 		return err
 	}
 	cand, err := s.Store.Candidate()
@@ -471,7 +477,7 @@ func (s *Server) updateAdmins(r *http.Request, comment string, change func(*[]co
 	if _, err := s.Store.SaveRevision(running, s.user(r), comment); err != nil {
 		return err
 	}
-	if err := change(&cand.Admins); err != nil {
+	if err := change(cand); err != nil {
 		s.Logger.Warn("admins: the candidate could not take the change", "error", err)
 		return nil
 	}

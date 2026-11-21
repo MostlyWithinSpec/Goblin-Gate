@@ -61,6 +61,20 @@ The same file is in the repository at
 - **Browsing it:** open the file in any OpenAPI viewer (Swagger Editor, Redocly, or the API panel of your
   editor).
 
+## Admin roles
+
+Every user has a role. **admin** may do everything, **readonly** may look at everything except secrets.
+For anything in between, make a custom role under **System → Admins → Roles**: a name and the scopes it
+grants (the same scopes as API tokens, below). Reading is always included. Examples:
+
+- **helpdesk** with `actions`: looks at everything, blocks an address for an hour, wakes or renames a device
+- **firewall operator** with `write:firewall` and `commit`: changes objects and policies and applies them,
+  but no interfaces, VPN or system settings
+
+A changed role applies to its users with their next click; giving a user another role logs them out.
+Every user can still change their own password and set up two-factor login. A role that a user still has
+can't be deleted. Custom roles never see secrets and never reach the admin-only things listed below.
+
 ## Limited tokens
 
 A new token gets everything by default, which is rarely what an integration needs. When you create
@@ -69,12 +83,15 @@ what those scopes allow, and everything else is refused with `403`.
 
 | Scope | Allows |
 | --- | --- |
-| `read` | Every read-only endpoint |
-| `write:firewall` | Addresses, services, policies, NAT, custom rules |
-| `write:network` | Interfaces, routes, DHCP, DNS, VPN |
-| `write:system` | Users, tokens, settings, backup |
-| `actions` | Reboot, diagnostics, feed refresh, and other one-shot actions |
-| `commit` | `POST /api/v1/commit` — without it a token can edit the candidate but never apply it |
+| `read` | Every read-only endpoint (secrets stay hidden) |
+| `write:firewall` | Objects, policies, NAT, security profiles, feeds, custom rules, reverse proxy |
+| `write:network` | Interfaces, VLANs, routes, gateways, DHCP, DNS, VPN, dynamic DNS |
+| `write:system` | System settings, notifications, log and flow export, snapshots |
+| `actions` | Temporary blocks, devices (rename, wake), diagnostics, feed refresh and other one-shot actions |
+| `commit` | Commit, confirm, discard and roll back — without it the candidate can be edited but never applied |
+
+Some things need a full admin whatever the scopes: users, roles and tokens, plugins, updates, reboot,
+restore, packet capture, SSH keys and the update source.
 
 The create form offers three presets: **Read only** (`read`), **Home automation**
 (`read`, `write:firewall`, `actions`, `commit`) and **Full** (no scopes). Beyond scopes, a token can

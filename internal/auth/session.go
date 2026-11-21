@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -20,35 +21,64 @@ const (
 // Identity is who a request acts as.
 type Identity struct {
 	User   string `json:"user"`
-	Role   string `json:"role"`            // admin | readonly
+	Role   string `json:"role"`            // admin | readonly | a custom role
 	Method string `json:"method"`          // session | token | socket
 	Token  string `json:"token,omitempty"` // token id for Method token
+	// Via is "sso" for a session from single sign-on: the user is not a local
+	// account and Role is what the identity provider's groups gave them.
+	Via string `json:"via,omitempty"`
 	// Scopes of a scoped token (task 102); nil = everything Role allows.
 	Scopes []string `json:"scopes,omitempty"`
-	CSRF   string   `json:"-"` // session CSRF token
-	sessID string   // hashed session id
+	// RoleScopes are the scopes of a custom role (always with ScopeRead);
+	// nil for the built-in roles admin and readonly.
+	RoleScopes []string `json:"-"`
+	CSRF       string   `json:"-"` // session CSRF token
+	sessID     string   // hashed session id
 }
 
-// CanWrite reports whether the identity has full admin rights: change
-// anything, see secrets. A scoped token never does; its writes go through
-// Has.
-func (id Identity) CanWrite() bool { return id.Role == "admin" && id.Scopes == nil }
+// BuiltinRole reports whether name is one of the roles every box has.
+func BuiltinRole(name string) bool { return name == "admin" || name == "readonly" }
 
-// Has reports whether the identity holds a token scope: a full admin holds
-// every scope, a read-only user only ScopeRead.
+// CanWrite reports whether the identity has full admin rights: change
+// anything, see secrets. A scoped token or a custom role never does; their
+// writes go through Has.
+func (id Identity) CanWrite() bool {
+	return id.Role == "admin" && id.Scopes == nil && id.RoleScopes == nil
+}
+
+// Limited reports whether the routes decide what the identity may do (a
+// scoped token or a custom role) instead of the plain admin/readonly split.
+func (id Identity) Limited() bool { return id.Scopes != nil || id.RoleScopes != nil }
+
+// Has reports whether the identity holds a scope: what its role allows (a
+// full admin every scope, a read-only user only ScopeRead, a custom role its
+// list) and, for a scoped token, what the token was made with as well.
 func (id Identity) Has(scope string) bool {
-	if id.Scopes == nil {
-		return id.Role == "admin" || scope == ScopeRead
+	if !id.roleHas(scope) {
+		return false // also: the user was demoted after the token was made
 	}
-	if id.Role != "admin" && scope != ScopeRead {
-		return false // the user was demoted after the token was made
+	return id.Scopes == nil || slices.Contains(id.Scopes, scope)
+}
+
+func (id Identity) roleHas(scope string) bool {
+	switch {
+	case scope == ScopeRead:
+		return id.Role != ""
+	case id.RoleScopes != nil:
+		return slices.Contains(id.RoleScopes, scope)
 	}
-	for _, s := range id.Scopes {
-		if s == scope {
-			return true
+	return id.Role == "admin"
+}
+
+// Effective lists the scopes the identity holds, in the order of Scopes.
+func (id Identity) Effective() []string {
+	out := []string{}
+	for _, sc := range Scopes {
+		if id.Has(sc) {
+			out = append(out, sc)
 		}
 	}
-	return false
+	return out
 }
 
 // SessID returns the hashed session id of a session-method identity, or ""
@@ -67,6 +97,7 @@ type SessionInfo struct {
 	ID        string    `json:"id"`
 	User      string    `json:"user"`
 	Role      string    `json:"role"`
+	Via       string    `json:"via,omitempty"`
 	Addr      string    `json:"addr"`
 	UserAgent string    `json:"user_agent"`
 	Created   time.Time `json:"created"`
@@ -114,11 +145,20 @@ func (s *Sessions) Create(user, role string) (string, Identity) {
 // the session for the active-sessions list. The user agent is truncated to
 // 200 chars.
 func (s *Sessions) CreateFrom(user, role, addr, userAgent string) (string, Identity) {
+	return s.create(user, role, "", addr, userAgent)
+}
+
+// CreateSSO is CreateFrom for a user who signed in through single sign-on.
+func (s *Sessions) CreateSSO(user, role, addr, userAgent string) (string, Identity) {
+	return s.create(user, role, "sso", addr, userAgent)
+}
+
+func (s *Sessions) create(user, role, via, addr, userAgent string) (string, Identity) {
 	if len(userAgent) > 200 {
 		userAgent = userAgent[:200]
 	}
 	cookie := RandomToken(32)
-	id := Identity{User: user, Role: role, Method: "session", CSRF: RandomToken(32), sessID: hashID(cookie)}
+	id := Identity{User: user, Role: role, Via: via, Method: "session", CSRF: RandomToken(32), sessID: hashID(cookie)}
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -143,6 +183,7 @@ func (s *Sessions) List() []SessionInfo {
 			ID:        k[:16],
 			User:      ss.User,
 			Role:      ss.Role,
+			Via:       ss.Via,
 			Addr:      ss.addr,
 			UserAgent: ss.userAgent,
 			Created:   ss.created,

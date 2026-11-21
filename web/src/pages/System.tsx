@@ -7,7 +7,11 @@ import { getConfigDiff, type DiffResponse } from '../api/config'
 import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getTokens, createToken, deleteToken, downloadBackup, restoreBackup, importPfSense, getSystemInfo, getSessionList, deleteSession, type AdminInfo, type TokenInfo, type SystemInfo, type ImportResult, type ImportReportEntry, type SessionInfo } from '../api/system'
 import { getMe, setup2FA, enable2FA, disable2FA, type Me, type TwoFactorSetup } from '../api/auth'
 import { getGitBackupStatus, pushGitBackup, forgetGitBackupHostKey, type GitBackupStatus } from '../api/gitbackup'
+import { getRoles } from '../api/roles'
+import { usePermissions } from '../api/permissions'
+import { RolesSection } from '../components/RolesSection'
 import { Badge } from '../components/Badge'
+import { SSOSection } from '../components/SSOSection'
 import { t } from '../i18n'
 
 const TABS = ['General', 'Admins', 'API Tokens', 'Backup', 'Import', 'About'] as const
@@ -46,30 +50,37 @@ const System: React.FC = () => {
   const [search] = useSearchParams()
   const tabParam = search.get('tab')
   const [tab, setTab] = useState<Tab>(TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'General')
+  // Accounts, tokens, whole-config restores and imports are for full admins
+  // (routeScope answers scopeAdmin); a custom role gets those tabs hidden.
+  const perms = usePermissions()
+  // Admins stays for everyone: it holds the user's own two-factor login and
+  // sessions (MyAccountTab when they may not manage accounts).
+  const visibleTabs = TABS.filter((name) => name === 'General' || name === 'Admins' || name === 'About' || perms.mayAdmin)
+  const shown = visibleTabs.includes(tab) ? tab : 'General'
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">{t('system.systemTitle')}</h1>
       <div className="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        {TABS.map((name) => (
+        {visibleTabs.map((name) => (
           <button
             key={name}
             type="button"
-            aria-current={tab === name ? 'page' : undefined}
+            aria-current={shown === name ? 'page' : undefined}
             onClick={() => setTab(name)}
-            className={`px-4 py-2 text-sm font-medium rounded-t ${tab === name ? 'border border-b-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+            className={`px-4 py-2 text-sm font-medium rounded-t ${shown === name ? 'border border-b-0 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
           >
             {tabLabel(name)}
           </button>
         ))}
       </div>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-        {tab === 'General' && <GeneralTab />}
-        {tab === 'Admins' && <AdminsTab />}
-        {tab === 'API Tokens' && <TokensTab />}
-        {tab === 'Backup' && <BackupTab />}
-        {tab === 'Import' && <ImportTab />}
-        {tab === 'About' && <AboutTab />}
+        {shown === 'General' && <GeneralTab />}
+        {shown === 'Admins' && (perms.mayAdmin ? <AdminsTab /> : <MyAccountTab />)}
+        {shown === 'API Tokens' && <TokensTab />}
+        {shown === 'Backup' && <BackupTab />}
+        {shown === 'Import' && <ImportTab />}
+        {shown === 'About' && <AboutTab />}
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
         <Link to="/system/revisions" className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm min-h-[40px] flex items-center justify-center">
@@ -227,9 +238,30 @@ const MetricsSection: React.FC<{ initial?: MetricsSettings }> = ({ initial }) =>
 
 // --- Admins -------------------------------------------------------------------
 
+// roleChoices keeps a user's current role in the picker even when the role list
+// came back without it (a role deleted while they had it, or GET /roles failing).
+const roleChoices = (roles: string[], current: string): string[] =>
+  roles.includes(current) ? roles : [...roles, current]
+
+// MyAccountTab is the Admins tab for users who may not manage accounts (a
+// read-only or custom role): their own two-factor login and sessions.
+const MyAccountTab: React.FC = () => {
+  const [me, setMe] = useState<Me | null>(null)
+  useEffect(() => {
+    getMe().then(setMe).catch(() => setMe(null))
+  }, [])
+  return (
+    <div>
+      <TwoFactorCard me={me} onChanged={() => getMe().then(setMe)} />
+      <SessionsCard />
+    </div>
+  )
+}
+
 const AdminsTab: React.FC = () => {
   const [admins, setAdmins] = useState<AdminInfo[] | null>(null)
   const [me, setMe] = useState<Me | null>(null)
+  const [roles, setRoles] = useState<string[]>(['admin', 'readonly'])
   const [error, setError] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [newAdmin, setNewAdmin] = useState({ username: '', role: 'admin', password: '' })
@@ -238,6 +270,11 @@ const AdminsTab: React.FC = () => {
   const load = useCallback(() => {
     getAdmins().then(setAdmins).catch((e: Error) => setError(e.message))
     getMe().then(setMe)
+    // The picker lists every role, custom ones included; a role the user has
+    // anyway stays in the list so the select shows it.
+    getRoles()
+      .then((r) => setRoles([...new Set([...r.roles.map((x) => x.name), 'admin', 'readonly'])]))
+      .catch(() => { /* the built-ins are enough if roles cannot be read */ })
   }, [])
   useEffect(load, [load])
 
@@ -246,7 +283,8 @@ const AdminsTab: React.FC = () => {
     const errs: Record<string, string> = {}
     if (!NAME_RE.test(newAdmin.username)) errs.username = t('system.usernameInvalid')
     else if (admins?.some((a) => a.username === newAdmin.username)) errs.username = t('system.adminNameUsed')
-    if (newAdmin.role !== 'admin' && newAdmin.role !== 'readonly') errs.role = t('system.validateRole')
+    // The role comes from a select over the known roles, so there is nothing
+    // to check here; the server refuses an unknown one with 422.
     if (!newAdmin.password) errs.password = t('system.passwordRequired')
     setFormErrors(errs)
     if (Object.keys(errs).length) return
@@ -304,8 +342,9 @@ const AdminsTab: React.FC = () => {
               <td className="px-3 py-2 font-medium">{a.username}{me?.user === a.username && <span className="ml-1 text-xs text-gray-400">{t('system.youTag')}</span>}</td>
               <td className="px-3 py-2">
                 <select aria-label={t('system.roleFor', { name: a.username })} className="rounded border border-gray-300 px-1 py-0.5 text-sm dark:bg-gray-700" value={a.role} onChange={(e) => changeRole(a.username, e.target.value)}>
-                  <option value="admin">admin</option>
-                  <option value="readonly">readonly</option>
+                  {roleChoices(roles, a.role).map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                 </select>
               </td>
               <td className="px-3 py-2">{a.totp_enabled && <Badge variant="success">2FA</Badge>}</td>
@@ -331,10 +370,10 @@ const AdminsTab: React.FC = () => {
           <label className="block text-sm">
             {t('system.colRole')}
             <select aria-label={t('system.colRole')} className={inputClass} value={newAdmin.role} onChange={(e) => setNewAdmin((s) => ({ ...s, role: e.target.value }))}>
-              <option value="admin">admin</option>
-              <option value="readonly">readonly</option>
+              {roles.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
             </select>
-            {formErrors.role && <p className="mt-1 text-xs text-red-600">{formErrors.role}</p>}
           </label>
           <label className="block text-sm">
             {t('system.password')}
@@ -351,6 +390,8 @@ const AdminsTab: React.FC = () => {
       <TwoFactorCard me={me} onChanged={() => getMe().then(setMe)} />
       <SessionsCard />
       <SSHKeysSection />
+      <RolesSection />
+      <SSOSection />
     </div>
   )
 }
@@ -417,6 +458,16 @@ const TwoFactorCard: React.FC<{ me: Me | null; onChanged: () => void }> = ({ me,
     navigator.clipboard?.writeText(setup.secret).catch(() => {})
   }
 
+  // An SSO session has no local two-factor login: the identity provider is
+  // responsible for it and the 2FA endpoints refuse these users.
+  if (me?.via === 'sso') {
+    return (
+      <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-600">
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-white">{t('system.twoFactorTitle')}</h3>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t('system.twoFactorViaSSO')}</p>
+      </div>
+    )
+  }
   return (
     <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-600">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-white">{t('system.twoFactorTitle')}</h3>
@@ -544,7 +595,13 @@ const SessionsCard: React.FC = () => {
           <tbody>
             {sessions.map((s) => (
               <tr key={s.id} className="border-t border-gray-100 dark:border-gray-700">
-                <td className="px-3 py-2 font-medium">{s.user}{s.current && <span className="ml-1"><Badge variant="primary">{t('system.thisSession')}</Badge></span>}</td>
+                <td className="px-3 py-2 font-medium">
+                  {s.user}
+                  {s.current && <span className="ml-1"><Badge variant="primary">{t('system.thisSession')}</Badge></span>}
+                  {/* a session that came from single sign-on (task 147): the
+                      provider owns the login, not this box */}
+                  {s.via === 'sso' && <span className="ml-1 text-xs uppercase text-gray-500 dark:text-gray-400">via sso</span>}
+                </td>
                 <td className="px-3 py-2 text-gray-500">{s.addr}</td>
                 <td className="px-3 py-2 text-gray-500" title={s.user_agent}>{ua(s)}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-gray-500">{new Date(s.created).toLocaleString()}</td>

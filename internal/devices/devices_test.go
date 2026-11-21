@@ -401,3 +401,24 @@ func TestInterfacesNil(t *testing.T) {
 }
 
 var _ = cmp.Diff // keep import if unused in some builds
+
+func TestSetVLAN(t *testing.T) {
+	s := &Store{Path: filepath.Join(t.TempDir(), "devices.json"), Now: func() time.Time { return now }}
+	d, err := s.SetVLAN("AA:BB:CC:00:00:09", "iot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.MAC != "aabbcc000009" || d.VLAN != "iot" {
+		t.Errorf("device %+v", d)
+	}
+	if got := s.VLANOf("aa-bb-cc-00-00-09"); got != "iot" {
+		t.Errorf("VLANOf %q", got)
+	}
+	if _, err := s.SetVLAN("nope", "iot"); err == nil {
+		t.Error("bad MAC accepted")
+	}
+	s2 := &Store{Path: s.Path}
+	if s2.VLANOf("aabbcc000009") != "iot" {
+		t.Error("VLAN not saved")
+	}
+}

@@ -8,5 +8,7 @@ nut-client
 nut-server
 iperf3
 caddy
+frr
+frr-pythontools
 openssh-server
 open-vm-tools

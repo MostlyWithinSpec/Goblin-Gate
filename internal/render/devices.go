@@ -42,5 +42,8 @@ func Devices(cfg *config.Config) map[string]string {
 			m[w.Name] = w.Name
 		}
 	}
+	for _, s := range cfg.DirectSites() {
+		m[s.Name] = s.Name
+	}
 	return m
 }

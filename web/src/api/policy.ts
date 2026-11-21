@@ -49,6 +49,8 @@ export interface PolicyConfig {
   schedules?: Named[]
   gateways?: Named[]
   gateway_groups?: Named[]
+  // site-to-site VPN (task 155): each enabled site with its own tunnel is a zone
+  vpn?: { sites?: { enabled?: boolean; remotes?: { name: string; enabled?: boolean; via?: string }[] } }
 }
 
 export interface ValidationError {
@@ -75,9 +77,14 @@ export interface PolicyObjects {
 
 const names = (xs?: Named[]) => (xs ?? []).map((x) => x.name)
 
+// siteZones are the remote sites policies can name (enabled, with a tunnel of
+// their own, while sites are on).
+const siteZones = (cfg: PolicyConfig) =>
+  cfg.vpn?.sites?.enabled ? (cfg.vpn.sites.remotes ?? []).filter((r) => r.enabled && !r.via).map((r) => r.name) : []
+
 export function objectsOf(cfg: PolicyConfig): PolicyObjects {
   return {
-    interfaces: [...names(cfg.interfaces), ...names(cfg.vlans)],
+    interfaces: [...names(cfg.interfaces), ...names(cfg.vlans), ...siteZones(cfg)],
     addresses: ['all', ...names(cfg.addresses), ...names(cfg.address_groups)],
     services: ['any', ...names(cfg.services), ...names(cfg.service_groups)],
     profiles: {

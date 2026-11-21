@@ -21,6 +21,7 @@ import {
   type Severity
 } from '../api/checks'
 import { getMe } from '../api/auth'
+import { permissionsFor } from '../api/permissions'
 
 // WIKI_URL documents every check and how the score is worked out.
 const WIKI_URL = 'https://github.com/MostlyWithinSpec/Goblin-Gate/wiki/Goblin-Checks'
@@ -77,10 +78,10 @@ function severityWord(severity: Severity): string {
 export default function ChecksPage() {
   const queryClient = useQueryClient()
   const checks = useQuery({ queryKey: ['checks'], queryFn: getChecks, refetchInterval: 60_000 })
-  // Read-only users get a 403 from the dismiss endpoints, so their buttons are
-  // hidden instead of failing.
+  // POST /api/v1/checks/dismiss needs write:system, so a role without it gets
+  // the buttons hidden instead of a 403.
   const me = useQuery({ queryKey: ['me'], queryFn: getMe, retry: false })
-  const canDismiss = me.data?.role === 'admin'
+  const canDismiss = permissionsFor(me.data).can('write:system')
   const [dismissError, setDismissError] = useState<string | null>(null)
 
   const dismiss = useMutation({

@@ -1,20 +1,20 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
-vi.mock('../api/auth', () => ({ login: vi.fn() }))
+vi.mock('../api/auth', () => ({ login: vi.fn(), getSSOStatus: vi.fn() }))
 import * as api from '../api/auth'
 import Login from '../pages/Login'
 
-const renderLogin = () =>
+const renderLogin = (path = '/login') =>
   render(
-    <MemoryRouter initialEntries={['/login']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<p>dashboard</p>} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   )
 
 const signIn = (password: string) => {
@@ -25,6 +25,7 @@ const signIn = (password: string) => {
 describe('Login', () => {
   beforeEach(() => {
     vi.mocked(api.login).mockReset()
+    vi.mocked(api.getSSOStatus).mockReset().mockResolvedValue({ enabled: false, name: '' })
   })
 
   test('renders login form', () => {
@@ -85,5 +86,66 @@ describe('Login', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That code is not right. Codes change every 30 seconds.')
     // still on the second step, code cleared to try again
     expect(screen.getByLabelText(/Code from your authenticator app/i)).toHaveValue('')
+  })
+
+  test('no single sign-on button while it is off', async () => {
+    renderLogin()
+    await waitFor(() => expect(api.getSSOStatus).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Sign in with/i })).toBeNull()
+  })
+
+  test('single sign-on: the button uses the provider name and navigates for real', async () => {
+    vi.mocked(api.getSSOStatus).mockResolvedValue({ enabled: true, name: 'Authentik' })
+    // jsdom cannot navigate: swap window.location for a plain object that
+    // records the href the page sets.
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'location')
+    const stub = { href: '', origin: 'http://localhost:3000' }
+    const w = window as unknown as { location: unknown }
+    delete w.location
+    w.location = stub
+    try {
+      renderLogin()
+      const btn = await screen.findByRole('button', { name: 'Sign in with Authentik' })
+      // the local login stays next to it
+      expect(screen.getByLabelText(/Username/i)).toBeInTheDocument()
+      fireEvent.click(btn)
+      expect(stub.href).toBe('/api/v1/auth/sso/login')
+    } finally {
+      delete w.location
+      if (descriptor) Object.defineProperty(window, 'location', descriptor)
+    }
+  })
+
+  test('single sign-on: a failed attempt shows a message for its code', async () => {
+    renderLogin('/login?sso_error=no_role')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your groups do not have a role on this firewall. Ask an administrator.',
+    )
+  })
+
+  test('single sign-on: every code the gate sends back has its own message', async () => {
+    const messages: [string, string][] = [
+      ['disabled', 'Single sign-on is off now.'],
+      ['state', 'That sign-in took too long'],
+      ['provider', 'cannot reach the identity provider'],
+      ['exchange', 'did not accept the sign-in code'],
+      ['token', "did not check out"],
+      ['refused', 'did not let you sign in'],
+      ['no_username', 'did not give a user name'],
+      ['local_user', 'A local account has the same name'],
+      ['no_role', 'groups do not have a role'],
+      ['too_many_attempts', 'Too many failed sign-ins'],
+      ['busy', 'Too many sign-ins are in progress'],
+    ]
+    for (const [code, text] of messages) {
+      const { unmount } = renderLogin(`/login?sso_error=${code}`)
+      expect(await screen.findByRole('alert')).toHaveTextContent(text)
+      unmount()
+    }
+  })
+
+  test('single sign-on: an unknown code is shown as such', async () => {
+    renderLogin('/login?sso_error=weird_code')
+    expect(await screen.findByRole('alert')).toHaveTextContent('weird_code')
   })
 })

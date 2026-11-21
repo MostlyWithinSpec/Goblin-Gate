@@ -1,0 +1,6 @@
+{"meta":{"rc":"ok"},"data":[
+ {"_id":"6650a1","mac":"02:00:00:00:10:01","ip":"192.168.10.21","hostname":"nas","is_wired":true,"network":"LAN","network_id":"6650n1","vlan":0,"sw_mac":"02:00:00:00:00:01","sw_port":7,"sw_depth":1,"wired_rate_mbps":1000,"last_uplink_mac":"02:00:00:00:00:01","last_uplink_name":"Office Switch","last_uplink_remote_port":7,"noted":true,"note":"backup target gg-servers","use_fixedip":true,"wired-rx_bytes":123,"wired-tx_bytes":456},
+ {"_id":"6650a2","mac":"02:00:00:00:10:02","ip":"192.168.30.40","hostname":"thermostat","is_wired":false,"network":"IoT","network_id":"6650n2","vlan":30,"ap_mac":"02:00:00:00:00:02","essid":"Home IoT","radio":"ng","radio_name":"wifi0","radio_proto":"ng","signal":-61,"tx_rate":72000,"rx_rate":65000,"last_uplink_mac":"02:00:00:00:00:02","last_uplink_name":"Hall AP","noted":false},
+ {"_id":"6650a3","mac":"02:00:00:00:10:03","ip":"192.168.40.12","ipv6_addresses":["fd00:40::12","fe80::1"],"name":"Guest phone","is_wired":false,"network":"Guest","vlan":40,"ap_mac":"02:00:00:00:00:03","essid":"Home Guest","radio":"na","signal":-70,"tx_rate":866000,"last_uplink_name":"Garage AP"},
+ {"_id":"6650a4","mac":"02:00:00:00:10:04","ip":"192.168.30.41","hostname":"plug","is_wired":true,"network":"IoT","vlan":30,"sw_mac":"02:00:00:00:00:09","sw_port":3,"wired_rate_mbps":100,"last_uplink_name":"Desk Switch"}
+]}

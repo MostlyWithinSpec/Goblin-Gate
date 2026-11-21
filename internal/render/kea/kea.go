@@ -126,6 +126,7 @@ func build(cfg *config.Config) ([]byte, error) {
 		Subnet4:          []subnet{},
 	}}
 	ls := links(cfg)
+	portals := cfg.PortalAddrs()
 	for i, d := range cfg.DHCP {
 		l, ok := ls[d.Interface]
 		if !ok {
@@ -151,6 +152,10 @@ func build(cfg *config.Config) ([]byte, error) {
 			{Name: "domain-name-servers", Data: joinAddrs(dns)},
 		}
 		opts = append(opts, optionData{Name: "domain-name", Data: cfg.EffectiveLocalDomain()})
+		if pa, ok := portals[d.Interface]; ok {
+			// RFC 8910: where the RFC 8908 captive portal API is
+			opts = append(opts, optionData{Name: "v4-captive-portal", Data: config.PortalAPIURL(pa.Prefix.Addr())})
+		}
 		lease := d.LeaseSeconds
 		if lease <= 0 {
 			lease = DefaultLeaseSeconds

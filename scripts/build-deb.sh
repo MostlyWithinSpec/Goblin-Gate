@@ -35,7 +35,7 @@ if [ -f packaging/blockpage/index.html ]; then
 	install -m644 packaging/blockpage/index.html "$ROOT/usr/share/goblin-gate/blockpage.html"
 fi
 install -d "$ROOT/lib/systemd/system" "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d" "$ROOT/etc/systemd/system/nftables.service.d" "$ROOT/etc/systemd/system/getty@tty1.service.d"
-install -m644 packaging/systemd/goblind.service packaging/systemd/goblin-suricata@.service packaging/systemd/goblin-miniupnpd.service packaging/systemd/goblin-caddy.service packaging/systemd/goblin-plugin@.service packaging/systemd/goblin-sqm.service packaging/systemd/goblin-nic.service "$ROOT/lib/systemd/system/"
+install -m644 packaging/systemd/goblind.service packaging/systemd/goblin-suricata@.service packaging/systemd/goblin-miniupnpd.service packaging/systemd/goblin-caddy.service packaging/systemd/goblin-plugin@.service packaging/systemd/goblin-sqm.service packaging/systemd/goblin-nic.service packaging/systemd/goblin-radius.service "$ROOT/lib/systemd/system/"
 install -m644 packaging/systemd/systemd-networkd-wait-online.service.d/goblin.conf "$ROOT/etc/systemd/system/systemd-networkd-wait-online.service.d/"
 install -m644 packaging/systemd/nftables.service.d/goblin.conf "$ROOT/etc/systemd/system/nftables.service.d/"
 # sandboxes for the stock DNS, DHCP, log and UPS units (in /lib: an admin's drop-in in /etc still wins)
@@ -43,9 +43,12 @@ for u in unbound.service kea-dhcp4-server.service ulogd2.service nut-server.serv
 	install -d "$ROOT/lib/systemd/system/$u.d"
 	install -m644 "packaging/systemd/$u.d/goblin-hardening.conf" "$ROOT/lib/systemd/system/$u.d/"
 done
-# AppArmor profiles for Suricata and Caddy, and the additions to Debian's Unbound profile
+# FRR only with the gate's own routing config
+install -d "$ROOT/lib/systemd/system/frr.service.d"
+install -m644 packaging/systemd/frr.service.d/goblin-gate.conf "$ROOT/lib/systemd/system/frr.service.d/"
+# AppArmor profiles for Suricata, Caddy and FRR, and the additions to Debian's Unbound profile
 install -d "$ROOT/etc/apparmor.d" "$ROOT/usr/share/goblin-gate/apparmor"
-install -m644 packaging/apparmor/goblin-gate.suricata packaging/apparmor/goblin-gate.caddy "$ROOT/etc/apparmor.d/"
+install -m644 packaging/apparmor/goblin-gate.suricata packaging/apparmor/goblin-gate.caddy packaging/apparmor/goblin-gate.frr packaging/apparmor/goblin-gate.freeradius "$ROOT/etc/apparmor.d/"
 install -m644 packaging/apparmor/unbound "$ROOT/usr/share/goblin-gate/apparmor/"
 install -d "$ROOT/usr/lib/sysctl.d"
 install -m644 packaging/sysctl/80-goblin-hardening.conf "$ROOT/usr/lib/sysctl.d/"

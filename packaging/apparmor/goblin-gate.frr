@@ -1,0 +1,117 @@
+# Goblin Gate: AppArmor profiles for FRR's routing daemons that talk to other
+# routers: bgpd (TCP 179 to the BGP neighbours) and ospfd (OSPF packets on the
+# OSPF interfaces). Debian's FRR ships no profiles. They may read FRR's
+# configuration and libraries, keep their sockets, pid files and crash logs
+# in FRR's run and temp directories, talk to zebra, and use the network.
+# Nothing else: no programs, no other files. zebra (which installs the routes)
+# and watchfrr (which starts the daemons) are not exposed to the network.
+abi <abi/3.0>,
+include <tunables/global>
+
+profile goblin-frr-bgpd /usr/lib/frr/bgpd flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  # libfrr: privileges (the daemons drop to user frr and keep these),
+  # zebra's API socket, the vty socket vtysh connects to, syslog
+  capability net_admin,
+  capability net_raw,
+  capability net_bind_service,
+  capability setuid,
+  capability setgid,
+  capability sys_admin,
+  capability dac_override,
+  capability dac_read_search,
+  capability chown,
+  network unix stream,
+  network unix dgram,
+  network netlink raw,
+  signal (receive),
+
+  / r,
+  /etc/frr/ r,
+  /etc/frr/** r,
+  /usr/lib/frr/modules/ r,
+  /usr/lib/frr/modules/*.so mr,
+  /{var/,}run/frr/ r,
+  /{var/,}run/frr/zserv.api rw,
+  /var/tmp/frr/ rw,
+  /usr/share/zoneinfo/** r,
+  # the YANG models of FRR's northbound interface
+  /usr/share/yang/ r,
+  /usr/share/yang/** r,
+  @{PROC}/sys/net/** r,
+  @{PROC}/sys/kernel/** r,
+  owner @{PROC}/@{pid}/** r,
+  # thread names (the daemon runs as frr, its /proc files stay root's)
+  @{PROC}/@{pid}/task/@{tid}/comm rw,
+  @{PROC}/@{pid}/net/** r,
+  @{sys}/class/net/ r,
+  @{sys}/devices/** r,
+
+  network inet stream,
+  network inet6 stream,
+
+  /usr/lib/frr/bgpd mr,
+  # pid file, vty socket, graceful restart state (bgpd-gr.json)
+  /{var/,}run/frr/bgpd.* rwk,
+  /{var/,}run/frr/bgpd-* rwk,
+  # crash logs
+  /var/tmp/frr/bgpd.*/ rw,
+  /var/tmp/frr/bgpd.*/** rw,
+
+  include if exists <local/goblin-gate.frr-bgpd>
+}
+
+profile goblin-frr-ospfd /usr/lib/frr/ospfd flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  # libfrr: privileges (the daemons drop to user frr and keep these),
+  # zebra's API socket, the vty socket vtysh connects to, syslog
+  capability net_admin,
+  capability net_raw,
+  capability net_bind_service,
+  capability setuid,
+  capability setgid,
+  capability sys_admin,
+  capability dac_override,
+  capability dac_read_search,
+  capability chown,
+  network unix stream,
+  network unix dgram,
+  network netlink raw,
+  signal (receive),
+
+  / r,
+  /etc/frr/ r,
+  /etc/frr/** r,
+  /usr/lib/frr/modules/ r,
+  /usr/lib/frr/modules/*.so mr,
+  /{var/,}run/frr/ r,
+  /{var/,}run/frr/zserv.api rw,
+  /var/tmp/frr/ rw,
+  /usr/share/zoneinfo/** r,
+  # the YANG models of FRR's northbound interface
+  /usr/share/yang/ r,
+  /usr/share/yang/** r,
+  @{PROC}/sys/net/** r,
+  @{PROC}/sys/kernel/** r,
+  owner @{PROC}/@{pid}/** r,
+  # thread names (the daemon runs as frr, its /proc files stay root's)
+  @{PROC}/@{pid}/task/@{tid}/comm rw,
+  @{PROC}/@{pid}/net/** r,
+  @{sys}/class/net/ r,
+  @{sys}/devices/** r,
+
+  # OSPF is IP protocol 89: raw sockets, multicast to 224.0.0.5 and .6
+  network inet raw,
+
+  /usr/lib/frr/ospfd mr,
+  # pid file, vty socket, graceful restart state (ospfd-gr.json)
+  /{var/,}run/frr/ospfd.* rwk,
+  /{var/,}run/frr/ospfd-* rwk,
+  # crash logs
+  /var/tmp/frr/ospfd.*/ rw,
+  /var/tmp/frr/ospfd.*/** rw,
+
+  include if exists <local/goblin-gate.frr-ospfd>
+}

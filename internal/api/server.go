@@ -25,6 +25,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/feeds"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flowexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/flows"
+	"github.com/networkgoblinlabs/goblin-gate/internal/frr"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gateways"
 	"github.com/networkgoblinlabs/goblin-gate/internal/geoip"
 	"github.com/networkgoblinlabs/goblin-gate/internal/gitbackup"
@@ -35,7 +36,10 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/nicinfo"
 	"github.com/networkgoblinlabs/goblin-gate/internal/notify"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
+	"github.com/networkgoblinlabs/goblin-gate/internal/portal"
+	"github.com/networkgoblinlabs/goblin-gate/internal/radius"
 	"github.com/networkgoblinlabs/goblin-gate/internal/reverseproxy"
+	"github.com/networkgoblinlabs/goblin-gate/internal/sites"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
 	"github.com/networkgoblinlabs/goblin-gate/internal/tailscale"
 	"github.com/networkgoblinlabs/goblin-gate/internal/throughput"
@@ -54,9 +58,10 @@ type Server struct {
 	Store  *config.Store
 	Commit *commit.Engine
 
-	policySwitches switchLimiter
-	liveUpdates    liveLimiter
-	Logger         *slog.Logger
+	policySwitches    switchLimiter
+	liveUpdates       liveLimiter
+	annotationUpdates liveLimiter
+	Logger            *slog.Logger
 
 	// Authn turns on authentication (sessions, API tokens, the local
 	// socket); nil leaves the API open (dev and tests).
@@ -84,6 +89,11 @@ type Server struct {
 	// objects:write); RefillLive loads an object's new members into the
 	// sets that use it (geoip.Manager.RefillLive).
 	LiveObjects *liveobjects.Store
+	// FRR reads the dynamic routing state through vtysh; nil answers 503.
+	FRR frr.Runner
+	// Annotations keeps the fields plugins attach to devices (capability
+	// devices:annotate); nil answers 503.
+	Annotations *devices.AnnotationStore
 	RefillLive  func(objects ...string)
 	// GitBackup records revisions in git and pushes them (task 098); nil
 	// answers 503.
@@ -146,6 +156,18 @@ type Server struct {
 	// WireGuardStats reads live peer stats (nil = none).
 	WireGuardKeyDir string
 	WireGuardStats  func(ctx context.Context, dev string) (map[string]wireguard.PeerStat, error)
+	// SiteInvites keeps this gate's open site invitations (task 155; nil
+	// answers 503 on the pairing routes); SitePing checks a site's gate
+	// (nil = not checked); SiteNow is the clock (tests).
+	SiteInvites *sites.Invites
+	// Portal keeps the captive portal's guests and vouchers (nil: 503).
+	Portal *portal.Manager
+	// Radius answers FreeRADIUS and keeps sessions and the log; RadiusState
+	// keeps PPSKs and client certificates (nil: 503).
+	Radius      *radius.Manager
+	RadiusState *radius.State
+	SitePing    SitePing
+	SiteNow     func() time.Time
 
 	// Devices keeps the device inventory (task 070); nil answers 503.
 	Devices *devices.Store
@@ -220,6 +242,9 @@ func (s *Server) Routes() http.Handler {
 // openRoutes adds the API routes that need no session or token.
 func (s *Server) openRoutes(handle func(pattern string, h http.Handler)) {
 	handle("POST /api/v1/auth/login", http.HandlerFunc(s.login))
+	handle("GET /api/v1/auth/sso", http.HandlerFunc(s.ssoStatus))
+	handle("GET /api/v1/auth/sso/login", http.HandlerFunc(s.ssoLogin))
+	handle("GET "+ssoCallbackPath, http.HandlerFunc(s.ssoCallback))
 	// First-boot setup: open without authentication until an admin exists.
 	handle("GET /api/v1/setup/state", http.HandlerFunc(s.setupState))
 	handle("POST /api/v1/setup", http.HandlerFunc(s.setup))
@@ -271,10 +296,15 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/admins", s.createAdmin)
 	handle("PATCH /api/v1/admins/{name}", s.updateAdmin)
 	handle("DELETE /api/v1/admins/{name}", s.deleteAdmin)
+	handle("GET /api/v1/roles", s.listRoles)
+	handle("POST /api/v1/roles", s.createRole)
+	handle("PATCH /api/v1/roles/{name}", s.updateRole)
+	handle("DELETE /api/v1/roles/{name}", s.deleteRole)
 	handle("POST /api/v1/notifications/test", s.notifyTest)
 	handle("GET /api/v1/upnp/mappings", s.upnpMappings)
 	handle("POST /api/v1/import/pfsense", s.importPfSense)
 	handle("GET /api/v1/gateways/status", s.gatewayStatus)
+	handle("GET /api/v1/routing/status", s.routingStatus)
 	handle("GET /api/v1/wan/status", s.wanStatus)
 	handle("GET /api/v1/vpn/wireguard-clients/{name}/public-key", s.wireguardClientPublicKey)
 	handle("PUT /api/v1/vpn/wireguard-clients/{name}/private-key", s.wireguardClientSetKey)
@@ -323,6 +353,30 @@ func (s *Server) register(handle func(pattern string, h http.HandlerFunc)) {
 	handle("POST /api/v1/vpn/tailscale/logout", s.tailscaleLogout)
 	handle("GET /api/v1/vpn/wireguard", s.wireguardList)
 	handle("POST /api/v1/vpn/wireguard/{name}/peers", s.wireguardAddPeer)
+	handle("GET /api/v1/vpn/sites/status", s.siteStatus)
+	handle("GET /api/v1/vpn/sites/invitations", s.siteInvitations)
+	handle("POST /api/v1/vpn/sites/invitations", s.siteInvite)
+	handle("DELETE /api/v1/vpn/sites/invitations/{id}", s.siteInvitationDelete)
+	handle("POST /api/v1/vpn/sites/join/check", s.siteJoinCheck)
+	handle("POST /api/v1/vpn/sites/join", s.siteJoin)
+	handle("POST /api/v1/vpn/sites/accept", s.siteAccept)
+	handle("GET /api/v1/portal/clients", s.portalClients)
+	handle("DELETE /api/v1/portal/clients/{mac}", s.portalKick)
+	handle("GET /api/v1/portal/vouchers", s.portalVouchers)
+	handle("POST /api/v1/portal/vouchers", s.portalVoucherCreate)
+	handle("POST /api/v1/portal/vouchers/{id}/revoke", s.portalVoucherRevoke)
+	handle("DELETE /api/v1/portal/vouchers/{id}", s.portalVoucherDelete)
+	handle("GET /api/v1/portal/preview/{interface}", s.portalPreview)
+	handle("GET /api/v1/radius/log", s.radiusLog)
+	handle("GET /api/v1/radius/sessions", s.radiusSessions)
+	handle("POST /api/v1/radius/sessions/{mac}/disconnect", s.radiusDisconnect)
+	handle("PUT /api/v1/devices/{mac}/vlan", s.setDeviceVLAN)
+	handle("GET /api/v1/radius/ppsk", s.radiusPPSKs)
+	handle("PUT /api/v1/radius/ppsk/{mac}", s.radiusSetPPSK)
+	handle("DELETE /api/v1/radius/ppsk/{mac}", s.radiusDeletePPSK)
+	handle("GET /api/v1/radius/certificates", s.radiusCerts)
+	handle("POST /api/v1/radius/users/{name}/certificate", s.radiusIssueCert)
+	handle("POST /api/v1/radius/users/{name}/certificates/revoke", s.radiusRevokeCerts)
 	handle("POST /api/v1/auth/logout", s.logout)
 	handle("GET /api/v1/auth/me", s.me)
 	handle("POST /api/v1/auth/password", s.changePassword)

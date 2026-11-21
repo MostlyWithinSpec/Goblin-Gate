@@ -103,5 +103,6 @@ func (s *Server) credentialStillValid(r *http.Request) bool {
 		return false
 	}
 	id, _ := IdentityFrom(r)
-	return s.currentRole(id.User) != ""
+	role, _ := s.sessionAccess(id)
+	return role != ""
 }

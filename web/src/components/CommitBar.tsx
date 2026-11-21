@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { commitConfig, confirmCommit, getConfigDiff, getSystemStatus } from '../api/config'
+import { usePermissions } from '../api/permissions'
 import { APIRequestError } from '../api/client'
 import { Button } from '../components/Button'
 import { Badge } from '../components/Badge'
@@ -66,6 +67,7 @@ export const CommitBar: React.FC = () => {
     queryFn: getSystemStatus,
     refetchInterval: 1000,
   })
+  const perms = usePermissions()
 
   // Countdown state for the pending-confirm banner.
   const [now, setNow] = useState(() => Date.now())
@@ -141,6 +143,9 @@ export const CommitBar: React.FC = () => {
   }
 
   const changesCount = diffData?.count || 0
+  // A role without the commit scope may edit the candidate but not apply it,
+  // so the button stays disabled instead of answering 403 (task 150).
+  const mayCommit = perms.can('commit')
 
   // Compute remaining time for the countdown.
   let remainingMs: number | null = null
@@ -160,7 +165,7 @@ export const CommitBar: React.FC = () => {
           {remainingMs !== null && remainingMs > 0 && (
             <span className="font-mono text-sm">{formatRemaining(remainingMs)}</span>
           )}
-          <Button variant="secondary" size="sm" onClick={handleConfirm} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={handleConfirm} disabled={busy || !mayCommit}>
             {t('commit.confirm')}
           </Button>
         </div>
@@ -176,6 +181,11 @@ export const CommitBar: React.FC = () => {
           <Badge variant="secondary">{changesCount}</Badge>
           <span className="ml-1">{t('commit.changes')}</span>
         </Button>
+        {!mayCommit && changesCount > 0 && (
+          <span className="text-xs text-gray-500 dark:text-gray-400" title={t('commit.needScopeHint')}>
+            {t('commit.needScope')}
+          </span>
+        )}
       </div>
 
       <Dialog open={open} onClose={() => setOpen(false)} title={t('commit.review')} size="large">
@@ -248,7 +258,7 @@ export const CommitBar: React.FC = () => {
           <Button variant="secondary" onClick={() => setOpen(false)}>
             {t('common.close')}
           </Button>
-          <Button variant="primary" onClick={handleCommit} disabled={changesCount === 0 || busy}>
+          <Button variant="primary" onClick={handleCommit} disabled={changesCount === 0 || busy || !mayCommit}>
             {busy ? t('commit.committing') : t('commit.commit')}
           </Button>
         </div>

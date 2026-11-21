@@ -13,8 +13,12 @@ import (
 
 // nutSecret returns the password of the box's own upsmon account (UPS on
 // USB, task 112), creating it on first use. It is box state, not config:
-// it stays out of backups, config history and the API.
-func nutSecret(path string) func() (string, error) {
+// it stays out of backups, config history and the API. The RADIUS hook
+// password is made the same way (boxSecret).
+func nutSecret(path string) func() (string, error) { return boxSecret(path) }
+
+// boxSecret returns a random secret kept in path, creating it on first use.
+func boxSecret(path string) func() (string, error) {
 	var mu sync.Mutex
 	return func() (string, error) {
 		mu.Lock()

@@ -74,6 +74,20 @@ if (-not $SkipGo) {
             finally { $env:GOOS = $oldOS; $env:CGO_ENABLED = $oldCgo }
         }
         Invoke-Step 'go test' { go test -count=1 ./... }
+        # the Terraform provider is a module of its own (its dependencies stay
+        # out of goblind); its acceptance tests need TF_ACC=1, see its README
+        $tf = Join-Path $Root 'terraform-provider-goblingate'
+        if (Test-Path (Join-Path $tf 'go.mod')) {
+            Invoke-Step 'terraform provider' {
+                Push-Location $tf
+                try {
+                    $bad = @(& gofmt -l .)
+                    if ($bad) { "These files need gofmt:"; $bad; $global:LASTEXITCODE = 1; return }
+                    go vet ./...
+                    if ($LASTEXITCODE -eq 0) { go test -count=1 ./... }
+                } finally { Pop-Location }
+            }
+        }
     }
 }
 

@@ -419,7 +419,23 @@ api GET /api/v1/internal-ca >"$A/internal-ca.json"
 # the daily IPS rule update reloads Suricata in place
 check ips-reload sh -c "$SSH 'systemctl reload goblin-suricata@test.service && sleep 10 && systemctl is-active -q goblin-suricata@test.service'"
 
-# --- AppArmor: Suricata, Unbound, Kea and Caddy run confined (enforce) and
+# --- dynamic routing: a BGP neighbour that never answers (bgpd keeps trying)
+# and OSPF on the LAN (ospfd sends hellos): FRR runs with the gate's config,
+# vtysh's check passed, the status API reads it, bgpd and ospfd are confined
+patch routing '{"bgp":{"enabled":true,"as":65001,"neighbors":[{"address":"192.0.2.1","remote_as":65002,"enabled":true,"password":"net-test"}]},"ospf":{"enabled":true,"areas":[{"id":"0","interfaces":[{"name":"lan"}]}]}}'
+api POST /api/v1/commit '{"comment":"routing"}' >"$A/commit-routing.json"
+check frr-running retry 60 sh -c "$SSH 'systemctl is-active -q frr.service && pidof bgpd && pidof ospfd'"
+RS="$CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/routing/status"
+check routing-status retry 60 sh -c "$RS | tee $A/routing-status.json | jq -e '.running and .bgp_enabled and (.bgp | length == 1) and .bgp[0].address == \"192.0.2.1\" and .bgp[0].up == false'"
+check bgp-port-closed sh -c "! $CL timeout 5 bash -c 'echo > /dev/tcp/192.168.1.1/179' 2>/dev/null"
+$SSH 'cat /etc/frr/frr.conf; vtysh -c "show running-config"' >"$A/frr.txt" 2>&1
+proc_confined() { # proc_confined <program> <profile>
+	$SSH "p=\$(pidof $1) && cat /proc/\$p/attr/current && grep -qx '$2 (enforce)' /proc/\$p/attr/current"
+}
+check apparmor-bgpd proc_confined bgpd goblin-frr-bgpd
+check apparmor-ospfd proc_confined ospfd goblin-frr-ospfd
+
+# --- AppArmor: Suricata, Unbound, Kea, Caddy and FRR run confined (enforce) and
 # nothing they did above was denied
 $SSH 'journalctl -u goblin-caddy --no-pager | tail -n 80' >"$A/caddy.txt" 2>&1
 $SSH 'aa-status 2>&1; journalctl -k --no-pager | grep -E "apparmor=\"(DENIED|ALLOWED)\""' >"$A/apparmor.txt" 2>&1
@@ -431,6 +447,10 @@ check apparmor-caddy confined goblin-caddy.service goblin-caddy
 check apparmor-unbound confined unbound.service unbound
 check apparmor-kea confined kea-dhcp4-server.service kea-dhcp4
 check apparmor-no-denials sh -c "$SSH '! journalctl -k --no-pager | grep -E \"apparmor=\\\"(DENIED|ALLOWED)\\\"\"'"
+# routing off again: FRR stops
+patch routing '{}'
+api POST /api/v1/commit '{"comment":"routing off"}' >"$A/commit-routing-off.json"
+check frr-stopped retry 60 sh -c "$SSH '! systemctl is-active -q frr.service'"
 
 # --- artifacts
 for p in /api/v1/system/status /api/v1/feeds "/api/v1/logs?limit=200" /api/v1/config/running /api/v1/stats/policies; do

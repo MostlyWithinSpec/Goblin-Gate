@@ -9,6 +9,9 @@ import { getCandidate, patchSection, type Candidate } from '../api/objects'
 import type { ValidationError } from '../api/policy'
 import { EditDrawer } from './EditDrawer'
 import { usedBy } from './usage'
+import { usePermissions } from '../api/permissions'
+import { scopeForSection } from '../api/configScopes'
+import { t } from '../i18n'
 
 export type Errors = Record<string, string>
 
@@ -52,6 +55,13 @@ interface Props<T extends { name: string }> {
   // fromURL builds a new entry from the page's query (a shortcut from another
   // page, e.g. ?new_host=…); the drawer opens with it once the list is loaded.
   fromURL?: (params: URLSearchParams, cfg: Candidate) => T | null
+  // canEdit: false hides the create and delete controls even though the role
+  // holds the section's scope (a page with a rule of its own). By default the
+  // signed-in role decides: without this section's write scope the list is
+  // read-only, because the server would refuse the PATCH (task 150).
+  canEdit?: boolean
+  // notEditableNote: why the list is read-only, shown under the table.
+  notEditableNote?: string
 }
 
 export const inputClass = 'mt-1 block min-h-[40px] w-full rounded border border-gray-300 px-2 py-1 dark:bg-gray-700 dark:border-gray-600'
@@ -73,6 +83,12 @@ export function EditParam({ onEdit, onNew }: { onEdit: (name: string) => void; o
 
 export function ConfigList<T extends { name: string }>(p: Props<T>) {
   const inRouter = useInRouterContext()
+  const perms = usePermissions()
+  const needed = scopeForSection(p.path)
+  // A section a full admin owns (needed '') needs full_admin; anything else
+  // needs its write scope. Sections the map does not know stay editable here
+  // and are refused by the server, as before.
+  const editable = p.canEdit ?? (needed === '' ? perms.mayAdmin : perms.can(needed))
   const [cfg, setCfg] = useState<Candidate | null>(null)
   const [items, setItems] = useState<T[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -177,14 +193,16 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
       )}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">{p.title}</h2>
-        <button
-          type="button"
-          disabled={!cfg}
-          onClick={() => cfg && open(p.empty(cfg), null)}
-          className="flex min-h-[40px] items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Plus size={16} /> {p.newLabel ?? 'New'}
-        </button>
+        {editable && (
+          <button
+            type="button"
+            disabled={!cfg}
+            onClick={() => cfg && open(p.empty(cfg), null)}
+            className="flex min-h-[40px] items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Plus size={16} /> {p.newLabel ?? 'New'}
+          </button>
+        )}
       </div>
       {p.intro && <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">{p.intro}</div>}
       {error && !editing && <div role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-200">{error}</div>}
@@ -213,9 +231,11 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
                 {p.columns.map((c) => <td key={c.label} className="px-3 py-1">{c.render(x)}</td>)}
                 <td className="whitespace-nowrap px-3 py-1 text-right">
                   {p.rowActions?.(x)}
-                  <button type="button" aria-label={`Delete ${x.name}`} onClick={() => remove(x, i)} className="ml-2 inline-flex h-10 w-10 items-center justify-center text-red-600">
-                    <Trash2 size={16} />
-                  </button>
+                  {editable && (
+                    <button type="button" aria-label={`Delete ${x.name}`} onClick={() => remove(x, i)} className="ml-2 inline-flex h-10 w-10 items-center justify-center text-red-600">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -229,6 +249,7 @@ export function ConfigList<T extends { name: string }>(p: Props<T>) {
         </table>
       </div>
       {cfg && p.after?.(cfg, items)}
+      {!editable && <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{p.notEditableNote ?? t('permissions.readOnlyList')}</p>}
 
       {editing && cfg && (
         <EditDrawer isOpen onClose={() => setEditing(null)} title={editing.index === null ? (p.newLabel ?? 'New') : `Edit ${editing.item.name}`} wide={p.wide}>

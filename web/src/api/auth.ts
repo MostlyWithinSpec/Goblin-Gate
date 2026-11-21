@@ -7,9 +7,18 @@ import { apiClient } from './client'
 
 export interface Me {
   user: string
-  role: 'admin' | 'readonly'
+  // role is "admin", "readonly" or the name of a custom role (task 149), so
+  // never compare it against a built-in name to decide what a user may do.
+  role: string
   method: 'session' | 'token' | 'socket' | 'none'
   totp_enabled?: boolean
+  // via is "sso" for a session that came from single sign-on (task 147): the
+  // user is not a local account and two-factor belongs to the provider.
+  via?: string
+  // permissions are the effective scopes; full_admin is true for a full admin
+  // only (no scoped token, no custom role). Absent from an older server.
+  permissions?: string[]
+  full_admin?: boolean
 }
 
 export type LoginResult =
@@ -41,6 +50,20 @@ export async function login(username: string, password: string, code?: string): 
 export function csrfToken(): string {
   const m = /(?:^|;\s*)gg_csrf=([^;]*)/.exec(document.cookie)
   return m ? decodeURIComponent(m[1]) : ''
+}
+
+// Single sign-on (task 147): GET /api/v1/auth/sso needs no session and says
+// whether the login page shows the provider button.
+export interface SSOStatus {
+  enabled: boolean
+  name: string
+}
+
+export async function getSSOStatus(): Promise<SSOStatus> {
+  const res = await fetch('/api/v1/auth/sso')
+  if (!res.ok) return { enabled: false, name: '' }
+  const body = await res.json().catch(() => ({}))
+  return { enabled: body?.enabled === true, name: typeof body?.name === 'string' ? body.name : '' }
 }
 
 export async function logout(): Promise<void> {

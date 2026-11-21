@@ -1,0 +1,15 @@
+{
+  "portalPage.accept": "I accept the terms",
+  "portalPage.connect": "Connect",
+  "portalPage.defaultTitle": "Welcome",
+  "portalPage.errNoClient": "This device could not be recognised. Reconnect to the network and try again.",
+  "portalPage.errPassword": "Wrong password.",
+  "portalPage.errTerms": "Accept the terms to continue.",
+  "portalPage.errTooMany": "Too many attempts. Wait a minute and try again.",
+  "portalPage.errVoucher": "That voucher is unknown, used up or expired.",
+  "portalPage.minutesLeft": "{minutes} minutes left",
+  "portalPage.online": "You are online.",
+  "portalPage.password": "Password",
+  "portalPage.preview": "Preview: this is how guests see the page.",
+  "portalPage.voucher": "Voucher code"
+}

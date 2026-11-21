@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/networkgoblinlabs/goblin-gate/internal/appctrl"
 	"github.com/networkgoblinlabs/goblin-gate/internal/auth"
 	"github.com/networkgoblinlabs/goblin-gate/internal/capture"
@@ -21,6 +23,7 @@ import (
 	"github.com/networkgoblinlabs/goblin-gate/internal/logexport"
 	"github.com/networkgoblinlabs/goblin-gate/internal/logs"
 	"github.com/networkgoblinlabs/goblin-gate/internal/plugins"
+	"github.com/networkgoblinlabs/goblin-gate/internal/radius"
 	"github.com/networkgoblinlabs/goblin-gate/internal/render/nft"
 	"github.com/networkgoblinlabs/goblin-gate/internal/reverseproxy"
 	"github.com/networkgoblinlabs/goblin-gate/internal/stats"
@@ -45,6 +48,12 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/v1/auth/login": {Tag: "Auth", Open: true, Summary: "Log in",
 		Desc: "Sets the session and CSRF cookies. Answers 401 with code totp_required when the user has two-factor login on and no code was sent.",
 		Body: typ[loginRequest](), Resp: obj{{"user", str}, {"role", str}, {"csrf_token", str}}},
+	"GET /api/v1/auth/sso": {Tag: "Auth", Open: true, Summary: "Whether single sign-on is on",
+		Desc: "For the login page: name is the text of the sign-in button.", Resp: obj{{"enabled", boolean}, {"name", str}}},
+	"GET /api/v1/auth/sso/login": {Tag: "Auth", Open: true, Summary: "Start a single sign-on",
+		Desc: "A browser navigation, not an API call: answers 303 to the identity provider, or to /login?sso_error=<code>."},
+	"GET /api/v1/auth/sso/callback": {Tag: "Auth", Open: true, Summary: "Where the identity provider sends the browser back",
+		Desc: "Register this URL at the provider. Sets the session cookies and goes on to the web UI, or to /login?sso_error=<code> (disabled, state, provider, exchange, token, refused, no_username, local_user, no_role, too_many_attempts, busy)."},
 	"GET /api/v1/setup/state": {Tag: "Setup", Open: true, Summary: "Whether the first-boot setup is still needed",
 		Resp: obj{{"needed", boolean}, {"current", ret(currentSetup)}}},
 	"POST /api/v1/setup": {Tag: "Setup", Open: true, Summary: "Run the first-boot setup",
@@ -104,6 +113,10 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/v1/admins":                 {Tag: "Admins", Summary: "Add an admin", Body: typ[adminRequest](), Resp: obj{{"admin", typ[adminInfo]()}}, Status: 201},
 	"PATCH /api/v1/admins/{name}":         {Tag: "Admins", Summary: "Change an admin's role or password", Desc: "A new password signs that admin out everywhere.", Body: typ[adminUpdateRequest](), Resp: status},
 	"DELETE /api/v1/admins/{name}":        {Tag: "Admins", Summary: "Delete an admin", Resp: status},
+	"GET /api/v1/roles":                   {Tag: "Admins", Summary: "Roles and scopes", Desc: "The built-in roles admin and readonly, the custom roles with their users, and every scope a role can grant.", Resp: obj{{"roles", typ[[]roleInfo]()}, {"scopes", typ[[]scopeInfo]()}}},
+	"POST /api/v1/roles":                  {Tag: "Admins", Summary: "Add a custom role", Desc: "Read is always included. Takes effect at once (no commit).", Body: typ[roleRequest](), Resp: obj{{"role", typ[config.Role]()}}, Status: 201},
+	"PATCH /api/v1/roles/{name}":          {Tag: "Admins", Summary: "Change a custom role", Desc: "Its users get the new scopes with their next request.", Body: typ[roleUpdateRequest](), Resp: status},
+	"DELETE /api/v1/roles/{name}":         {Tag: "Admins", Summary: "Delete a custom role", Desc: "Refused while a user has it.", Resp: status},
 	"POST /api/v1/notifications/test":     {Tag: "System", Summary: "Send a test notification", Body: typ[notifyTestRequest](), Resp: status},
 	"GET /api/v1/checks":                  {Tag: "Checks", Summary: "Goblin Checks: the network audit", Resp: ret(checks.Run)},
 	"POST /api/v1/checks/dismiss":         {Tag: "Checks", Summary: "Dismiss a finding", Body: typ[dismissRequest](), Resp: status},
@@ -136,15 +149,16 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/v1/auth/tokens":        {Tag: "Auth", Summary: "Create an API token", Desc: "token is shown only in this answer.", Body: typ[tokenRequest](), Resp: obj{{"token", str}, {"info", typ[auth.TokenInfo]()}}, Status: 201},
 	"DELETE /api/v1/auth/tokens/{id}": {Tag: "Auth", Summary: "Revoke an API token", Resp: status},
 	"GET /api/v1/auth/sessions": {Tag: "Auth", Summary: "Active login sessions", Resp: obj{{"sessions", arrayOf{obj{
-		{"id", str}, {"user", str}, {"role", str}, {"addr", str}, {"user_agent", str}, {"created", when}, {"last_seen", when}, {"current", boolean}}}}}},
+		{"id", str}, {"user", str}, {"role", str}, {"via", str}, {"addr", str}, {"user_agent", str}, {"created", when}, {"last_seen", when}, {"current", boolean}}}}}},
 	"DELETE /api/v1/auth/sessions/{id}": {Tag: "Auth", Summary: "Sign a session out", Status: 204},
 
 	// --- network
 	"GET /api/v1/dhcp/leases":         {Tag: "Network", Summary: "Active DHCP leases", Resp: obj{{"leases", typ[[]dhcpLease]()}}},
 	"GET /api/v1/upnp/mappings":       {Tag: "Network", Summary: "Active UPnP / NAT-PMP port mappings", Resp: obj{{"enabled", boolean}, {"mappings", ret(upnp.Read)}}},
+	"GET /api/v1/routing/status":      {Tag: "Network", Summary: "BGP sessions, OSPF neighbours and the routes they learned", Resp: typ[RoutingStatus]()},
 	"GET /api/v1/gateways/status":     {Tag: "Network", Summary: "Gateway monitoring and routing state", Resp: typ[gateways.Report]()},
 	"GET /api/v1/wan/status":          {Tag: "Network", Summary: "WAN links, addresses and next hops", Resp: obj{{"wans", typ[[]WANStatus]()}}},
-	"GET /api/v1/devices":             {Tag: "Network", Summary: "Devices seen on the LAN", Query: []queryParam{{Name: "interface", Desc: "only devices on this interface"}}, Resp: obj{{"devices", ret((*devices.Store).List)}}},
+	"GET /api/v1/devices":             {Tag: "Network", Summary: "Devices seen on the LAN", Query: []queryParam{{Name: "interface", Desc: "only devices on this interface"}}, Resp: obj{{"devices", typ[[]DeviceView]()}, {"annotations_updated", typ[map[string]time.Time]()}}},
 	"PATCH /api/v1/devices/{mac}":     {Tag: "Network", Summary: "Name a device", Body: typ[deviceNameRequest](), Resp: ret((*devices.Store).SetName)},
 	"POST /api/v1/devices/{mac}/wake": {Tag: "Network", Summary: "Wake a device (Wake-on-LAN)", Resp: obj{{"status", str}, {"broadcast", str}}},
 	"DELETE /api/v1/devices/{mac}":    {Tag: "Network", Summary: "Forget a device", Status: 204},
@@ -185,6 +199,52 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/v1/vpn/wireguard/{name}/peers": {Tag: "VPN", Summary: "Add a peer to a WireGuard server",
 		Desc: "Adds the peer to the candidate (commit to activate) and returns the client's config; its private key is not kept.",
 		Body: typ[wgPeerRequest](), Resp: obj{{"peer", typ[config.WireGuardPeer]()}, {"config", str}, {"qr_svg", str}}, Status: 201},
+	"GET /api/v1/portal/clients": {Tag: "Captive portal", Summary: "Guests let in by the captive portal",
+		Resp: obj{{"clients", typ[[]PortalClient]()}}},
+	"DELETE /api/v1/portal/clients/{mac}": {Tag: "Captive portal", Summary: "Remove a guest", Desc: "Ends the session: the client sees the portal again.", Resp: status},
+	"GET /api/v1/portal/vouchers":         {Tag: "Captive portal", Summary: "Voucher batches with each code's state", Resp: obj{{"batches", typ[[]VoucherBatch]()}}},
+	"POST /api/v1/portal/vouchers": {Tag: "Captive portal", Summary: "Make a batch of voucher codes",
+		Body: typ[voucherRequest](), Resp: typ[VoucherBatch](), Status: 201},
+	"POST /api/v1/portal/vouchers/{id}/revoke": {Tag: "Captive portal", Summary: "Revoke a batch or one code",
+		Desc: "Guests let in with a revoked code are removed.", Body: typ[voucherRevokeRequest](), Resp: status},
+	"DELETE /api/v1/portal/vouchers/{id}": {Tag: "Captive portal", Summary: "Delete a batch", Desc: "Guests let in with its codes stay until their time is up.", Resp: status},
+	"GET /api/v1/portal/preview/{interface}": {Tag: "Captive portal", Summary: "The candidate's portal page of an interface",
+		Desc: "HTML as a guest sees it before being let in, for a frame in the admin UI.", Content: "text/html"},
+	"GET /api/v1/radius/log": {Tag: "RADIUS", Summary: "Recent authentications, newest first",
+		Desc: "Kept in memory (the last 1000). Query limit: 1-1000, default 200.", Resp: typ[RadiusLog]()},
+	"GET /api/v1/radius/sessions": {Tag: "RADIUS", Summary: "Devices let in, with their switch or access point and port",
+		Desc: "From post-auth and accounting; a session without accounting expires after a day.", Resp: typ[RadiusSessions]()},
+	"POST /api/v1/radius/sessions/{mac}/disconnect": {Tag: "RADIUS", Summary: "Disconnect a device (RFC 5176)",
+		Desc: "The switch or access point ends the session; the device reconnects and authenticates again.", Resp: typ[radius.DisconnectOutcome]()},
+	"PUT /api/v1/devices/{mac}/vlan": {Tag: "RADIUS", Summary: "Move a device to a VLAN",
+		Desc: "A VLAN name of the running configuration (\"\" = none of its own). Takes effect at once, no commit: a device with a session is disconnected and rejoins in the new VLAN. A MAC not yet in the inventory is added.",
+		Body: typ[deviceVLANRequest](), Resp: typ[DeviceVLANResult]()},
+	"GET /api/v1/radius/ppsk": {Tag: "RADIUS", Summary: "Per-device Wi-Fi passwords (PPSK)", Desc: "Needs write:network: the passwords are in the answer.",
+		Resp: obj{{"devices", typ[[]radius.PPSKEntry]()}}},
+	"PUT /api/v1/radius/ppsk/{mac}": {Tag: "RADIUS", Summary: "Set a device's own Wi-Fi password",
+		Desc: "8-63 printable characters, sent as Tunnel-Password to access points that support it.", Body: typ[ppskRequest](), Resp: status},
+	"DELETE /api/v1/radius/ppsk/{mac}": {Tag: "RADIUS", Summary: "Remove a device's own Wi-Fi password", Resp: status},
+	"GET /api/v1/radius/certificates":  {Tag: "RADIUS", Summary: "Client certificates issued for EAP-TLS", Desc: "Query user: only that user's.", Resp: obj{{"certificates", typ[[]radius.IssuedCert]()}}},
+	"POST /api/v1/radius/users/{name}/certificate": {Tag: "RADIUS", Summary: "Issue an EAP-TLS client certificate",
+		Desc: "From the internal CA's root, common name = the user. The private key is only in this answer.", Body: typ[certRequest](), Resp: typ[radius.ClientCert](), Status: 201},
+	"POST /api/v1/radius/users/{name}/certificates/revoke": {Tag: "RADIUS", Summary: "Revoke a user's certificates",
+		Desc: "One (serial) or all; devices using them are refused at their next login.", Body: typ[certRevokeRequest](), Resp: obj{{"revoked", integer}}},
+	"GET /api/v1/vpn/sites/status": {Tag: "VPN", Summary: "Site-to-site tunnels: handshake, transfer, reachability",
+		Desc: "The running config's sites; reachable comes from a ping to each remote gate's tunnel address.",
+		Resp: obj{{"enabled", boolean}, {"address", str}, {"endpoint", str}, {"sites", typ[[]SiteStatus]()}}},
+	"GET /api/v1/vpn/sites/invitations": {Tag: "VPN", Summary: "Open site invitations", Resp: obj{{"invitations", typ[[]siteInviteView]()}}},
+	"POST /api/v1/vpn/sites/invitations": {Tag: "VPN", Summary: "Invite another gate as a site",
+		Desc: "Answers a one-time invitation code to paste on the other gate (Join a site). Turns sites on and picks this gate's tunnel address in the candidate when needed.",
+		Body: typ[siteInviteRequest](), Status: 201,
+		Resp: obj{{"id", str}, {"code", str}, {"site", str}, {"port", integer}, {"expires", str}, {"sites_enabled", boolean}}},
+	"DELETE /api/v1/vpn/sites/invitations/{id}": {Tag: "VPN", Summary: "Cancel a site invitation", Resp: status},
+	"POST /api/v1/vpn/sites/join/check": {Tag: "VPN", Summary: "Show what an invitation code brings", Desc: "Changes nothing; problems lists what stops the join.",
+		Body: typ[siteJoinRequest](), Resp: typ[SiteOffer]()},
+	"POST /api/v1/vpn/sites/join": {Tag: "VPN", Summary: "Join a site with its invitation code",
+		Desc: "Adds the inviting gate to the candidate (commit to activate) and answers the reply code to paste on it.",
+		Body: typ[siteJoinRequest](), Status: 201, Resp: obj{{"site", typ[config.Site]()}, {"reply", str}}},
+	"POST /api/v1/vpn/sites/accept": {Tag: "VPN", Summary: "Accept a reply code to one of this gate's invitations",
+		Body: typ[siteJoinRequest](), Status: 201, Resp: obj{{"site", typ[config.Site]()}}},
 	"GET /api/v1/vpn/wireguard-clients/{name}/public-key":  {Tag: "VPN", Summary: "The public key of a VPN-provider tunnel", Desc: "Generated on first use; register it with the provider.", Resp: obj{{"public_key", str}}},
 	"PUT /api/v1/vpn/wireguard-clients/{name}/private-key": {Tag: "VPN", Summary: "Set a VPN-provider tunnel's private key", Body: typ[privateKeyRequest](), Resp: obj{{"public_key", str}}},
 

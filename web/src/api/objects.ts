@@ -272,7 +272,7 @@ export interface Candidate {
   gateway_groups?: GatewayGroup[]
   routes?: Route[]
   default_gateway?: string
-  vpn?: { wireguard_clients?: WireGuardClient[] }
+  vpn?: { wireguard_clients?: WireGuardClient[]; wireguard?: { name: string; enabled?: boolean }[]; sites?: import('./sites').SitesSettings }
   ddns?: DDNS[]
   log_export?: LogExport[]
   nat?: { port_forwards?: { name: string; source?: string[]; ext_port?: string; to_addr?: string }[] }
@@ -281,6 +281,8 @@ export interface Candidate {
   crowdsec?: CrowdSecSettings
   ups?: UPSSettings
   flow_export?: FlowExportSettings
+  captive_portals?: import('./portal').CaptivePortal[]
+  radius?: import('./radius').RadiusConfig
   // Enabled plugins (config.Plugin): the capabilities the admin approved, so a
   // live address can check its plugin really has objects:write.
   plugins?: { name: string; enabled?: boolean; capabilities?: string[] }[]
@@ -288,6 +290,13 @@ export interface Candidate {
   ips?: { etpro_code?: string }
   reverse_proxy?: ReverseProxy
   internal_ca?: InternalCASettings
+  // single sign-on (config.SSO): client_secret comes back empty for callers
+  // that may not see secrets. Types in web/src/components/SSOSection.tsx.
+  sso?: import('../components/SSOSection').SSOSettings
+  // dynamic routing (config.DynamicRouting): a neighbour's password is a secret
+  // and comes back empty for callers that may not see it. Types in
+  // web/src/api/routing.ts.
+  routing?: import('./routing').RoutingConfig
 }
 
 // Reverse proxy (task 133/134): publishes LAN web services on public names

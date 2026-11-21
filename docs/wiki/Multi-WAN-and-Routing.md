@@ -25,4 +25,5 @@ WAN as failover.
 ## Static routes
 
 **Network → Static Routes**: a destination subnet via a gateway, for networks behind another router (a lab
-router, a site-to-site link).
+router, a site-to-site link). To learn such routes from the other routers instead, see
+[Dynamic routing: BGP and OSPF](Dynamic-Routing).

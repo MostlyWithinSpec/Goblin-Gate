@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/url"
+	"strings"
 )
 
 // RedactSecrets blanks the secrets in cfg: what a plugin or a read-only user
 // must not see, and what never leaves the box in the git history. Password
 // hashes, two-factor secrets, notification credentials (URLs can carry
 // webhook secrets), feed download headers (API keys of paid feeds), DDNS
-// tokens and update URLs, log export credentials, plugin secrets, and
+// tokens and update URLs, log export credentials, plugin secrets, the SSO
+// client secret, BGP passwords, and
 // credentials or tokens inside the mirror URLs. WireGuard private keys are not in the
 // config (they live in their own key directory).
 func RedactSecrets(cfg *Config) {
@@ -36,7 +38,20 @@ func RedactSecrets(cfg *Config) {
 	cfg.System.UpdateURL = redactURL(cfg.System.UpdateURL)
 	cfg.GeoIP.SourceURL = redactURL(cfg.GeoIP.SourceURL)
 	cfg.CrowdSec.APIKey = ""
+	cfg.SSO.ClientSecret = ""
+	for i := range cfg.Routing.BGP.Neighbors {
+		cfg.Routing.BGP.Neighbors[i].Password = ""
+	}
 	cfg.UPS.Password = ""
+	for i := range cfg.CaptivePortals {
+		cfg.CaptivePortals[i].Password = ""
+	}
+	for i := range cfg.RADIUS.Clients {
+		cfg.RADIUS.Clients[i].Secret = ""
+	}
+	for i := range cfg.RADIUS.Users {
+		cfg.RADIUS.Users[i].Password = ""
+	}
 	cfg.IPS.ETProCode = ""
 	for i := range cfg.Plugins {
 		cfg.Plugins[i].Secrets = nil
@@ -97,6 +112,16 @@ func KeepRedactedSecrets(prev, next *Config) {
 	if next.IPS.ETProCode == "" {
 		next.IPS.ETProCode = prev.IPS.ETProCode
 	}
+	// a BGP neighbour keeps its password while its entry is what the caller read
+	keepList(prev.Routing.BGP.Neighbors, red.Routing.BGP.Neighbors, next.Routing.BGP.Neighbors,
+		func(n *BGPNeighbor) string { return n.Address.String() }, func(n *BGPNeighbor) *bool { return &n.Enabled })
+	// a portal keeps its password while its entry is what the caller read
+	keepList(prev.CaptivePortals, red.CaptivePortals, next.CaptivePortals,
+		func(p *CaptivePortal) string { return p.Interface }, func(p *CaptivePortal) *bool { return &p.Enabled })
+	// RADIUS clients and users: an empty secret means "unchanged" (by name),
+	// so an entry can be edited without typing its secret again
+	keepSecret(prev.RADIUS.Clients, next.RADIUS.Clients, func(c *RADIUSClient) (string, *string) { return c.Name, &c.Secret })
+	keepSecret(prev.RADIUS.Users, next.RADIUS.Users, func(u *RADIUSUser) (string, *string) { return strings.ToLower(u.Name), &u.Password })
 	u := next.UPS
 	u.Enabled = red.UPS.Enabled
 	if u == red.UPS {
@@ -123,6 +148,22 @@ func keepList[T any](prev, red, next []T, name func(*T) string, enabled func(*T)
 			e := *enabled(&next[i])
 			next[i] = prev[j]
 			*enabled(&next[i]) = e
+		}
+	}
+}
+
+// keepSecret fills an empty secret of next[i] from the stored entry of the
+// same name.
+func keepSecret[T any](prev, next []T, field func(*T) (string, *string)) {
+	stored := map[string]string{}
+	for i := range prev {
+		name, sec := field(&prev[i])
+		stored[name] = *sec
+	}
+	for i := range next {
+		name, sec := field(&next[i])
+		if *sec == "" {
+			*sec = stored[name]
 		}
 	}
 }

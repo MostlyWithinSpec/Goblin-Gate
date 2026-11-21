@@ -59,7 +59,7 @@ export interface SaveResult {
   validation_errors: unknown[] | null
 }
 
-// The nine capabilities a plugin may ask for (docs/dev/plugins.md).
+// The capabilities a plugin may ask for (docs/dev/plugins.md).
 export const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   'events:read': 'Read the event log: traffic, IPS, DNS and system events.',
   'stats:read': 'Read statistics and run stats queries.',
@@ -69,7 +69,8 @@ export const CAPABILITY_DESCRIPTIONS: Record<string, string> = {
   'blocks:write': 'Add and remove temporary blocks.',
   'devices:read': 'Read the device inventory: MAC addresses, names, addresses and last seen.',
   'policies:toggle': 'Switch on and off the firewall policies you list for it.',
-  'objects:write': 'Set the members of the live addresses you give it, which your policies then match.'
+  'objects:write': 'Set the members of the live addresses you give it, which your policies then match.',
+  'devices:annotate': 'Show details next to your devices, such as the switch port or Wi-Fi network they are on. Read-only, never used to match traffic.'
 }
 
 export function getPlugins(): Promise<PluginsResponse> {

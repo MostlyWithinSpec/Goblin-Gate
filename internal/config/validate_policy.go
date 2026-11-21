@@ -22,6 +22,9 @@ func (v *validator) checkPolicies() {
 			intfRef[w.Name] = true
 		}
 	}
+	for _, s := range c.DirectSites() {
+		intfRef[s.Name] = true
+	}
 	addrRef := toSet(nameList(c.Addresses, func(x Address) string { return x.Name }),
 		nameList(c.AddressGroups, func(x AddressGroup) string { return x.Name }))
 	svcRef := toSet(nameList(c.Services, func(x Service) string { return x.Name }),

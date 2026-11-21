@@ -1,0 +1,28 @@
+{
+  "neighbors":{
+    "10.99.0.3":[
+      {
+        "priority":1,
+        "state":"Full\/Backup",
+        "nbrPriority":1,
+        "nbrState":"Full\/Backup",
+        "converged":"Full",
+        "role":"Backup",
+        "upTimeInMsec":11288,
+        "deadTimeMsecs":34088,
+        "routerDeadIntervalTimerDueMsec":34088,
+        "upTime":"11.288s",
+        "deadTime":"34.088s",
+        "address":"10.99.0.3",
+        "ifaceAddress":"10.99.0.3",
+        "ifaceName":"eth0:10.99.0.2",
+        "retransmitCounter":0,
+        "linkStateRetransmissionListCounter":0,
+        "requestCounter":0,
+        "linkStateRequestListCounter":0,
+        "dbSummaryCounter":0,
+        "databaseSummaryListCounter":0
+      }
+    ]
+  }
+}

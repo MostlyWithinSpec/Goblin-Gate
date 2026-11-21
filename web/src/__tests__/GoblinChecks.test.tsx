@@ -193,7 +193,9 @@ describe('Goblin Checks page', () => {
   })
 
   it('hides Dismiss and Restore for a read-only user', async () => {
-    vi.mocked(getMe).mockResolvedValue({ user: 'guest', role: 'readonly', method: 'session' })
+    // Task 150: the buttons follow the effective scopes (dismiss needs
+    // write:system), not the role name.
+    vi.mocked(getMe).mockResolvedValue({ user: 'guest', role: 'readonly', method: 'session', permissions: ['read'], full_admin: false })
     renderPage()
     const row = await screen.findByTestId('finding-wan-open:ssh:eth0')
     expect(within(row).queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()

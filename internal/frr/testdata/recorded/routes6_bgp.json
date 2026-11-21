@@ -1,0 +1,36 @@
+{
+  "fd20::/64":[
+    {
+      "prefix":"fd20::/64",
+      "prefixLen":64,
+      "protocol":"bgp",
+      "vrfId":0,
+      "vrfName":"default",
+      "selected":true,
+      "destSelected":true,
+      "distance":20,
+      "metric":0,
+      "installed":true,
+      "table":254,
+      "internalStatus":16,
+      "internalFlags":8,
+      "internalNextHopNum":1,
+      "internalNextHopActiveNum":1,
+      "nexthopGroupId":20,
+      "installedNexthopGroupId":20,
+      "uptime":"00:00:51",
+      "nexthops":[
+        {
+          "flags":3,
+          "fib":true,
+          "ip":"fe80::d00e:ccff:fe77:56de",
+          "afi":"ipv6",
+          "interfaceIndex":2,
+          "interfaceName":"eth0",
+          "active":true,
+          "weight":1
+        }
+      ]
+    }
+  ]
+}

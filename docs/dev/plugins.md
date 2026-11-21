@@ -67,6 +67,7 @@ A manifest that does not validate makes the plugin show as `invalid` with the re
 | `devices:read` | `GET /api/v1/devices` (the device inventory: MAC, addresses, names, last seen) |
 | `policies:toggle` | `GET /api/v1/plugin/policies`, `PUT /api/v1/plugin/policies/{id}` (see below) |
 | `objects:write` | `GET /api/v1/plugin/objects`, `PUT /api/v1/plugin/objects/{name}` (see below) |
+| `devices:annotate` | `GET /api/v1/plugin/devices/annotations`, `PUT /api/v1/plugin/devices/annotations` (see below) |
 
 Every plugin may call `GET /api/v1/plugin/self` (its own name, approved capabilities and settings)
 without a capability. Every other endpoint is refused with `403 scope_denied`, including everything that
@@ -113,6 +114,22 @@ the same members again changes nothing and is not logged, so a plugin may simply
 every poll. An object starts empty and matches nothing until its plugin fills it; renaming it or giving it
 to another plugin empties it. A plugin with `objects:write` decides who a policy on its objects matches, so
 give it objects only in policies you would let it steer.
+
+### Device annotations
+
+With `devices:annotate`, a plugin attaches a few named fields to devices of the inventory, such as the switch
+port or the Wi-Fi network a controller reports. The admin sees them next to the device, read-only, as
+coming from that plugin; nothing matches on them. `PUT /api/v1/plugin/devices/annotations {devices: {mac:
+{field: value}}}` replaces the plugin's whole set and answers `{devices, changed}`; an empty map clears it.
+`GET` returns the current set (`{devices, updated}`, MACs as 12 lowercase hex digits).
+
+At most 4096 devices with at most 8 fields each; field names are lowercase letters, digits and `_` (at most
+24), values at most 64 printable characters. MACs may be given in any common form. goblind refuses
+anything else (`400 invalid_annotations`) and more than 360 changes per hour per plugin (`429`); sending the
+same set again is free and not logged, every change is audited (`device_annotations_update`). Leave out
+values that change on every poll (signal strength, traffic counters): they are for what a device is and
+where it is. A plugin that is disabled or loses the capability has its annotations hidden at once and
+dropped at the next commit. In Go: `pluginsdk.Client.SetDeviceAnnotations`.
 
 ## Lifecycle
 

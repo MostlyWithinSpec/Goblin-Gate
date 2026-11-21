@@ -111,7 +111,38 @@ func EnsureKeys(dir string, cfg *config.Config) error {
 			return fmt.Errorf("wireguard client %s: %w", w.Name, err)
 		}
 	}
+	// site tunnels (task 155): the key was made when pairing; the preshared
+	// key only comes from a pairing
+	for _, s := range cfg.DirectSites() {
+		if _, err := EnsureKey(dir, config.SiteKeyName(s.Name)); err != nil {
+			return fmt.Errorf("site %s: %w", s.Name, err)
+		}
+		if _, err := os.Stat(PresharedKeyPath(dir, config.SiteKeyName(s.Name))); err != nil {
+			return fmt.Errorf("site %s has no preshared key on this gate (restored from another box?): remove it and pair the gates again", s.Name)
+		}
+	}
 	return nil
+}
+
+// PresharedKeyPath is a site tunnel's preshared key file.
+func PresharedKeyPath(dir, name string) string { return filepath.Join(dir, name+".psk") }
+
+// SetPresharedKey stores a tunnel's preshared key (base64) for networkd.
+func SetPresharedKey(dir, name, psk string) error {
+	if _, err := ParseKey(psk); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	shareWithNetworkd(dir)
+	path := PresharedKeyPath(dir, name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(psk+"\n"), 0o640); err != nil {
+		return err
+	}
+	shareWithNetworkd(tmp)
+	return os.Rename(tmp, path)
 }
 
 // SetKey stores a private key given by a VPN provider for the key file

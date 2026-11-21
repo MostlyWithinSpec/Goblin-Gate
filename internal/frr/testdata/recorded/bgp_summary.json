@@ -1,0 +1,88 @@
+{
+"ipv4Unicast":{
+  "routerId":"192.168.50.1",
+  "as":65001,
+  "vrfId":0,
+  "vrfName":"default",
+  "tableVersion":2,
+  "ribCount":3,
+  "ribMemory":576,
+  "peerCount":1,
+  "peerMemory":741464,
+  "peers":{
+    "10.99.0.3":{
+      "hostname":"peer",
+      "domainname":"Doom.local",
+      "remoteAs":65002,
+      "localAs":65001,
+      "version":4,
+      "msgRcvd":9,
+      "msgSent":8,
+      "tableVersion":0,
+      "outq":0,
+      "inq":0,
+      "peerUptime":"00:00:52",
+      "peerUptimeMsec":52000,
+      "peerUptimeEstablishedEpoch":1794854606,
+      "pfxRcd":1,
+      "pfxSnt":2,
+      "state":"Established",
+      "peerState":"OK",
+      "connectionsEstablished":1,
+      "connectionsDropped":0,
+      "desc":"lab peer",
+      "idType":"ipv4"
+    }
+  },
+  "failedPeers":0,
+  "displayedPeers":1,
+  "totalPeers":1,
+  "dynamicPeers":0,
+  "bestPath":{
+    "multiPathRelax":"false"
+  }
+}
+,
+"ipv6Unicast":{
+  "routerId":"192.168.50.1",
+  "as":65001,
+  "vrfId":0,
+  "vrfName":"default",
+  "tableVersion":1,
+  "ribCount":1,
+  "ribMemory":192,
+  "peerCount":1,
+  "peerMemory":741464,
+  "peers":{
+    "fd99::3":{
+      "hostname":"peer",
+      "domainname":"Doom.local",
+      "remoteAs":65002,
+      "localAs":65001,
+      "version":4,
+      "msgRcvd":7,
+      "msgSent":6,
+      "tableVersion":0,
+      "outq":0,
+      "inq":0,
+      "peerUptime":"00:00:52",
+      "peerUptimeMsec":52000,
+      "peerUptimeEstablishedEpoch":1794854606,
+      "pfxRcd":1,
+      "pfxSnt":1,
+      "state":"Established",
+      "peerState":"OK",
+      "connectionsEstablished":1,
+      "connectionsDropped":0,
+      "idType":"ipv6"
+    }
+  },
+  "failedPeers":0,
+  "displayedPeers":1,
+  "totalPeers":1,
+  "dynamicPeers":0,
+  "bestPath":{
+    "multiPathRelax":"false"
+  }
+}
+}

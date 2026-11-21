@@ -25,6 +25,10 @@ type Config struct {
 	Profiles      Profiles       `json:"profiles"`
 	Feeds         []Feed         `json:"feeds,omitempty"`
 	Admins        []Admin        `json:"admins"`
+	// Roles are custom admin roles: a name and the scopes it grants.
+	Roles []Role `json:"roles,omitempty"`
+	// SSO is single sign-on for the web UI with OpenID Connect.
+	SSO           SSO            `json:"sso,omitzero"`
 	VPN           VPN            `json:"vpn,omitzero"`
 	Notifications Notifications  `json:"notifications,omitzero"`
 	Schedules     []Schedule     `json:"schedules,omitempty"`
@@ -32,6 +36,8 @@ type Config struct {
 	Gateways      []Gateway      `json:"gateways,omitempty"`
 	GatewayGroups []GatewayGroup `json:"gateway_groups,omitempty"`
 	Routes        []Route        `json:"routes,omitempty"`
+	// Routing is dynamic routing: BGP and OSPF through FRR.
+	Routing DynamicRouting `json:"routing,omitzero"`
 	// DefaultGateway carries traffic no policy routes elsewhere (a gateway
 	// or group); "" = every gateway, failing over in list order.
 	DefaultGateway string `json:"default_gateway,omitempty"`
@@ -60,6 +66,12 @@ type Config struct {
 	// FlowExport sends sampled connections to a NetFlow v9 / IPFIX collector
 	// over UDP (task 144).
 	FlowExport FlowExport `json:"flow_export,omitzero"`
+	// CaptivePortals show a welcome page on guest networks before clients
+	// get out.
+	CaptivePortals []CaptivePortal `json:"captive_portals,omitempty"`
+	// RADIUS answers switches and access points: MAC authentication,
+	// 802.1X and the VLAN each device belongs in.
+	RADIUS RADIUS `json:"radius,omitzero"`
 
 	// AllowNoAdmin is a runtime flag, not part of the JSON document. The
 	// first-boot wizard sets it while no admin exists yet so Validate does not

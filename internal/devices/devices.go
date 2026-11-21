@@ -44,6 +44,8 @@ type Device struct {
 	LastSeen   time.Time `json:"last_seen"`
 	Name       string    `json:"name,omitempty"` // admin label
 	Randomized bool      `json:"randomized,omitempty"`
+	// VLAN is the VLAN (name) RADIUS puts the device in; "" = none of its own.
+	VLAN string `json:"vlan,omitempty"`
 }
 
 // Store persists the inventory as JSON (atomically) and refreshes it from
@@ -180,6 +182,45 @@ func (s *Store) SetName(mac, name string) (*Device, error) {
 	}
 	out := *d
 	return &out, nil
+}
+
+// SetVLAN sets the VLAN RADIUS gives the device ("" clears it). A MAC not
+// in the inventory yet (it never got an address) is added.
+func (s *Store) SetVLAN(mac, vlan string) (*Device, error) {
+	mac = dhcpdns.NormalizeMAC(mac)
+	if len(mac) != 12 {
+		return nil, fmt.Errorf("devices: invalid MAC address")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	d, ok := s.devices[mac]
+	if !ok {
+		now := time.Now()
+		if s.Now != nil {
+			now = s.Now()
+		}
+		d = &Device{MAC: mac, IPs: []string{}, FirstSeen: now, LastSeen: now}
+		s.devices[mac] = d
+	}
+	d.VLAN = vlan
+	if err := s.saveLocked(); err != nil {
+		return nil, err
+	}
+	out := *d
+	return &out, nil
+}
+
+// VLANOf returns the device's VLAN ("" when none or unknown).
+func (s *Store) VLANOf(mac string) string {
+	mac = dhcpdns.NormalizeMAC(mac)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadLocked()
+	if d, ok := s.devices[mac]; ok {
+		return d.VLAN
+	}
+	return ""
 }
 
 // Remove deletes a device (e.g. after the admin retires it).

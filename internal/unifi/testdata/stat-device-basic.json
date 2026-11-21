@@ -1,0 +1,5 @@
+{"meta":{"rc":"ok"},"data":[
+ {"mac":"02:00:00:00:00:01","state":1,"adopted":true,"disabled":false,"type":"usw","model":"USL8LP","name":"Office Switch","in_gateway_mode":false},
+ {"mac":"02:00:00:00:00:02","state":1,"adopted":true,"disabled":false,"type":"uap","model":"U6LR","name":"Hall AP","in_gateway_mode":false},
+ {"mac":"02:00:00:00:00:03","state":1,"adopted":true,"disabled":false,"type":"uap","model":"U6P","name":"","in_gateway_mode":false}
+]}

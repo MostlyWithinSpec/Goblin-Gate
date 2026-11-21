@@ -5,7 +5,8 @@ import { csrfToken } from './auth'
 
 export interface AdminInfo {
   username: string
-  role: 'admin' | 'readonly'
+  // role is "admin", "readonly" or a custom role name (task 149).
+  role: string
   has_password: boolean
   totp_enabled?: boolean
 }
@@ -74,6 +75,8 @@ export interface SessionInfo {
   id: string
   user: string
   role: string
+  // via is "sso" for a session that started with single sign-on (task 147).
+  via?: string
   addr: string
   user_agent: string
   created: string

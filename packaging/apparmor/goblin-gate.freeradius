@@ -1,0 +1,48 @@
+# Goblin Gate: AppArmor profile for FreeRADIUS, which answers the switches
+# and Wi-Fi access points (UDP 1812/1813). Debian's FreeRADIUS ships no
+# profile. goblin-radius.service runs it as user freerad with the
+# configuration goblind wrote, copied to /run/goblin-radius. It may read
+# that, its dictionaries, modules and OpenSSL's configuration, log to
+# stdout, ask goblind on loopback (HTTP) and use UDP. Nothing else: no
+# programs, no other files.
+abi <abi/3.0>,
+include <tunables/global>
+
+profile goblin-freeradius /usr/sbin/freeradius flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/nameservice>
+  include <abstractions/openssl>
+  include <abstractions/ssl_certs>
+
+  network inet dgram,
+  network inet6 dgram,
+  # rlm_rest: HTTP to goblind on 127.0.0.1
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+  network unix dgram,
+  network netlink raw,
+  signal (receive) peer=unconfined,
+
+  /usr/sbin/freeradius mr,
+  /usr/lib/freeradius/ r,
+  /usr/lib/freeradius/*.so mr,
+  /usr/share/freeradius/ r,
+  /usr/share/freeradius/** r,
+
+  /{var/,}run/goblin-radius/ r,
+  /{var/,}run/goblin-radius/** r,
+  # pid file and the control socket
+  /{var/,}run/goblin-radius/*.pid rwk,
+  /{var/,}run/goblin-radius/*.sock rwk,
+  /var/log/freeradius/ r,
+  /var/log/freeradius/** rw,
+
+  @{PROC}/sys/net/** r,
+  @{PROC}/sys/kernel/random/* r,
+  owner @{PROC}/@{pid}/** r,
+  @{PROC}/@{pid}/task/@{tid}/comm rw,
+  @{sys}/devices/system/cpu/** r,
+
+  include if exists <local/goblin-gate.freeradius>
+}

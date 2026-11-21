@@ -70,6 +70,8 @@ func (s *Server) PluginRoutes() http.Handler {
 	add("PUT /api/v1/plugin/policies/{id}", s.pluginSwitchPolicy)
 	add("GET /api/v1/plugin/objects", s.pluginLiveObjects)
 	add("PUT /api/v1/plugin/objects/{name}", s.pluginSetLiveObject)
+	add("GET /api/v1/plugin/devices/annotations", s.pluginAnnotations)
+	add("PUT /api/v1/plugin/devices/annotations", s.pluginSetAnnotations)
 	mux.Handle("/", s.pluginAuth("", "-", nil))
 	return s.middleware(mux)
 }

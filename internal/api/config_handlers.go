@@ -90,9 +90,9 @@ func (s *Server) patchCandidate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_patch", "give exactly one of value or delete:true", nil)
 		return
 	}
-	if id, ok := IdentityFrom(r); ok && id.Scopes != nil {
+	if id, ok := IdentityFrom(r); ok && id.Limited() {
 		if sc := configScope(req.Path); !allowedScope(id, sc) {
-			writeError(w, http.StatusForbidden, "forbidden", "this token lacks the scope to change "+req.Path, map[string]string{"needs": sc})
+			writeError(w, http.StatusForbidden, "forbidden", "not allowed to change "+req.Path, map[string]string{"needs": sc})
 			return
 		}
 	}
