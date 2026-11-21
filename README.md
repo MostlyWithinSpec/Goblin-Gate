@@ -34,7 +34,7 @@ boxes: policies with security profiles, intrusion prevention, web and DNS filter
 real dashboards, and a config you can diff, commit and roll back. All of it is open, all of it has an API, and
 nothing is hidden. Bring your own x86-64 box or a VM; there's no goblin hardware to buy.
 
-> ✅ **0.2.0 is the current stable release.** Every release runs as a home firewall before it reaches the stable
+> ✅ **0.3.0 is the current stable release.** Every release runs as a home firewall before it reaches the stable
 > channel, and the core features pass automated end-to-end tests on real VMs. It's still young: try it in a VM or on a spare box
 > first, keep your old firewall's config at hand while you switch, and [tell the goblin](../../issues/new/choose)
 > about anything odd.
@@ -165,12 +165,13 @@ Linux and VM tests: `scripts/linux-test.ps1`, `scripts/linux-e2e.ps1`, `scripts/
 
 ## What's next
 
-- **Now:** 0.2.0 stable, and the 0.3.0 betas on the beta channel. Fixes go to stable; new features land in the beta channel first.
-- **New in 0.2.0:** a reverse proxy with Let's Encrypt, Home Assistant integration, a built-in throughput test, a translatable web UI,
-  an OpenAPI description of the API.
-- **In the 0.3.0 betas:** a plugin SDK, Proxmox and Docker awareness, an internal certificate authority for the LAN,
-  NetFlow and IPFIX export, tighter AppArmor confinement. Still to come: measured benchmarks.
-- **Enterprise for free:** high availability, BGP and OSPF, single sign-on, a captive portal.
+- **Now:** 0.3.0 stable, and the 0.4.0 betas on the beta channel. Fixes go to stable; new features land in the beta channel first.
+- **New in 0.3.0:** a plugin SDK, Proxmox and Docker awareness, an internal certificate authority for the LAN,
+  NetFlow and IPFIX export, tighter AppArmor confinement.
+- **In the 0.4.0 betas:** single sign-on and custom admin roles, BGP and OSPF, site-to-site VPN between gates,
+  a captive portal, RADIUS with a VLAN per device, UniFi device details, and a Terraform / OpenTofu provider.
+  Still to come: measured benchmarks.
+- **Enterprise for free, next:** high availability.
 
 The full roadmap lives on the [project page](https://networkgoblin.dev/gate/).
 

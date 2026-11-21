@@ -68,6 +68,11 @@ type Manager struct {
 	Now     func() time.Time
 	// Self is the goblind binary started as the updater (default /usr/sbin/goblind).
 	Self string
+	// Sources is Goblin Gate's APT sources file (default DefaultSources) and
+	// AptCache apt's package cache (default DefaultAptCache): where a
+	// rollback copy is looked for when the channel no longer has it.
+	Sources  string
+	AptCache string
 
 	mu      sync.Mutex
 	cache   Status
@@ -292,22 +297,23 @@ func (m *Manager) Run(ctx context.Context, to string, includeOS bool) State {
 	os.RemoveAll(keep)
 	os.MkdirAll(keep, 0o750)
 	rollback := ""
+	saver := m.newSaver(ctx, keep)
+	defer saver.cleanup()
 	if from != "" {
-		if _, err := m.execIn(ctx, keep, "apt-get", "download", Package+"="+from); err == nil {
-			if debs, _ := filepath.Glob(filepath.Join(keep, Package+"_*.deb")); len(debs) == 1 {
-				rollback = debs[0]
-			}
+		if p, err := saver.save(Package, from); err == nil {
+			rollback = p
 		}
 	}
 	// first-party plugins move with goblin-gate and roll back with it
 	plugins := m.installedPlugins(ctx)
 	for pkg, v := range plugins {
-		if _, err := m.execIn(ctx, keep, "apt-get", "download", pkg+"="+v); err != nil {
-			m.logger().Warn("updates: plugin not saved for a rollback", "package", pkg, "version", v, "error", err)
-		}
+		saver.save(pkg, v) // logged; a plugin without a copy is not restored
 	}
 	if rollback == "" && to != "" {
-		return finish("failed", "the installed version "+from+" could not be saved for a rollback (is it still in the repository?); nothing was changed")
+		if saver.src.Suite == fullSuite {
+			return finish("failed", "the installed version "+from+" could not be found in the "+fullSuite+" channel or apt's cache to keep for a rollback; nothing was changed. Update from the console")
+		}
+		return finish("failed", from+" is not in the "+saver.channel()+" channel; nothing was changed. Switch to beta under System → Updates or update from the console")
 	}
 
 	// 2. Debian updates first (goblin-gate is held so it moves only in step 3)

@@ -30,6 +30,21 @@ beforeEach(() => {
 })
 
 describe('Updates page', () => {
+  test('a pre-release on the stable channel is told it waits for the next stable release', async () => {
+    vi.mocked(sys.getUpdates).mockResolvedValue({ installed: '0.3.0~beta.1', checked: '2026-11-20T12:00:00Z' })
+    wrap(<Updates />)
+    expect(await screen.findByRole('note')).toHaveTextContent('pre-release 0.3.0-beta.1. On the stable channel it moves only to the next stable release')
+    fireEvent.change(screen.getByLabelText('Update channel'), { target: { value: 'beta' } })
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  test('a stable release on the stable channel gets no pre-release hint', async () => {
+    vi.mocked(sys.getUpdates).mockResolvedValue({ installed: '0.2.0', checked: '2026-11-20T12:00:00Z' })
+    wrap(<Updates />)
+    expect(await screen.findByText('0.2.0')).toBeInTheDocument()
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
   test('a lagging plugin is offered as an update and named', async () => {
     vi.mocked(sys.getUpdates).mockResolvedValue({
       installed: '0.1.0~beta.8',

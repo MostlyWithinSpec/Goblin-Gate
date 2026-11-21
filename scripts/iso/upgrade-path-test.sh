@@ -13,9 +13,13 @@
 # version runs, the running config came through unchanged, a new commit works,
 # DNS and DHCP still answer, and the new APIs answer.
 #
-# Usage: upgrade-path-test.sh <iso> <old version> <new version>   (debs in /debs, key in /key)
+# With a fourth argument "prerelease-on-stable" the old version is a pre-release whose channel is
+# set to stable, and the stable suite carries only the new release: the updater must find its
+# rollback copy outside the channel (apt's cache or the beta suite) and still update.
+#
+# Usage: upgrade-path-test.sh <iso> <old version> <new version> [prerelease-on-stable]   (debs in /debs, key in /key)
 set -uo pipefail
-ISO=$1 OLD=$2 NEW=$3
+ISO=$1 OLD=$2 NEW=$3 MODE=${4:-}
 W=/work/upgrade
 A=$W/artifacts
 mkdir -p "$A"
@@ -45,7 +49,10 @@ REPO=/tmp/repo
 CHANNELS=beta
 case "$NEW" in *~*) ;; *) CHANNELS="stable beta" ;; esac
 for ch in $CHANNELS; do
-	APT_SIGNING_KEY="$(cat /key/test.asc)" bash /scripts/apt-repo.sh "$REPO" "$ch" "$(deb "$OLD")" "$(deb "$NEW")" ||
+	debs=("$(deb "$OLD")" "$(deb "$NEW")")
+	# stable never carried the pre-release
+	[ "$MODE" = prerelease-on-stable ] && [ "$ch" = stable ] && debs=("$(deb "$NEW")")
+	APT_SIGNING_KEY="$(cat /key/test.asc)" bash /scripts/apt-repo.sh "$REPO" "$ch" "${debs[@]}" ||
 		{ log "could not build the repository ($ch)"; exit 1; }
 done
 
@@ -140,6 +147,7 @@ patch dns '{"forwarders":["203.0.113.1"],"dnssec":false,"local_records":{"nas.ho
 patch system.update_url '"http://203.0.113.80:8000"'
 # a pre-release only reaches a box that follows beta
 case "$NEW" in *~*) patch system.update_channel '"beta"' ;; esac
+[ "$MODE" = prerelease-on-stable ] && patch system.update_channel '"stable"'
 patch vlans '[{"name":"iot","parent":"lan","vlan_id":20,"mode":"static","address":"192.168.20.1/24","enabled":true,"allow_access":["ping"]}]'
 patch addresses '[{"name":"nas","type":"host","value":"192.168.1.20"},{"name":"kid-tablet","type":"host","value":"192.168.1.140"},{"name":"lab","type":"subnet","value":"10.50.0.0/16"}]'
 patch address_groups '[{"name":"kids","members":["kid-tablet"]}]'
@@ -170,6 +178,10 @@ R=skipped; grep -q started "$A/apply.json" && R=$(wait_update 1200)
 log "update $OLD -> $NEW: $R"
 api GET /api/v1/system/updates >"$A/after.json"
 check update-done sh -c "test '$R' = done"
+if [ "$MODE" = prerelease-on-stable ]; then
+	# the update only starts once the rollback copy is saved; done = it was found outside the channel
+	check rollback-copy-saved sh -c "jq -e '.last.from == \"$OLD\" and (.last.message | test(\"not in the\") | not)' '$A/after.json'"
+fi
 check new-running retry 120 sh -c "test \"\$($CL curl -sk -m 10 -H 'Authorization: Bearer $TOKEN' $BOX/api/v1/system/status | jq -r .version)\" = '$NEW'"
 
 # --- the config came through: every section the old release wrote is the same

@@ -1,8 +1,10 @@
 package updates
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +23,9 @@ type fakeBox struct {
 	// first-party plugins: installed versions and what the channel has
 	plugins    map[string]string
 	pluginRepo map[string]string
+	// the full (beta) suite, reached only with the private APT options
+	betaRepo    map[string]bool
+	betaUpdated bool
 }
 
 func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...string) ([]byte, error) {
@@ -31,6 +36,27 @@ func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...str
 			return nil, errors.New("apt-get without the lock timeout: " + line)
 		}
 		args = args[2:]
+		private := false
+		for len(args) >= 2 && args[0] == "-o" {
+			if strings.HasPrefix(args[1], "Dir::Etc::SourceList=") {
+				private = true
+			}
+			args = args[2:]
+		}
+		if private {
+			return f.privateApt(env, args)
+		}
+	}
+	if name == "dpkg-deb" { // -f FILE Package Version: the fake .deb holds "pkg=version"
+		b, err := os.ReadFile(args[1])
+		if err != nil {
+			return nil, err
+		}
+		pkg, v, ok := strings.Cut(string(b), "=")
+		if !ok {
+			pkg, v = Package, string(b)
+		}
+		return []byte("Package: " + pkg + "\nVersion: " + v + "\n"), nil
 	}
 	if name == "dpkg-query" && strings.HasSuffix(args[len(args)-1], "*") {
 		var lines []string
@@ -111,6 +137,35 @@ func (f *fakeBox) exec(_ context.Context, env []string, name string, args ...str
 	return nil, nil
 }
 
+func pwd(env []string) string {
+	for _, e := range env {
+		if strings.HasPrefix(e, "PWD=") {
+			return strings.TrimPrefix(e, "PWD=")
+		}
+	}
+	return ""
+}
+
+func (f *fakeBox) privateApt(env []string, args []string) ([]byte, error) {
+	switch args[len(args)-1] {
+	case "update":
+		f.betaUpdated = true
+		return nil, nil
+	}
+	if args[0] != "download" || !f.betaUpdated {
+		return nil, errors.New("unexpected private apt " + strings.Join(args, " "))
+	}
+	pkg, v, _ := strings.Cut(args[1], "=")
+	if !f.betaRepo[v] {
+		return nil, errors.New("E: Version '" + v + "' for '" + pkg + "' was not found")
+	}
+	body := v
+	if pkg != Package {
+		body = args[1]
+	}
+	return nil, os.WriteFile(filepath.Join(pwd(env), pkg+"_"+v+"_amd64.deb"), []byte(body), 0o644)
+}
+
 func (f *fakeBox) health(context.Context) (string, error) {
 	if f.broken[f.installed] {
 		return "", errors.New("connection refused")
@@ -119,7 +174,9 @@ func (f *fakeBox) health(context.Context) (string, error) {
 }
 
 func manager(t *testing.T, f *fakeBox) *Manager {
-	return &Manager{Dir: t.TempDir(), Exec: f.exec, Health: f.health, Timeout: 50 * time.Millisecond, Poll: 5 * time.Millisecond}
+	dir := t.TempDir()
+	return &Manager{Dir: dir, Exec: f.exec, Health: f.health, Timeout: 50 * time.Millisecond, Poll: 5 * time.Millisecond,
+		Sources: filepath.Join(dir, "no.sources"), AptCache: filepath.Join(dir, "no-cache")}
 }
 
 func TestUpdateSucceeds(t *testing.T) {
@@ -255,5 +312,78 @@ func TestCheckForgottenAfterUpdate(t *testing.T) {
 	m.Run(context.Background(), "0.1.0~alpha.2", false)
 	if c := m.Cached(); c.Available != "" {
 		t.Fatalf("stale cache %+v", c)
+	}
+}
+
+// stableBox: a beta installed while the channel is stable (task 163).
+func stableBox(t *testing.T, f *fakeBox) (*Manager, *bytes.Buffer) {
+	m := manager(t, f)
+	m.Sources = filepath.Join(t.TempDir(), "goblin-gate.sources")
+	os.WriteFile(m.Sources, []byte("# Managed by Goblin Gate\nTypes: deb\nURIs: https://repo.example/apt\nSuites: stable\nComponents: main\nSigned-By: /usr/share/keyrings/goblin-gate-archive.gpg\n"), 0o644)
+	m.AptCache = t.TempDir()
+	var log bytes.Buffer
+	m.Logger = slog.New(slog.NewTextHandler(&log, nil))
+	return m, &log
+}
+
+func TestRollbackCopyFromChannel(t *testing.T) {
+	f := &fakeBox{installed: "0.2.0", repo: map[string]bool{"0.2.0": true, "0.2.1": true}}
+	m, _ := stableBox(t, f)
+	if s := m.Run(context.Background(), "0.2.1", false); s.State != "done" {
+		t.Fatalf("%+v", s)
+	}
+	if f.betaUpdated {
+		t.Error("full suite used although the channel had the version")
+	}
+}
+
+func TestRollbackCopyFromAptCache(t *testing.T) {
+	f := &fakeBox{installed: "0.2.0~beta.1", repo: map[string]bool{"0.2.0": true}, broken: map[string]bool{"0.2.0": true}}
+	m, log := stableBox(t, f)
+	// a file whose name lies is skipped; the right one is used
+	os.WriteFile(filepath.Join(m.AptCache, "goblin-gate_0.2.0~beta.1_arm64.deb"), []byte("0.1.9"), 0o644)
+	os.WriteFile(filepath.Join(m.AptCache, "goblin-gate_0.2.0~beta.1_amd64.deb"), []byte("0.2.0~beta.1"), 0o644)
+	s := m.Run(context.Background(), "0.2.0", false)
+	if s.State != "rolled_back" || f.installed != "0.2.0~beta.1" {
+		t.Fatalf("%+v installed=%s", s, f.installed)
+	}
+	if f.betaUpdated {
+		t.Error("full suite used although the cache had the version")
+	}
+	if !strings.Contains(log.String(), "package=goblin-gate") || !strings.Contains(log.String(), "was not found") {
+		t.Errorf("core download failure not logged:\n%s", log)
+	}
+}
+
+func TestRollbackCopyFromBetaSuite(t *testing.T) {
+	f := &fakeBox{installed: "0.2.0~beta.1", repo: map[string]bool{"0.2.0": true}, broken: map[string]bool{"0.2.0": true},
+		betaRepo:   map[string]bool{"0.2.0~beta.1": true, "0.1.0~beta.2": true},
+		plugins:    map[string]string{"goblin-gate-plugin-sentry": "0.1.0~beta.2"},
+		pluginRepo: map[string]string{"goblin-gate-plugin-sentry": "0.2.0"}}
+	m, _ := stableBox(t, f)
+	s := m.Run(context.Background(), "0.2.0", false)
+	if s.State != "rolled_back" || f.installed != "0.2.0~beta.1" || f.plugins["goblin-gate-plugin-sentry"] != "0.1.0~beta.2" {
+		t.Fatalf("%+v installed=%s plugins=%v", s, f.installed, f.plugins)
+	}
+	for _, c := range f.calls {
+		if strings.Contains(c, "SourceList=") && !strings.Contains(c, "Dir::State::Lists="+filepath.Join(m.Dir, "full-suite")) {
+			t.Errorf("private apt without its own lists: %s", c)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(m.Dir, "full-suite")); !os.IsNotExist(err) {
+		t.Error("private APT state left behind")
+	}
+}
+
+func TestRollbackCopyMissingEverywhere(t *testing.T) {
+	f := &fakeBox{installed: "0.2.0~beta.1", repo: map[string]bool{"0.2.0": true}, betaRepo: map[string]bool{}}
+	m, log := stableBox(t, f)
+	s := m.Run(context.Background(), "0.2.0", false)
+	want := "0.2.0~beta.1 is not in the stable channel; nothing was changed. Switch to beta under System → Updates or update from the console"
+	if s.State != "failed" || s.Message != want || f.installed != "0.2.0~beta.1" {
+		t.Fatalf("%+v", s)
+	}
+	if n := strings.Count(log.String(), "package=goblin-gate "); n != 3 {
+		t.Errorf("want 3 logged attempts for goblin-gate, got %d:\n%s", n, log)
 	}
 }

@@ -1911,6 +1911,7 @@
   "updates.osUpdatesPending_other": "{count} Debian package updates pending",
   "updates.pluginUpdates": "plugin updates",
   "updates.plugins": "Plugins",
+  "updates.preReleaseOnStable": "This box runs the pre-release {version}. On the stable channel it moves only to the next stable release; choose beta to get the next beta.",
   "updates.releaseNotes": "Release notes",
   "updates.restarting": "Goblin Gate is restarting…",
   "updates.resultDone": "Update complete",

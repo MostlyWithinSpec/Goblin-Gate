@@ -176,6 +176,11 @@ const Updates: React.FC = () => {
             {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </label>
+        {channel === 'stable' && status?.installed?.includes('~') && (
+          <p className="text-xs text-amber-700 dark:text-amber-400" role="note">
+            {t('updates.preReleaseOnStable', { version: displayVersion(status.installed) })}
+          </p>
+        )}
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={autoSecurity} onChange={(e) => setAutoSecurity(e.target.checked)} />
           <span>

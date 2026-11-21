@@ -11,14 +11,21 @@
   that the config came through and the box still works. Needs Docker Desktop, Node.js, git and
   internet. Artifacts are copied to dist/upgrade-path-artifacts.
 
+  -PreReleaseOnStable: the old version is a pre-release of the current tree (0.3.99~beta.1) on the
+  stable channel, updated to a stable build of it (0.3.99) that is the only version in stable: the
+  updater must save its rollback copy from apt's cache or the beta suite.
+
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/vm-upgrade-path-test.ps1
+.EXAMPLE
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/vm-upgrade-path-test.ps1 -PreReleaseOnStable
 #>
 [CmdletBinding()]
 param(
     [string]$FromTag = 'v0.1.0-beta.1',
     [string]$NewVersion = '0.1.0~beta.99',
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$PreReleaseOnStable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +35,11 @@ $path = Join-Path $work 'upgrade'
 $old = $FromTag.TrimStart('v') -replace '-', '~'
 # one checkout per tag: a checkout left by a run from another tag would be built under this tag's version
 $src = Join-Path $work "old-src-$FromTag"
+$mode = ''
+if ($PreReleaseOnStable) {
+    # both ends are the current tree: the updater that runs is the old version's
+    $old, $NewVersion, $src, $mode = '0.3.99~beta.1', '0.3.99', $Root, 'prerelease-on-stable'
+}
 $isoName = "goblin-gate-$old-amd64-unattended.iso"
 New-Item -ItemType Directory -Force (Join-Path $path 'debs'), (Join-Path $path 'key') | Out-Null
 if ($Rebuild) {
@@ -59,12 +71,12 @@ if (-not (Test-Path (Join-Path $keyDir 'test.asc'))) {
 }
 
 # the old release's source, at its tag
-if (-not (Test-Path (Join-Path $src '.git'))) {
+if (-not $PreReleaseOnStable -and -not (Test-Path (Join-Path $src '.git'))) {
     Remove-Item -Recurse -Force $src -ErrorAction SilentlyContinue
     git -C $Root worktree add -f --detach $src $FromTag | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "git worktree for $FromTag failed" }
 }
-if ((git -C $src rev-parse HEAD) -ne (git -C $Root rev-parse "$FromTag^{commit}")) { throw "$src is not at $FromTag" }
+if (-not $PreReleaseOnStable -and (git -C $src rev-parse HEAD) -ne (git -C $Root rev-parse "$FromTag^{commit}")) { throw "$src is not at $FromTag" }
 
 function Build-Deb([string]$Tree, [string]$Version) {
     if (Test-Path (Join-Path $path "debs\goblin-gate_$($Version)_amd64.deb")) { return }
@@ -97,7 +109,7 @@ if (-not (Test-Path (Join-Path $path "iso\$isoName"))) {
 $code = Invoke-Docker @('run', '--rm', '--privileged', '-v', '/lib/modules:/lib/modules:ro',
     '-v', "$(Join-Path $Root 'scripts\iso'):/s:ro", '-v', "$(Join-Path $Root 'scripts'):/scripts:ro",
     '-v', "$(Join-Path $path 'debs'):/debs:ro", '-v', "$(Join-Path $path 'key'):/key:ro", '-v', "$(Join-Path $path 'iso'):/iso:ro",
-    '-v', "${work}:/work", 'debian:12', 'bash', '/s/upgrade-path-test.sh', "/iso/$isoName", $old, $NewVersion)
+    '-v', "${work}:/work", 'debian:12', 'bash', '/s/upgrade-path-test.sh', "/iso/$isoName", $old, $NewVersion, $mode)
 
 $out = Join-Path $Root 'dist\upgrade-path-artifacts'
 Remove-Item -Recurse -Force $out -ErrorAction SilentlyContinue
